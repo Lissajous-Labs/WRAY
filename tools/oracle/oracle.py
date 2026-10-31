@@ -36,9 +36,9 @@ REFERENCE = {
 UNARY = ["exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid", "db_to_gain", "gain_to_db"]
 
 CONTRACTS = {
-    "f32": {"exp": 1.0, "exp2": 1.0, "log": 1.0, "log2": 1.5, "sin": 2.5, "cos": 2.5, "tan": 3.5, "atan": 2.0, "tanh": 1.5,
+    "f32": {"exp": 1.0, "exp2": 1.0, "log": 1.0, "log2": 1.5, "sin": 1.0, "cos": 1.0, "tan": 2.5, "atan": 2.0, "tanh": 1.5,
             "sigmoid": 2.5, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 2.0, "pow": 2.0},
-    "f64": {"exp": 1.0, "exp2": 1.0, "log": 1.0, "log2": 1.0, "sin": 2.5, "cos": 2.5, "tan": 4.0, "atan": 1.5, "tanh": 2.5,
+    "f64": {"exp": 1.0, "exp2": 1.0, "log": 1.0, "log2": 1.0, "sin": 1.0, "cos": 1.0, "tan": 2.5, "atan": 1.5, "tanh": 2.5,
             "sigmoid": 2.0, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.5, "pow": 1.5},
     "fast": {name: 2.0 ** -16 for name in ["exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid",
                                            "db_to_gain", "gain_to_db", "atan2", "pow"]},

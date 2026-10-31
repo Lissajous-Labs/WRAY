@@ -171,7 +171,8 @@ namespace wray::math
         static constexpr float sqrt_half = 0x1.6a09e6p-1f;
         static constexpr float pio2_1 = 0x1.922p+0f;
         static constexpr float pio2_2 = -0x1.2aep-18f;
-        static constexpr float pio2_3 = -0x1.de973ep-31f;
+        static constexpr float pio2_3 = -0x1.deap-31f;
+        static constexpr float pio2_4 = 0x1.184698p-44f;
         static constexpr float two_over_pi = 0x1.45f306p-1f;
         static constexpr float pi_hi = 0x1.921fb6p+1f;
         static constexpr float pi_lo = -0x1.777a5cp-24f;

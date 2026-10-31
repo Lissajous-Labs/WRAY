@@ -74,12 +74,15 @@ def split(value, bits_hi, total_bits):
         return hi, lo
 
 
-def split3(value, bits, total_bits):
+def split_n(value, bits, total_bits, n):
     with mp.workdps(DPS):
-        p1 = round_to(value, bits)
-        p2 = round_to(value - p1, bits)
-        p3 = round_to(value - p1 - p2, total_bits)
-        return p1, p2, p3
+        parts = []
+        rest = mp.mpf(value)
+        for _ in range(n - 1):
+            parts.append(round_to(rest, bits))
+            rest -= parts[-1]
+        parts.append(round_to(rest, total_bits))
+        return parts
 
 
 def constants(ctype):
@@ -88,7 +91,7 @@ def constants(ctype):
         ln2 = mp.log(2)
         ln2_hi, ln2_lo = split(ln2, 16 if ctype == "float" else 42, total)
         pio2 = mp.pi / 2
-        pio2_1, pio2_2, pio2_3 = split3(pio2, 12 if ctype == "float" else 31, total)
+        pio2_parts = split_n(pio2, 12, total, 4) if ctype == "float" else split_n(pio2, 31, total, 3)
         pi_hi, pi_lo = split(mp.pi, total, total)
         pio2_hi, pio2_lo = split(pio2, total, total)
         if ctype == "float":
@@ -107,12 +110,13 @@ def constants(ctype):
             trig_k_max = mp.mpf(2) ** 22
             tanh_clamp = mp.mpf(cores.TANH_CLAMP["f64"])
             tanh_clamp_fast = tanh_clamp
+        pio2_terms = {f"pio2_{i + 1}": p for i, p in enumerate(pio2_parts)}
         return {
             "ln2": ln2, "ln2_hi": ln2_hi, "ln2_lo": ln2_lo, "inv_ln2": 1 / ln2,
             "inv_ln2_hi": split(1 / ln2, total, total)[0], "inv_ln2_lo": split(1 / ln2, total, total)[1],
             "veltkamp": mp.mpf(2) ** (12 if ctype == "float" else 27) + 1,
             "sqrt2": mp.sqrt(2), "sqrt_half": mp.sqrt(mp.mpf(1) / 2),
-            "pio2_1": pio2_1, "pio2_2": pio2_2, "pio2_3": pio2_3, "two_over_pi": 2 / mp.pi,
+            **pio2_terms, "two_over_pi": 2 / mp.pi,
             "pi_hi": pi_hi, "pi_lo": pi_lo, "pio2_hi": pio2_hi, "pio2_lo": pio2_lo,
             "max_arg": round_to(max_arg, total), "min_arg": round_to(min_arg, total),
             "exp2_max": exp2_max, "exp2_min": exp2_min, "trig_arg_max": trig_k_max * pio2,

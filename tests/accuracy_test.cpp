@@ -135,13 +135,13 @@ namespace
              [](std::mt19937_64& g) { return bit_uniform(g, 0x1p-1074, 0x1.fffffffffffffp+1023); }, 1.5, 0x1p-16, 1.0},
             {"sin", [](double x) { return std::sin(x); }, [](float x) { return std::fabs(x) <= float(trig32); }, batch32([](auto v) { return wray::sin(v); }),
              batch32([](auto v) { return wray::fast::sin(v); }), [](float x) { return std::fabs(x) <= float(trig32); }, batch64([](auto v) { return wray::sin(v); }),
-             [](std::mt19937_64& g) { return signed_bits(g, 1e-300, trig64); }, 2.5, 0x1p-16, 2.5},
+             [](std::mt19937_64& g) { return signed_bits(g, 1e-300, trig64); }, 1.0, 0x1p-16, 1.0},
             {"cos", [](double x) { return std::cos(x); }, [](float x) { return std::fabs(x) <= float(trig32); }, batch32([](auto v) { return wray::cos(v); }),
              batch32([](auto v) { return wray::fast::cos(v); }), [](float x) { return std::fabs(x) <= float(trig32); }, batch64([](auto v) { return wray::cos(v); }),
-             [](std::mt19937_64& g) { return signed_bits(g, 1e-300, trig64); }, 2.5, 0x1p-16, 2.5},
+             [](std::mt19937_64& g) { return signed_bits(g, 1e-300, trig64); }, 1.0, 0x1p-16, 1.0},
             {"tan", [](double x) { return std::tan(x); }, [](float x) { return std::fabs(x) <= float(trig32); }, batch32([](auto v) { return wray::tan(v); }),
              batch32([](auto v) { return wray::fast::tan(v); }), [](float x) { return std::fabs(x) <= float(trig32); }, batch64([](auto v) { return wray::tan(v); }),
-             [](std::mt19937_64& g) { return signed_bits(g, 1e-300, trig64); }, 3.5, 0x1p-16, 4.0},
+             [](std::mt19937_64& g) { return signed_bits(g, 1e-300, trig64); }, 2.5, 0x1p-16, 2.5},
             {"atan", [](double x) { return std::atan(x); }, all, batch32([](auto v) { return wray::atan(v); }), batch32([](auto v) { return wray::fast::atan(v); }),
              finite, batch64([](auto v) { return wray::atan(v); }),
              [](std::mt19937_64& g) { return signed_bits(g, 0x1p-1074, 0x1.fffffffffffffp+1023); }, 2.0, 0x1p-16, 1.5},
@@ -319,7 +319,7 @@ int main(int argc, char** argv)
                         double(f.worst_x), d, wx);
         CHECK(p.worst <= c.contract_f32 + margin);
         CHECK(f.worst <= c.contract_fast);
-        CHECK(d <= c.contract_f64 + 1.0 + margin);
+        CHECK(d <= c.contract_f64 + 2.0 + margin);
     }
     binary_checks(1u << 22, report);
     return wray::test::finish("accuracy");

@@ -478,35 +478,65 @@ namespace wray::math::detail
     template<class V>
     struct reduced
     {
-        V r;
+        V hi;
+        V lo;
         integer_t<V> q;
     };
 
-    template<class V>
+    template<class Tier, class V>
     WRAY_INLINE reduced<V> reduce_pio2(const V &x) noexcept
     {
-        using K = constants<scalar_t<V> >;
+        using S = scalar_t<V>;
+        using K = constants<S>;
         const V y = x * V(K::two_over_pi);
         const V kf = round_nearest(y);
-        V r = fma(-kf, V(K::pio2_1), x);
-        r = fma(-kf, V(K::pio2_2), r);
-        r = fma(-kf, V(K::pio2_3), r);
-        return {r, to_integer(kf)};
+        constexpr bool four = std::is_same_v<S, float>;
+        const V r1 = fma(-kf, V(K::pio2_1), x);
+        const V c1 = kf * V(K::pio2_2);
+        const V c2 = kf * V(K::pio2_3);
+        const V mid = r1 - c1;
+        const V hi = mid - c2;
+        if constexpr (full<Tier>)
+        {
+            V e1 = (r1 - mid) - c1;
+            if constexpr (four)
+                e1 = fma(-kf, V(K::pio2_4), e1);
+            const V back = hi - mid;
+            const V e2 = (mid - (hi - back)) - (c2 + back);
+            return {hi, e1 + e2, to_integer(kf)};
+        } else if constexpr (four)
+            return {fma(-kf, V(K::pio2_4), hi), V(S(0)), to_integer(kf)};
+        else
+            return {hi, V(S(0)), to_integer(kf)};
     }
 
     template<class Tier, class V>
-    WRAY_INLINE sincos_result<V> trig_core(const V &r) noexcept
+    WRAY_INLINE sincos_result<V> trig_core(const reduced<V> &red) noexcept
     {
         using S = scalar_t<V>;
         using Cs = typename table<Tier, S>::sin;
         using Cc = typename table<Tier, S>::cos;
+        const V r = red.hi;
         const V t = r * r;
         const V rt = r * t;
         const V tt = t * t;
-        const V s = fma(rt, numerics::rational<Cs>(t), r);
-        const V c0 = fma(t, V(S(-0.5)), V(S(1)));
-        const V c = fma(tt, numerics::rational<Cc>(t), c0);
-        return {s, c};
+        const V ps = numerics::rational<Cs>(t);
+        const V pc = numerics::rational<Cc>(t);
+        if constexpr (full<Tier>)
+        {
+            const V h = t * V(S(0.5));
+            const V s = r + (fma(rt, ps, red.lo) - h * red.lo);
+            const V w = fma(t, V(S(-0.5)), V(S(1)));
+            const V werr = (V(S(1)) - w) - h;
+            const V c = w + (fma(tt, pc, werr) - r * red.lo);
+            return {s, c};
+        } else
+        {
+            const V s = fma(rt, ps, r);
+            const V c0 = fma(t, V(S(-0.5)), V(S(1)));
+            const V c = fma(tt, pc, c0);
+            return {s, c};
+        }
     }
 
     template<class Tier, class V>
@@ -541,24 +571,24 @@ namespace wray::math::detail
     template<class Tier, class V>
     WRAY_INLINE V sin(const V &x) noexcept
     {
-        const auto red = reduce_pio2(x);
-        return keep_zero<Tier>(x, orient(trig_core<Tier>(red.r), red.q, trig_unit<Tier>(x)));
+        const auto red = reduce_pio2<Tier>(x);
+        return keep_zero<Tier>(x, orient(trig_core<Tier>(red), red.q, trig_unit<Tier>(x)));
     }
 
     template<class Tier, class V>
     WRAY_INLINE V cos(const V &x) noexcept
     {
         using I = integer_t<V>;
-        const auto red = reduce_pio2(x);
-        return orient(trig_core<Tier>(red.r), red.q + I(1), trig_unit<Tier>(x));
+        const auto red = reduce_pio2<Tier>(x);
+        return orient(trig_core<Tier>(red), red.q + I(1), trig_unit<Tier>(x));
     }
 
     template<class Tier, class V>
     WRAY_INLINE sincos_result<V> sincos(const V &x) noexcept
     {
         using I = integer_t<V>;
-        const auto red = reduce_pio2(x);
-        const auto p = trig_core<Tier>(red.r);
+        const auto red = reduce_pio2<Tier>(x);
+        const auto p = trig_core<Tier>(red);
         const V unit = trig_unit<Tier>(x);
         return {keep_zero<Tier>(x, orient(p, red.q, unit)), orient(p, red.q + I(1), unit)};
     }
@@ -569,14 +599,14 @@ namespace wray::math::detail
         using S = scalar_t<V>;
         using I = integer_t<V>;
         using C = typename table<Tier, S>::tan;
-        const auto red = reduce_pio2(x);
-        const V r = red.r;
+        const auto red = reduce_pio2<Tier>(x);
+        const V r = red.hi;
         const V t = r * r;
         const auto odd = nonzero(red.q & I(1));
         if constexpr (full<Tier>)
         {
             const V rt = r * t;
-            const V v = fma(rt, numerics::rational<C>(t), r);
+            const V v = r + fma(rt, numerics::rational<C>(t), red.lo);
             const V c = V(S(-1)) / v;
             return keep_zero<Tier>(x, select(odd, c, v) * trig_unit<Tier>(x));
         } else
