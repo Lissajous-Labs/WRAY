@@ -32,19 +32,23 @@ namespace wray::numerics
                 level[i] = simd::fma(V(c[O + 2 * i + 1]), x, V(c[O + 2 * i]));
             if constexpr (n % 2 == 1)
                 level[n / 2] = V(c[M - 1]);
-            V power = x * x;
-            std::size_t count = (n + 1) / 2;
-            while (count > 1)
+            const auto reduce = [&level]<std::size_t N>(this auto &&self, const V &power) -> V
             {
-                std::size_t next = (count + 1) / 2;
-                for (std::size_t i = 0; i < count / 2; ++i)
-                    level[i] = simd::fma(level[2 * i + 1], power, level[2 * i]);
-                if (count % 2 == 1)
-                    level[count / 2] = level[count - 1];
-                power = power * power;
-                count = next;
-            }
-            return level[0];
+                if constexpr (N == 1)
+                    return level[0];
+                else
+                {
+                    for (std::size_t i = 0; i < N / 2; ++i)
+                        level[i] = simd::fma(level[2 * i + 1], power, level[2 * i]);
+                    if constexpr (N % 2 == 1)
+                        level[N / 2] = level[N - 1];
+                    if constexpr (N == 2)
+                        return level[0];
+                    else
+                        return self.template operator()<(N + 1) / 2>(power * power);
+                }
+            };
+            return reduce.template operator()<(n + 1) / 2>(x * x);
         }
     }
 

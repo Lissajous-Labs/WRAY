@@ -40,6 +40,7 @@ Builds without FMA (baseline SSE2) get 0.5 ulp more. Trig is reduced exactly for
 - Every `float` input (all 2^32 bit patterns) for each unary function, against a double-precision reference: `wray_accuracy_test --exhaustive`.
 - Every function and tier against mpmath at 40 digits: `tools/oracle/oracle.py --check`.
 - Bit-identical scalar and SIMD results, special values, and the SIMD layer itself, on NEON, SSE2 and the scalar backend.
+- Polynomial reduction uses compile-time level sizes, including odd-length tails, without disabling compiler bounds diagnostics.
 
 ```sh
 cmake -S . -B build -G Ninja && cmake --build build && ctest --test-dir build
