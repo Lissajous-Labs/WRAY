@@ -9,6 +9,7 @@
 #include <functional>
 #include <limits>
 #include <random>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -235,7 +236,7 @@ namespace
         return worst;
     }
 
-    void binary_checks(std::size_t samples, bool report)
+    void binary_checks(std::size_t samples, bool report, bool with_atan2, bool with_pow)
     {
         std::mt19937_64 g(9);
         std::vector<float> y(samples), x(samples), out(samples), fout(samples);
@@ -259,11 +260,11 @@ namespace
             wf = std::max(wf, std::min(error_rel(double(fout[i]), r), af));
             w64 = std::max(w64, error_ulp(outd[i], std::atan2(yd[i], xd[i]), 53, -1022));
         }
-        if (report)
+        if (report && with_atan2)
             std::printf("%-11s f32 %8.3f ulp   fast %.3e   f64 %8.3f ulp (vs libm)\n", "atan2", w32, wf, w64);
-        CHECK(w32 <= 2.0 + margin);
-        CHECK(wf <= 0x1p-16);
-        CHECK(w64 <= 2.5 + margin);
+        CHECK(!with_atan2 || w32 <= 2.0 + margin);
+        CHECK(!with_atan2 || wf <= 0x1p-16);
+        CHECK(!with_atan2 || w64 <= 2.5 + margin);
 
         for (std::size_t i = 0; i < samples; ++i)
         {
@@ -285,11 +286,11 @@ namespace
                 wf = std::max(wf, error_rel(double(fout[i]), r) / (1.0 + z));
             w64 = std::max(w64, error_ulp(outd[i], std::pow(xd[i], yd[i]), 53, -1022));
         }
-        if (report)
+        if (report && with_pow)
             std::printf("%-11s f32 %8.3f ulp   fast %.3e   f64 %8.3f ulp (vs libm)\n", "pow", w32, wf, w64);
-        CHECK(w32 <= 2.0 + margin);
-        CHECK(wf <= 0x1p-16);
-        CHECK(w64 <= 2.5 + margin);
+        CHECK(!with_pow || w32 <= 2.0 + margin);
+        CHECK(!with_pow || wf <= 0x1p-16);
+        CHECK(!with_pow || w64 <= 2.5 + margin);
     }
 }
 
@@ -298,8 +299,12 @@ int main(int argc, char** argv)
     std::uint64_t stride = 61;
     std::size_t samples64 = 1u << 22;
     bool report = false;
+    std::vector<std::string> only;
     for (int i = 1; i < argc; ++i)
     {
+        if (std::strcmp(argv[i], "--only") == 0)
+            while (i + 1 < argc && argv[i + 1][0] != '-')
+                only.emplace_back(argv[++i]);
         if (std::strcmp(argv[i], "--exhaustive") == 0)
         {
             stride = 1;
@@ -308,8 +313,11 @@ int main(int argc, char** argv)
         if (std::strcmp(argv[i], "--report") == 0)
             report = true;
     }
+    const auto selected = [&only](const char* name) { return only.empty() || std::ranges::find(only, name) != only.end(); };
     for (const auto& c : cases())
     {
+        if (!selected(c.name))
+            continue;
         const auto p = sweep_f32(c, c.precise, false, stride, c.domain);
         const auto f = sweep_f32(c, c.fast, true, stride, c.fast_domain);
         double wx = 0.0;
@@ -321,6 +329,6 @@ int main(int argc, char** argv)
         CHECK(f.worst <= c.contract_fast);
         CHECK(d <= c.contract_f64 + 2.0 + margin);
     }
-    binary_checks(1u << 22, report);
+    binary_checks(1u << 22, report, selected("atan2"), selected("pow"));
     return wray::test::finish("accuracy");
 }
