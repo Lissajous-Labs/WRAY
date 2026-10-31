@@ -1,0 +1,88 @@
+import mpmath as mp
+
+
+def _limit(fn, at_zero):
+    def g(x):
+        x = mp.mpf(x)
+        return at_zero() if x == 0 else fn(x)
+    return g
+
+
+def exp_core(r):
+    return mp.expm1(r) / r
+
+
+def log_core(t):
+    s = mp.sqrt(t)
+    return 2 * mp.atanh(s) / s
+
+
+def log2_core(t):
+    return log_core(t) / mp.log(2)
+
+
+def sin_core(t):
+    s = mp.sqrt(t)
+    return (mp.sin(s) - s) / (s * t)
+
+
+def cos_core(t):
+    return (mp.cos(mp.sqrt(t)) - 1 + t / 2) / (t * t)
+
+
+def tan_core(t):
+    s = mp.sqrt(t)
+    return mp.tan(s) / s
+
+
+def tanh_core(t):
+    s = mp.sqrt(t)
+    return mp.tanh(s) / s
+
+
+def atan_core(t):
+    s = mp.sqrt(t)
+    return mp.atan(s) / s
+def log_tail(t):
+    return (log_core(t) - 2) / t
+
+
+def tan_tail(t):
+    return (tan_core(t) - 1) / t
+
+
+def atan_tail(t):
+    return (atan_core(t) - 1) / t
+
+
+def tanh_tail(t):
+    return (tanh_core(t) - 1) / t
+
+
+
+
+def ln2_half():
+    return mp.log(2) / 2
+
+
+def log_t():
+    return ((mp.sqrt(2) - 1) / (mp.sqrt(2) + 1)) ** 2
+
+
+def pi4_sq():
+    return (mp.pi / 4) ** 2
+
+
+TANH_CLAMP = {"f32": "9.25", "f64": "19.25", "fast": "5.9"}
+
+CORES = {
+    "exp": dict(g=_limit(exp_core, lambda: mp.mpf(1)), interval=lambda tier: (-ln2_half(), ln2_half())),
+    "log": dict(g=_limit(log_tail, lambda: mp.mpf(2) / 3), interval=lambda tier: (0, log_t())),
+    "sin": dict(g=_limit(sin_core, lambda: mp.mpf(-1) / 6), interval=lambda tier: (0, pi4_sq())),
+    "cos": dict(g=_limit(cos_core, lambda: mp.mpf(1) / 24), interval=lambda tier: (0, pi4_sq())),
+    "tan": dict(g=_limit(tan_tail, lambda: mp.mpf(1) / 3), interval=lambda tier: (0, pi4_sq())),
+    "tan_unit": dict(g=_limit(tan_core, lambda: mp.mpf(1)), interval=lambda tier: (0, pi4_sq())),
+    "atan": dict(g=_limit(atan_tail, lambda: mp.mpf(-1) / 3), interval=lambda tier: (0, 1)),
+    "tanh": dict(g=_limit(tanh_tail, lambda: mp.mpf(-1) / 3), interval=lambda tier: (0, mp.mpf("0.390625"))),
+    "tanh_range": dict(g=_limit(tanh_core, lambda: mp.mpf(1)), interval=lambda tier: (0, mp.mpf(TANH_CLAMP[tier]) ** 2)),
+}

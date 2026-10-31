@@ -1,0 +1,227 @@
+#pragma once
+
+#include <array>
+
+namespace wray::math::coeff
+{
+    struct atan_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 9> p{ -0x1.555554p-2f, 0x1.999852p-3f, -0x1.246e9ap-3f, 0x1.c40dp-4f, -0x1.62ffa4p-4f, 0x1.00de7cp-4f, -0x1.27dca2p-5f, 0x1.bf7a64p-7f, -0x1.3da97cp-9f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct atan_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 7> p{ -0x1.5555555555555p-2, -0x1.a3aa5a027e4a2p-1, -0x1.74c6b09f73451p-1, -0x1.218ff26aa3f3bp-2, -0x1.7677da0a23466p-5, -0x1.2a6d2f0040b27p-9, -0x1.52160ceea18f8p-19 };
+        static constexpr std::array<double, 7> q{ 0x1p+0, 0x1.878c904eab841p+1, 0x1.cba786efeed4ap+1, 0x1.033d092575e52p+1, 0x1.1ed5c85748ce4p-1, 0x1.1892558136281p-4, 0x1.5b7e723a6390ap-9 };
+    };
+
+    struct atan_fast
+    {
+        using value_type = float;
+        static constexpr std::array<float, 7> p{ -0x1.55552cp-2f, 0x1.997942p-3f, -0x1.226a7ep-3f, 0x1.aa6e36p-4f, -0x1.1343c4p-4f, 0x1.ed8e72p-6f, -0x1.a59a0ep-8f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct cos_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 3> p{ 0x1.555554p-5f, -0x1.6c12dp-10f, 0x1.9bd72cp-16f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct cos_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 6> p{ 0x1.5555555555555p-5, -0x1.6c16c16c16962p-10, 0x1.a01a019f4dca3p-16, -0x1.27e4fa16d5722p-22, 0x1.1eeb67f7fe4c8p-29, -0x1.907d070e3b1bfp-37 };
+        static constexpr std::array<double, 1> q{ 0x1p+0 };
+    };
+
+    struct cos_fast
+    {
+        using value_type = float;
+        static constexpr std::array<float, 2> p{ 0x1.5552dcp-5f, -0x1.681876p-10f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct exp_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 6> p{ 0x1p+0f, 0x1.fffffep-2f, 0x1.55547ep-3f, 0x1.555652p-5f, 0x1.123cd6p-7f, 0x1.6c16a6p-10f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct exp_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 11> p{ 0x1p+0, 0x1.0000000000005p-1, 0x1.555555555553p-3, 0x1.555555555211dp-5, 0x1.111111111a24ep-7, 0x1.6c16c17f29c8dp-10, 0x1.a01a0171064a5p-13, 0x1.a019a6b2464c5p-16, 0x1.71de8e6486d6bp-19, 0x1.28a27e30f5561p-22, 0x1.ae6449c0686b1p-26 };
+        static constexpr std::array<double, 1> q{ 0x1p+0 };
+    };
+
+    struct exp_fast
+    {
+        using value_type = float;
+        static constexpr std::array<float, 4> p{ 0x1.fffe0cp-1f, 0x1.0001a4p-1f, 0x1.5761dep-3f, 0x1.55552ap-5f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct log_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 3> p{ 0x1.55555cp-1f, 0x1.997c26p-2f, 0x1.2ee78ap-2f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct log_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 7> p{ 0x1.5555555555558p-1, 0x1.99999999952a7p-2, 0x1.2492492df708p-2, 0x1.c71c62defbc08p-3, 0x1.7462b65697063p-3, 0x1.39fe2df00adfap-3, 0x1.2b5a8673095a6p-3 };
+        static constexpr std::array<double, 1> q{ 0x1p+0 };
+    };
+
+    struct log_fast
+    {
+        using value_type = float;
+        static constexpr std::array<float, 2> p{ 0x1.55512cp-1f, 0x1.a26506p-2f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct sin_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 3> p{ -0x1.555552p-3f, 0x1.110c22p-7f, -0x1.9ac6d8p-13f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct sin_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 6> p{ -0x1.5555555555555p-3, 0x1.1111111110ba5p-7, -0x1.a01a019e80e58p-13, 0x1.71de3793660e8p-19, -0x1.ae60081aa0821p-26, 0x1.5e0a28e64bcc3p-33 };
+        static constexpr std::array<double, 1> q{ 0x1p+0 };
+    };
+
+    struct sin_fast
+    {
+        using value_type = float;
+        static constexpr std::array<float, 2> p{ -0x1.55506p-3f, 0x1.0d1336p-7f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct tan_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 7> p{ 0x1.555556p-2f, 0x1.111088p-3f, 0x1.ba52a8p-5f, 0x1.623ccep-6f, 0x1.467574p-7f, 0x1.368096p-10f, 0x1.f7c9ep-9f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct tan_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 4> p{ 0x1.5555555555555p-2, -0x1.5f4ac0a642804p-6, 0x1.00b406b5670fbp-12, -0x1.32e6f7b83fa8ep-26 };
+        static constexpr std::array<double, 4> q{ 0x1p+0, -0x1.db779db8c6119p-2, 0x1.926030f8ce96cp-6, -0x1.0c6559eb2ca66p-12 };
+    };
+
+    struct tan_unit_fast
+    {
+        using value_type = float;
+        static constexpr std::array<float, 2> p{ 0x1.00006p+0f, -0x1.189d4ap-4f };
+        static constexpr std::array<float, 2> q{ 0x1p+0f, -0x1.9b553p-2f };
+    };
+
+    struct tanh_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 5> p{ -0x1.555552p-2f, 0x1.110e1ep-3f, -0x1.b925a2p-5f, 0x1.58054cp-6f, -0x1.8f91b4p-8f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct tanh_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 4> p{ -0x1.5555555555555p-2, -0x1.5ef506ed1a94ep-6, -0x1.ff53d96c31d54p-13, -0x1.2c1dff260e4fep-26 };
+        static constexpr std::array<double, 4> q{ 0x1p+0, 0x1.db678ae60e958p-2, 0x1.91ecd8e2a71f9p-6, 0x1.0b450ff775464p-12 };
+    };
+
+    struct tanh_range_fast
+    {
+        using value_type = float;
+        static constexpr std::array<float, 4> p{ 0x1.fffe9p-1f, 0x1.c0b9a8p-4f, 0x1.0b733ap-10f, -0x1.5d001ep-19f };
+        static constexpr std::array<float, 3> q{ 0x1p+0f, 0x1.c57038p-2f, 0x1.f7e174p-7f };
+    };
+}
+
+namespace wray::math
+{
+    template <class T>
+    struct constants;
+
+    template <>
+    struct constants<float>
+    {
+        static constexpr float ln2 = 0x1.62e43p-1f;
+        static constexpr float ln2_hi = 0x1.62e4p-1f;
+        static constexpr float ln2_lo = 0x1.7f7d1cp-20f;
+        static constexpr float inv_ln2 = 0x1.715476p+0f;
+        static constexpr float inv_ln2_hi = 0x1.715476p+0f;
+        static constexpr float inv_ln2_lo = 0x1.4ae0cp-26f;
+        static constexpr float veltkamp = 0x1.001p+12f;
+        static constexpr float sqrt2 = 0x1.6a09e6p+0f;
+        static constexpr float sqrt_half = 0x1.6a09e6p-1f;
+        static constexpr float pio2_1 = 0x1.922p+0f;
+        static constexpr float pio2_2 = -0x1.2aep-18f;
+        static constexpr float pio2_3 = -0x1.de973ep-31f;
+        static constexpr float two_over_pi = 0x1.45f306p-1f;
+        static constexpr float pi_hi = 0x1.921fb6p+1f;
+        static constexpr float pi_lo = -0x1.777a5cp-24f;
+        static constexpr float pio2_hi = 0x1.921fb6p+0f;
+        static constexpr float pio2_lo = -0x1.777a5cp-25f;
+        static constexpr float max_arg = 0x1.62e43p+6f;
+        static constexpr float min_arg = -0x1.9fe368p+6f;
+        static constexpr float exp2_max = 0x1p+7f;
+        static constexpr float exp2_min = -0x1.2cp+7f;
+        static constexpr float trig_arg_max = 0x1.921fb6p+12f;
+        static constexpr float tanh_clamp = 0x1.28p+3f;
+        static constexpr float tanh_clamp_fast = 0x1.79999ap+2f;
+        static constexpr float tanh_switch = 0x1.4p-1f;
+        static constexpr float db_per_log2 = 0x1.815182p+2f;
+        static constexpr float log2_per_db = 0x1.542a5ap-3f;
+        static constexpr float log2_per_db_hi = 0x1.542a5ap-3f;
+        static constexpr float log2_per_db_lo = 0x1.2e1c5ap-31f;
+    };
+
+    template <>
+    struct constants<double>
+    {
+        static constexpr double ln2 = 0x1.62e42fefa39efp-1;
+        static constexpr double ln2_hi = 0x1.62e42fefa38p-1;
+        static constexpr double ln2_lo = 0x1.ef35793c7673p-45;
+        static constexpr double inv_ln2 = 0x1.71547652b82fep+0;
+        static constexpr double inv_ln2_hi = 0x1.71547652b82fep+0;
+        static constexpr double inv_ln2_lo = 0x1.777d0ffda0d24p-56;
+        static constexpr double veltkamp = 0x1.0000002p+27;
+        static constexpr double sqrt2 = 0x1.6a09e667f3bcdp+0;
+        static constexpr double sqrt_half = 0x1.6a09e667f3bcdp-1;
+        static constexpr double pio2_1 = 0x1.921fb544p+0;
+        static constexpr double pio2_2 = 0x1.0b4611a8p-34;
+        static constexpr double pio2_3 = -0x1.d9cceba3f91f2p-66;
+        static constexpr double two_over_pi = 0x1.45f306dc9c883p-1;
+        static constexpr double pi_hi = 0x1.921fb54442d18p+1;
+        static constexpr double pi_lo = 0x1.1a62633145c07p-53;
+        static constexpr double pio2_hi = 0x1.921fb54442d18p+0;
+        static constexpr double pio2_lo = 0x1.1a62633145c07p-54;
+        static constexpr double max_arg = 0x1.62e42fefa39efp+9;
+        static constexpr double min_arg = -0x1.74910d52d3052p+9;
+        static constexpr double exp2_max = 0x1p+10;
+        static constexpr double exp2_min = -0x1.0ccp+10;
+        static constexpr double trig_arg_max = 0x1.921fb54442d18p+22;
+        static constexpr double tanh_clamp = 0x1.34p+4;
+        static constexpr double tanh_clamp_fast = 0x1.34p+4;
+        static constexpr double tanh_switch = 0x1.4p-1;
+        static constexpr double db_per_log2 = 0x1.8151824c7587fp+2;
+        static constexpr double log2_per_db = 0x1.542a5a12e1c5bp-3;
+        static constexpr double log2_per_db_hi = 0x1.542a5a12e1c5bp-3;
+        static constexpr double log2_per_db_lo = -0x1.33e2bb36cd142p-57;
+    };
+}
