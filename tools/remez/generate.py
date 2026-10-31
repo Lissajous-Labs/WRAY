@@ -120,6 +120,10 @@ def constants(ctype):
             "db_per_log2": 20 * mp.log10(2), "log2_per_db": mp.log(10, 2) / 20,
             "log2_per_db_hi": split(mp.log(10, 2) / 20, total, total)[0],
             "log2_per_db_lo": split(mp.log(10, 2) / 20, total, total)[1],
+            "db_per_log2_hi": split(20 * mp.log10(2), 16 if ctype == "float" else 42, total)[0],
+            "db_per_log2_lo": split(20 * mp.log10(2), 16 if ctype == "float" else 42, total)[1],
+            "db_per_ln_hi": split(20 / mp.log(10), total, total)[0],
+            "db_per_ln_lo": split(20 / mp.log(10), total, total)[1],
         }
 
 

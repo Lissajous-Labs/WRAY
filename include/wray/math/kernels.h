@@ -759,13 +759,20 @@ namespace wray::math::detail
         }
     }
 
+    template<class V>
+    WRAY_INLINE V db_combine(const log_parts<V> &p) noexcept
+    {
+        using K = constants<scalar_t<V> >;
+        const V inner = fma(p.hi, V(K::db_per_ln_lo), p.lo * V(K::db_per_ln_hi));
+        const V v = fma(p.hi, V(K::db_per_ln_hi), inner);
+        const V small = fma(p.e, V(K::db_per_log2_lo), v);
+        return fma(p.e, V(K::db_per_log2_hi), small);
+    }
+
     template<class Tier, class V>
     V gain_to_db_edge(const V &gain) noexcept
     {
-        using K = constants<scalar_t<V> >;
-        const auto l = log2_pair_combine(log_reduce<Tier, true>(gain));
-        const V lo = l.lo * V(K::db_per_log2);
-        return log_specials(gain, fma(l.hi, V(K::db_per_log2), lo));
+        return log_specials(gain, db_combine(log_reduce<Tier, true>(gain)));
     }
 
     template<class Tier, class V>
@@ -776,9 +783,7 @@ namespace wray::math::detail
         {
             if (simd::any(!log_regular_mask(gain)))
                 return gain_to_db_edge<Tier>(gain);
-            const auto l = log2_pair_combine(log_reduce<Tier, false>(gain));
-            const V lo = l.lo * V(K::db_per_log2);
-            return fma(l.hi, V(K::db_per_log2), lo);
+            return db_combine(log_reduce<Tier, false>(gain));
         } else
         {
             const V l = log2<Tier>(gain);

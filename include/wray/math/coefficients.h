@@ -189,6 +189,10 @@ namespace wray::math
         static constexpr float log2_per_db = 0x1.542a5ap-3f;
         static constexpr float log2_per_db_hi = 0x1.542a5ap-3f;
         static constexpr float log2_per_db_lo = 0x1.2e1c5ap-31f;
+        static constexpr float db_per_log2_hi = 0x1.8152p+2f;
+        static constexpr float db_per_log2_lo = -0x1.f6ce2ap-16f;
+        static constexpr float db_per_ln_hi = 0x1.15f2cep+3f;
+        static constexpr float db_per_ln_lo = 0x1.a709e6p-22f;
     };
 
     template <>
@@ -223,5 +227,9 @@ namespace wray::math
         static constexpr double log2_per_db = 0x1.542a5a12e1c5bp-3;
         static constexpr double log2_per_db_hi = 0x1.542a5a12e1c5bp-3;
         static constexpr double log2_per_db_lo = -0x1.33e2bb36cd142p-57;
+        static constexpr double db_per_log2_hi = 0x1.8151824c758p+2;
+        static constexpr double db_per_log2_lo = 0x1.fabf59b5d80b8p-44;
+        static constexpr double db_per_ln_hi = 0x1.15f2ced384f29p+3;
+        static constexpr double db_per_ln_lo = -0x1.02bea6b55233cp-52;
     };
 }
