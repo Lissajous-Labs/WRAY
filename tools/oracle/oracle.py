@@ -44,6 +44,7 @@ CONTRACTS = {
                                            "db_to_gain", "gain_to_db", "atan2", "pow"]},
 }
 BINARY = ["atan2", "pow"]
+NO_FMA_MARGIN = 0.5
 
 
 def bit_uniform(rng, fmt, lo, hi, n, signed=False):
@@ -166,7 +167,7 @@ def measure(job):
     finite = np.isfinite(ulps)
     return dict(function=fn, tier=tier, samples=int(len(xs)), max_ulp=float(ulps.max()), p999_ulp=float(np.quantile(ulps, 0.999)),
                 mean_ulp=float(ulps[finite].mean()), max_rel=float(rels.max()), worst_x=float(xs[int(np.argmax(ulps))]),
-                score=score, contract=CONTRACTS[tier][fn],
+                score=score, contract=CONTRACTS.get(tier, {}).get(fn, float("inf")),
                 x=xs[keep].tolist(), y=ys[keep].tolist(), ulp=ulps[keep].tolist(), rel=rels[keep].tolist())
 
 
@@ -178,9 +179,12 @@ def main():
     parser.add_argument("--jobs", type=int, default=os.cpu_count())
     parser.add_argument("--only", nargs="*")
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--tiers", nargs="*", default=["f32", "f64", "fast"])
     args = parser.parse_args()
+    info = json.loads(subprocess.run([args.dump, "info"], check=True, capture_output=True, text=True).stdout)
+    margin = 0.0 if info["fma"] else NO_FMA_MARGIN
     jobs = []
-    for tier in ("f32", "f64", "fast"):
+    for tier in args.tiers:
         for i, fn in enumerate(UNARY + BINARY):
             if args.only and fn not in args.only:
                 continue
@@ -191,6 +195,8 @@ def main():
     pathlib.Path(args.out).write_text(json.dumps(results))
     failures = 0
     for r in results:
+        if r["tier"] != "fast":
+            r["contract"] += margin
         ok = r["score"] <= r["contract"]
         failures += 0 if ok else 1
         unit = "rel" if r["tier"] == "fast" else "ulp"

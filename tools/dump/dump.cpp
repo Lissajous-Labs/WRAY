@@ -150,9 +150,14 @@ namespace
 
 int main(int argc, char** argv)
 {
+    if (argc == 2 && std::strcmp(argv[1], "info") == 0)
+    {
+        std::printf("{\"fma\": %s}\n", WRAY_HAS_FMA ? "true" : "false");
+        return 0;
+    }
     if (argc != 6)
     {
-        std::fprintf(stderr, "usage: wray_dump <function> <f32|f64|fast> <scalar|vector> <in> <out>\n");
+        std::fprintf(stderr, "usage: wray_dump info | wray_dump <function> <f32|f64|fast> <scalar|vector> <in> <out>\n");
         return 2;
     }
     const std::string fn = argv[1];
