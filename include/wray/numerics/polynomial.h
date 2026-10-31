@@ -19,20 +19,21 @@ namespace wray::numerics
         return acc;
     }
 
-    template<class V, class T, std::size_t M>
-    WRAY_INLINE V estrin(const std::array<T, M> &c, const V &x) noexcept
+    template<std::size_t O, class V, class T, std::size_t M>
+    WRAY_INLINE V estrin_from(const std::array<T, M> &c, const V &x) noexcept
     {
-        if constexpr (M == 1)
-            return V(c[0]);
+        constexpr std::size_t n = M - O;
+        if constexpr (n == 1)
+            return V(c[O]);
         else
         {
-            std::array<V, (M + 1) / 2> level;
-            for (std::size_t i = 0; i < M / 2; ++i)
-                level[i] = simd::fma(V(c[2 * i + 1]), x, V(c[2 * i]));
-            if constexpr (M % 2 == 1)
-                level[M / 2] = V(c[M - 1]);
+            std::array<V, (n + 1) / 2> level;
+            for (std::size_t i = 0; i < n / 2; ++i)
+                level[i] = simd::fma(V(c[O + 2 * i + 1]), x, V(c[O + 2 * i]));
+            if constexpr (n % 2 == 1)
+                level[n / 2] = V(c[M - 1]);
             V power = x * x;
-            std::size_t count = (M + 1) / 2;
+            std::size_t count = (n + 1) / 2;
             while (count > 1)
             {
                 std::size_t next = (count + 1) / 2;
@@ -47,6 +48,21 @@ namespace wray::numerics
         }
     }
 
+    template<class V, class T, std::size_t M>
+    WRAY_INLINE V estrin(const std::array<T, M> &c, const V &x) noexcept
+    {
+        return estrin_from<0>(c, x);
+    }
+
+    template<class V, class T, std::size_t M>
+    WRAY_INLINE V polynomial(const std::array<T, M> &c, const V &x) noexcept
+    {
+        if constexpr (M < 5)
+            return horner(c, x);
+        else
+            return simd::fma(estrin_from<1>(c, x), x, V(c[0]));
+    }
+
     template<class C>
     inline constexpr bool is_polynomial = C::q.size() == 1;
 
@@ -54,9 +70,9 @@ namespace wray::numerics
     WRAY_INLINE V rational(const V &x) noexcept
     {
         if constexpr (is_polynomial<C>)
-            return horner(C::p, x);
+            return polynomial(C::p, x);
         else
-            return horner(C::p, x) / horner(C::q, x);
+            return polynomial(C::p, x) / polynomial(C::q, x);
     }
 
     template<class V>
@@ -70,8 +86,8 @@ namespace wray::numerics
     WRAY_INLINE fraction<V> rational_parts(const V &x) noexcept
     {
         if constexpr (is_polynomial<C>)
-            return {horner(C::p, x), V(typename C::value_type(1))};
+            return {polynomial(C::p, x), V(typename C::value_type(1))};
         else
-            return {horner(C::p, x), horner(C::q, x)};
+            return {polynomial(C::p, x), polynomial(C::q, x)};
     }
 }

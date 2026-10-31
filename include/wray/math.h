@@ -68,54 +68,90 @@ namespace wray::math
                      std::span<const T>(std::ranges::data(b), std::ranges::size(b)),
                      std::span<T>(std::ranges::data(out), std::ranges::size(out)), f);
     }
+
+    template<class T>
+    using carrier = std::conditional_t<(simd::register_bytes >= 16), simd::vec<T, 16 / static_cast<int>(sizeof(T))>, T>;
+
+    template<class V>
+    inline constexpr bool lifted = std::is_floating_point_v<V> && !std::is_same_v<carrier<V>, V>;
+
+    template<class V, class F>
+    WRAY_INLINE V lift(const V &x, F f) noexcept
+    {
+        if constexpr (lifted<V>)
+            return simd::first(f(carrier<V>(x)));
+        else
+            return f(x);
+    }
+
+    template<class V, class F>
+    WRAY_INLINE V lift(const V &a, const V &b, F f) noexcept
+    {
+        if constexpr (lifted<V>)
+            return simd::first(f(carrier<V>(a), carrier<V>(b)));
+        else
+            return f(a, b);
+    }
+
+    template<class V, class F>
+    WRAY_INLINE sincos_result<V> lift_pair(const V &x, F f) noexcept
+    {
+        if constexpr (lifted<V>)
+        {
+            const auto r = f(carrier<V>(x));
+            return {simd::first(r.sin), simd::first(r.cos)};
+        }
+        else
+            return f(x);
+    }
 }
 
 namespace wray
 {
     template<simd::real V>
-    WRAY_INLINE V exp(const V &x) noexcept { return math::detail::exp<math::precise>(x); }
+    WRAY_INLINE V exp(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::exp<math::precise>(v); }); }
 
     template<simd::real V>
-    WRAY_INLINE V exp2(const V &x) noexcept { return math::detail::exp2<math::precise>(x); }
+    WRAY_INLINE V exp2(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::exp2<math::precise>(v); }); }
 
     template<simd::real V>
-    WRAY_INLINE V log(const V &x) noexcept { return math::detail::log<math::precise>(x); }
+    WRAY_INLINE V log(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::log<math::precise>(v); }); }
 
     template<simd::real V>
-    WRAY_INLINE V log2(const V &x) noexcept { return math::detail::log2<math::precise>(x); }
+    WRAY_INLINE V log2(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::log2<math::precise>(v); }); }
 
     template<simd::real V>
-    WRAY_INLINE V sin(const V &x) noexcept { return math::detail::sin<math::precise>(x); }
+    WRAY_INLINE V sin(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::sin<math::precise>(v); }); }
 
     template<simd::real V>
-    WRAY_INLINE V cos(const V &x) noexcept { return math::detail::cos<math::precise>(x); }
+    WRAY_INLINE V cos(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::cos<math::precise>(v); }); }
 
     template<simd::real V>
-    WRAY_INLINE math::sincos_result<V> sincos(const V &x) noexcept { return math::detail::sincos<math::precise>(x); }
+    WRAY_INLINE math::sincos_result<V> sincos(const V &x) noexcept { return math::lift_pair(x, [](const auto &v) { return math::detail::sincos<math::precise>(v); }); }
 
     template<simd::real V>
-    WRAY_INLINE V tan(const V &x) noexcept { return math::detail::tan<math::precise>(x); }
+    WRAY_INLINE V tan(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::tan<math::precise>(v); }); }
 
     template<simd::real V>
-    WRAY_INLINE V atan(const V &x) noexcept { return math::detail::atan<math::precise>(x); }
+    WRAY_INLINE V atan(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::atan<math::precise>(v); }); }
 
     template<simd::real V>
-    WRAY_INLINE V atan2(const V &y, const V &x) noexcept { return math::detail::atan2<math::precise>(y, x); }
+    WRAY_INLINE V atan2(const V &y, const V &x) noexcept { return math::lift(y, x, [](const auto &a, const auto &b) { return math::detail::atan2<math::precise>(a, b); }); }
 
     template<simd::real V>
-    WRAY_INLINE V tanh(const V &x) noexcept { return math::detail::tanh<math::precise>(x); }
+    WRAY_INLINE V tanh(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::tanh<math::precise>(v); }); }
 
     template<simd::real V>
-    WRAY_INLINE V sigmoid(const V &x) noexcept { return math::detail::sigmoid<math::precise>(x); }
+    WRAY_INLINE V sigmoid(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::sigmoid<math::precise>(v); }); }
 
     template<simd::real V>
-    WRAY_INLINE V pow(const V &x, const V &y) noexcept { return math::detail::pow<math::precise>(x, y); }
+    WRAY_INLINE V pow(const V &x, const V &y) noexcept { return math::lift(x, y, [](const auto &a, const auto &b) { return math::detail::pow<math::precise>(a, b); }); }
 
     template<simd::real V>
-    WRAY_INLINE V db_to_gain(const V &x) noexcept { return math::detail::db_to_gain<math::precise>(x); }
+    WRAY_INLINE V db_to_gain(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::db_to_gain<math::precise>(v); }); }
 
     template<simd::real V>
-    WRAY_INLINE V gain_to_db(const V &x) noexcept { return math::detail::gain_to_db<math::precise>(x); }
+    WRAY_INLINE V gain_to_db(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::gain_to_db<math::precise>(v); }); }
 
     template<math::real_range In, class Out>
     void exp(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::exp(v); }); }
@@ -178,49 +214,49 @@ namespace wray::fast
     concept single = std::is_same_v<simd::scalar_t<V>, float>;
 
     template<single V>
-    WRAY_INLINE V exp(const V &x) noexcept { return math::detail::exp<math::fast>(x); }
+    WRAY_INLINE V exp(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::exp<math::fast>(v); }); }
 
     template<single V>
-    WRAY_INLINE V exp2(const V &x) noexcept { return math::detail::exp2<math::fast>(x); }
+    WRAY_INLINE V exp2(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::exp2<math::fast>(v); }); }
 
     template<single V>
-    WRAY_INLINE V log(const V &x) noexcept { return math::detail::log<math::fast>(x); }
+    WRAY_INLINE V log(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::log<math::fast>(v); }); }
 
     template<single V>
-    WRAY_INLINE V log2(const V &x) noexcept { return math::detail::log2<math::fast>(x); }
+    WRAY_INLINE V log2(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::log2<math::fast>(v); }); }
 
     template<single V>
-    WRAY_INLINE V sin(const V &x) noexcept { return math::detail::sin<math::fast>(x); }
+    WRAY_INLINE V sin(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::sin<math::fast>(v); }); }
 
     template<single V>
-    WRAY_INLINE V cos(const V &x) noexcept { return math::detail::cos<math::fast>(x); }
+    WRAY_INLINE V cos(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::cos<math::fast>(v); }); }
 
     template<single V>
-    WRAY_INLINE math::sincos_result<V> sincos(const V &x) noexcept { return math::detail::sincos<math::fast>(x); }
+    WRAY_INLINE math::sincos_result<V> sincos(const V &x) noexcept { return math::lift_pair(x, [](const auto &v) { return math::detail::sincos<math::fast>(v); }); }
 
     template<single V>
-    WRAY_INLINE V tan(const V &x) noexcept { return math::detail::tan<math::fast>(x); }
+    WRAY_INLINE V tan(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::tan<math::fast>(v); }); }
 
     template<single V>
-    WRAY_INLINE V atan(const V &x) noexcept { return math::detail::atan<math::fast>(x); }
+    WRAY_INLINE V atan(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::atan<math::fast>(v); }); }
 
     template<single V>
-    WRAY_INLINE V atan2(const V &y, const V &x) noexcept { return math::detail::atan2<math::fast>(y, x); }
+    WRAY_INLINE V atan2(const V &y, const V &x) noexcept { return math::lift(y, x, [](const auto &a, const auto &b) { return math::detail::atan2<math::fast>(a, b); }); }
 
     template<single V>
-    WRAY_INLINE V tanh(const V &x) noexcept { return math::detail::tanh<math::fast>(x); }
+    WRAY_INLINE V tanh(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::tanh<math::fast>(v); }); }
 
     template<single V>
-    WRAY_INLINE V sigmoid(const V &x) noexcept { return math::detail::sigmoid<math::fast>(x); }
+    WRAY_INLINE V sigmoid(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::sigmoid<math::fast>(v); }); }
 
     template<single V>
-    WRAY_INLINE V pow(const V &x, const V &y) noexcept { return math::detail::pow<math::fast>(x, y); }
+    WRAY_INLINE V pow(const V &x, const V &y) noexcept { return math::lift(x, y, [](const auto &a, const auto &b) { return math::detail::pow<math::fast>(a, b); }); }
 
     template<single V>
-    WRAY_INLINE V db_to_gain(const V &x) noexcept { return math::detail::db_to_gain<math::fast>(x); }
+    WRAY_INLINE V db_to_gain(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::db_to_gain<math::fast>(v); }); }
 
     template<single V>
-    WRAY_INLINE V gain_to_db(const V &x) noexcept { return math::detail::gain_to_db<math::fast>(x); }
+    WRAY_INLINE V gain_to_db(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::gain_to_db<math::fast>(v); }); }
 
     template<math::real_range In, class Out>
     void exp(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return fast::exp(v); }); }

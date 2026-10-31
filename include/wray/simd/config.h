@@ -13,6 +13,9 @@
 #if defined(__AVX512F__)
 #define WRAY_SIMD_AVX512 1
 #endif
+#if defined(__SSE4_1__)
+#include <smmintrin.h>
+#endif
 #if defined(__FMA__) || defined(__AVX2__) || defined(__AVX512F__)
 #include <immintrin.h>
 #endif

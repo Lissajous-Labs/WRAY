@@ -76,6 +76,14 @@ namespace
             lanes(va, vb, [](V x, V y) { return max(x, y); }, [](T x, T y) { return x < y ? y : x; });
             lanes(va, vb, [](V x, V) { return abs(x); }, [](T x, T) { return std::fabs(x); });
             lanes(va, vb, [](V x, V) { return sqrt(abs(x)); }, [](T x, T) { return std::sqrt(std::fabs(x)); });
+            T h[n];
+            for (int i = 0; i < n; ++i)
+                h[i] = (i + iter) % 2 == 0 ? std::trunc(a[i]) + std::copysign(T(0.5), a[i]) : a[i];
+            const V rounded = nearest(V::load(h));
+            for (int i = 0; i < n; ++i)
+                CHECK(rounded[i] == std::nearbyint(h[i]));
+            CHECK(same<T>(first(va), a[0]));
+            CHECK(same<T>(nearest(h[0]), rounded[0]));
             const V f = fma(va, vb, vc);
             for (int i = 0; i < n; ++i)
                 CHECK(same<T>(f[i], wray::simd::fma(a[i], b[i], c[i])));

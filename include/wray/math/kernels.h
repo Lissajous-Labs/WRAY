@@ -160,9 +160,7 @@ namespace wray::math::detail
     template<class V>
     WRAY_INLINE V round_nearest(const V &x) noexcept
     {
-        const V m(format<scalar_t<V> >::magic);
-        const V y = x + m;
-        return y - m;
+        return simd::nearest(x);
     }
 
     template<class V>
@@ -237,13 +235,6 @@ namespace wray::math::detail
         return y * pow2(k2);
     }
 
-    template<class V>
-    WRAY_INLINE V scale_bits(const V &p, const V &kf) noexcept
-    {
-        using F = format<scalar_t<V> >;
-        return from_bits<V>(as_bits(p) + shift_left(to_integer(kf), F::mantissa));
-    }
-
     template<class Tier, class V>
     WRAY_INLINE V exp_poly(const V &r) noexcept
     {
@@ -268,7 +259,7 @@ namespace wray::math::detail
     WRAY_INLINE V exp_regular(const V &x) noexcept
     {
         const auto red = exp_reduce(x);
-        return scale_bits(exp_poly<Tier>(red.hi), red.lo);
+        return exp_poly<Tier>(red.hi) * pow2(red.lo);
     }
 
     template<class Tier, class V>
@@ -330,7 +321,7 @@ namespace wray::math::detail
             if (simd::any(!(abs(hi) < V(format<S>::exp2_safe))))
                 return exp2_edge<Tier>(hi, lo);
             const auto red = exp2_reduce<Tier>(hi, lo);
-            return scale_bits(exp_poly<Tier>(red.hi), red.lo);
+            return exp_poly<Tier>(red.hi) * pow2(red.lo);
         } else
         {
             const V xc = clamp(hi, V(format<S>::fast_exp2_min), V(format<S>::fast_exp2_max));
@@ -504,10 +495,9 @@ namespace wray::math::detail
     }
 
     template<class Tier, class V>
-    WRAY_INLINE V quadrant(const V &r, const integer_t<V> &q) noexcept
+    WRAY_INLINE sincos_result<V> trig_core(const V &r) noexcept
     {
         using S = scalar_t<V>;
-        using I = integer_t<V>;
         using Cs = typename table<Tier, S>::sin;
         using Cc = typename table<Tier, S>::cos;
         const V t = r * r;
@@ -516,19 +506,27 @@ namespace wray::math::detail
         const V s = fma(rt, numerics::rational<Cs>(t), r);
         const V c0 = fma(t, V(S(-0.5)), V(S(1)));
         const V c = fma(tt, numerics::rational<Cc>(t), c0);
-        const V v = select(nonzero(q & I(1)), c, s);
-        const I flip = shift_left(q & I(2), format<S>::width - 2);
-        return from_bits<V>(as_bits(v) ^ flip);
+        return {s, c};
     }
 
     template<class Tier, class V>
-    WRAY_INLINE V trig_domain(const V &x, const V &v) noexcept
+    WRAY_INLINE V trig_unit(const V &x) noexcept
     {
-        using K = constants<scalar_t<V> >;
+        using S = scalar_t<V>;
+        using K = constants<S>;
         if constexpr (full<Tier>)
-            return select(abs(x) <= V(K::trig_arg_max), v, nan<V>());
+            return select(abs(x) <= V(K::trig_arg_max), V(S(1)), nan<V>());
         else
-            return v;
+            return V(S(1));
+    }
+
+    template<class V>
+    WRAY_INLINE V orient(const sincos_result<V> &p, const integer_t<V> &q, const V &unit) noexcept
+    {
+        using I = integer_t<V>;
+        const V v = select(nonzero(q & I(1)), p.cos, p.sin);
+        const V sign = select(nonzero(q & I(2)), -unit, unit);
+        return v * sign;
     }
 
     template<class Tier, class V>
@@ -544,7 +542,7 @@ namespace wray::math::detail
     WRAY_INLINE V sin(const V &x) noexcept
     {
         const auto red = reduce_pio2(x);
-        return trig_domain<Tier>(x, keep_zero<Tier>(x, quadrant<Tier>(red.r, red.q)));
+        return keep_zero<Tier>(x, orient(trig_core<Tier>(red.r), red.q, trig_unit<Tier>(x)));
     }
 
     template<class Tier, class V>
@@ -552,7 +550,7 @@ namespace wray::math::detail
     {
         using I = integer_t<V>;
         const auto red = reduce_pio2(x);
-        return trig_domain<Tier>(x, quadrant<Tier>(red.r, red.q + I(1)));
+        return orient(trig_core<Tier>(red.r), red.q + I(1), trig_unit<Tier>(x));
     }
 
     template<class Tier, class V>
@@ -560,10 +558,9 @@ namespace wray::math::detail
     {
         using I = integer_t<V>;
         const auto red = reduce_pio2(x);
-        return {
-            trig_domain<Tier>(x, keep_zero<Tier>(x, quadrant<Tier>(red.r, red.q))),
-            trig_domain<Tier>(x, quadrant<Tier>(red.r, red.q + I(1)))
-        };
+        const auto p = trig_core<Tier>(red.r);
+        const V unit = trig_unit<Tier>(x);
+        return {keep_zero<Tier>(x, orient(p, red.q, unit)), orient(p, red.q + I(1), unit)};
     }
 
     template<class Tier, class V>
@@ -573,18 +570,19 @@ namespace wray::math::detail
         using I = integer_t<V>;
         using C = typename table<Tier, S>::tan;
         const auto red = reduce_pio2(x);
-        const V t = red.r * red.r;
+        const V r = red.r;
+        const V t = r * r;
         const auto odd = nonzero(red.q & I(1));
         if constexpr (full<Tier>)
         {
-            const V rt = red.r * t;
-            const V v = fma(rt, numerics::rational<C>(t), red.r);
+            const V rt = r * t;
+            const V v = fma(rt, numerics::rational<C>(t), r);
             const V c = V(S(-1)) / v;
-            return trig_domain<Tier>(x, keep_zero<Tier>(x, select(odd, c, v)));
+            return keep_zero<Tier>(x, select(odd, c, v) * trig_unit<Tier>(x));
         } else
         {
             const auto parts = numerics::rational_parts<C>(t);
-            const V num = red.r * parts.num;
+            const V num = r * parts.num;
             const V top = select(odd, -parts.den, num);
             const V bottom = select(odd, num, parts.den);
             return top / bottom;
@@ -705,7 +703,7 @@ namespace wray::math::detail
     WRAY_INLINE V exp2_pair_regular(const V &hi, const V &lo) noexcept
     {
         const auto red = exp2_reduce<Tier>(hi, lo);
-        return scale_bits(exp_poly<Tier>(red.hi), red.lo);
+        return exp_poly<Tier>(red.hi) * pow2(red.lo);
     }
 
     template<class Tier, class V>

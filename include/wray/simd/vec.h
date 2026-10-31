@@ -46,6 +46,35 @@ namespace wray::simd
         static constexpr int width = 64;
     };
 
+    WRAY_INLINE float nearest(float x) noexcept
+    {
+#if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
+        return __builtin_roundevenf(x);
+#elif defined(__SSE4_1__) && !defined(WRAY_SIMD_SCALAR)
+        return _mm_cvtss_f32(_mm_round_ss(_mm_setzero_ps(), _mm_set_ss(x), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
+#else
+        const float m = 0x1.8p23f;
+        const float y = x + m;
+        return y - m;
+#endif
+    }
+
+    WRAY_INLINE double nearest(double x) noexcept
+    {
+#if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
+        return __builtin_roundeven(x);
+#elif defined(__SSE4_1__) && !defined(WRAY_SIMD_SCALAR)
+        return _mm_cvtsd_f64(_mm_round_sd(_mm_setzero_pd(), _mm_set_sd(x), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
+#else
+        const double m = 0x1.8p52;
+        const double y = x + m;
+        return y - m;
+#endif
+    }
+
+    WRAY_INLINE float first(float x) noexcept { return x; }
+    WRAY_INLINE double first(double x) noexcept { return x; }
+
     template<int Bits, int N>
     struct mask
     {
@@ -333,6 +362,12 @@ namespace wray::simd
     WRAY_INLINE vec<T, N> sqrt(const vec<T, N> &a) noexcept { return map(a, [](T x) { return std::sqrt(x); }); }
 
     template<class T, int N>
+    WRAY_INLINE vec<T, N> nearest(const vec<T, N> &a) noexcept { return map(a, [](T x) { return nearest(x); }); }
+
+    template<class T, int N>
+    WRAY_INLINE T first(const vec<T, N> &a) noexcept { return a.v[0]; }
+
+    template<class T, int N>
     WRAY_INLINE vec<T, N> select(const mask_for<T, N> &m, const vec<T, N> &a, const vec<T, N> &b) noexcept
     {
         vec<T, N> r;
@@ -529,6 +564,8 @@ namespace wray::simd
     WRAY_INLINE f32x4 max(const f32x4 &a, const f32x4 &b) noexcept { return vmaxq_f32(a.v, b.v); }
     WRAY_INLINE f32x4 abs(const f32x4 &a) noexcept { return vabsq_f32(a.v); }
     WRAY_INLINE f32x4 sqrt(const f32x4 &a) noexcept { return vsqrtq_f32(a.v); }
+    WRAY_INLINE f32x4 nearest(const f32x4 &a) noexcept { return vrndnq_f32(a.v); }
+    WRAY_INLINE float first(const f32x4 &a) noexcept { return vgetq_lane_f32(a.v, 0); }
     WRAY_INLINE m32x4 operator==(const f32x4 &a, const f32x4 &b) noexcept { return {vceqq_f32(a.v, b.v)}; }
     WRAY_INLINE m32x4 operator!=(const f32x4 &a, const f32x4 &b) noexcept { return {vmvnq_u32(vceqq_f32(a.v, b.v))}; }
     WRAY_INLINE m32x4 operator<(const f32x4 &a, const f32x4 &b) noexcept { return {vcltq_f32(a.v, b.v)}; }
@@ -553,6 +590,8 @@ namespace wray::simd
     WRAY_INLINE f64x2 max(const f64x2 &a, const f64x2 &b) noexcept { return vmaxq_f64(a.v, b.v); }
     WRAY_INLINE f64x2 abs(const f64x2 &a) noexcept { return vabsq_f64(a.v); }
     WRAY_INLINE f64x2 sqrt(const f64x2 &a) noexcept { return vsqrtq_f64(a.v); }
+    WRAY_INLINE f64x2 nearest(const f64x2 &a) noexcept { return vrndnq_f64(a.v); }
+    WRAY_INLINE double first(const f64x2 &a) noexcept { return vgetq_lane_f64(a.v, 0); }
     WRAY_INLINE m64x2 operator==(const f64x2 &a, const f64x2 &b) noexcept { return {vceqq_f64(a.v, b.v)}; }
     WRAY_INLINE m64x2 operator!=(const f64x2 &a, const f64x2 &b) noexcept
     {
@@ -757,6 +796,16 @@ namespace wray::simd
     WRAY_INLINE f32x4 max(const f32x4 &a, const f32x4 &b) noexcept { return _mm_max_ps(a.v, b.v); }
     WRAY_INLINE f32x4 abs(const f32x4 &a) noexcept { return _mm_andnot_ps(_mm_set1_ps(-0.0f), a.v); }
     WRAY_INLINE f32x4 sqrt(const f32x4 &a) noexcept { return _mm_sqrt_ps(a.v); }
+    WRAY_INLINE f32x4 nearest(const f32x4 &a) noexcept
+    {
+#if defined(__SSE4_1__)
+        return _mm_round_ps(a.v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+#else
+        const __m128 m = _mm_set1_ps(0x1.8p23f);
+        return _mm_sub_ps(_mm_add_ps(a.v, m), m);
+#endif
+    }
+    WRAY_INLINE float first(const f32x4 &a) noexcept { return _mm_cvtss_f32(a.v); }
     WRAY_INLINE m32x4 operator==(const f32x4 &a, const f32x4 &b) noexcept
     {
         return {_mm_castps_si128(_mm_cmpeq_ps(a.v, b.v))};
@@ -810,6 +859,16 @@ namespace wray::simd
     WRAY_INLINE f64x2 max(const f64x2 &a, const f64x2 &b) noexcept { return _mm_max_pd(a.v, b.v); }
     WRAY_INLINE f64x2 abs(const f64x2 &a) noexcept { return _mm_andnot_pd(_mm_set1_pd(-0.0), a.v); }
     WRAY_INLINE f64x2 sqrt(const f64x2 &a) noexcept { return _mm_sqrt_pd(a.v); }
+    WRAY_INLINE f64x2 nearest(const f64x2 &a) noexcept
+    {
+#if defined(__SSE4_1__)
+        return _mm_round_pd(a.v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+#else
+        const __m128d m = _mm_set1_pd(0x1.8p52);
+        return _mm_sub_pd(_mm_add_pd(a.v, m), m);
+#endif
+    }
+    WRAY_INLINE double first(const f64x2 &a) noexcept { return _mm_cvtsd_f64(a.v); }
     WRAY_INLINE m64x2 operator==(const f64x2 &a, const f64x2 &b) noexcept
     {
         return {_mm_castpd_si128(_mm_cmpeq_pd(a.v, b.v))};
@@ -1040,6 +1099,8 @@ namespace wray::simd
     WRAY_INLINE f32x8 max(const f32x8 &a, const f32x8 &b) noexcept { return _mm256_max_ps(a.v, b.v); }
     WRAY_INLINE f32x8 abs(const f32x8 &a) noexcept { return _mm256_andnot_ps(_mm256_set1_ps(-0.0f), a.v); }
     WRAY_INLINE f32x8 sqrt(const f32x8 &a) noexcept { return _mm256_sqrt_ps(a.v); }
+    WRAY_INLINE f32x8 nearest(const f32x8 &a) noexcept { return _mm256_round_ps(a.v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC); }
+    WRAY_INLINE float first(const f32x8 &a) noexcept { return _mm256_cvtss_f32(a.v); }
     WRAY_INLINE m32x8 operator==(const f32x8 &a, const f32x8 &b) noexcept
     {
         return {_mm256_castps_si256(_mm256_cmp_ps(a.v, b.v, _CMP_EQ_OQ))};
@@ -1092,6 +1153,8 @@ namespace wray::simd
     WRAY_INLINE f64x4 max(const f64x4 &a, const f64x4 &b) noexcept { return _mm256_max_pd(a.v, b.v); }
     WRAY_INLINE f64x4 abs(const f64x4 &a) noexcept { return _mm256_andnot_pd(_mm256_set1_pd(-0.0), a.v); }
     WRAY_INLINE f64x4 sqrt(const f64x4 &a) noexcept { return _mm256_sqrt_pd(a.v); }
+    WRAY_INLINE f64x4 nearest(const f64x4 &a) noexcept { return _mm256_round_pd(a.v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC); }
+    WRAY_INLINE double first(const f64x4 &a) noexcept { return _mm256_cvtsd_f64(a.v); }
     WRAY_INLINE m64x4 operator==(const f64x4 &a, const f64x4 &b) noexcept
     {
         return {_mm256_castpd_si256(_mm256_cmp_pd(a.v, b.v, _CMP_EQ_OQ))};
@@ -1314,6 +1377,8 @@ namespace wray::simd
     WRAY_INLINE f32x16 max(const f32x16 &a, const f32x16 &b) noexcept { return _mm512_max_ps(a.v, b.v); }
     WRAY_INLINE f32x16 abs(const f32x16 &a) noexcept { return _mm512_abs_ps(a.v); }
     WRAY_INLINE f32x16 sqrt(const f32x16 &a) noexcept { return _mm512_sqrt_ps(a.v); }
+    WRAY_INLINE f32x16 nearest(const f32x16 &a) noexcept { return _mm512_roundscale_ps(a.v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC); }
+    WRAY_INLINE float first(const f32x16 &a) noexcept { return _mm_cvtss_f32(_mm512_castps512_ps128(a.v)); }
     WRAY_INLINE m32x16 operator==(const f32x16 &a, const f32x16 &b) noexcept { return {_mm512_cmp_ps_mask(a.v, b.v, _CMP_EQ_OQ)}; }
     WRAY_INLINE m32x16 operator!=(const f32x16 &a, const f32x16 &b) noexcept { return {_mm512_cmp_ps_mask(a.v, b.v, _CMP_NEQ_UQ)}; }
     WRAY_INLINE m32x16 operator<(const f32x16 &a, const f32x16 &b) noexcept { return {_mm512_cmp_ps_mask(a.v, b.v, _CMP_LT_OQ)}; }
@@ -1351,6 +1416,8 @@ namespace wray::simd
     WRAY_INLINE f64x8 max(const f64x8 &a, const f64x8 &b) noexcept { return _mm512_max_pd(a.v, b.v); }
     WRAY_INLINE f64x8 abs(const f64x8 &a) noexcept { return _mm512_abs_pd(a.v); }
     WRAY_INLINE f64x8 sqrt(const f64x8 &a) noexcept { return _mm512_sqrt_pd(a.v); }
+    WRAY_INLINE f64x8 nearest(const f64x8 &a) noexcept { return _mm512_roundscale_pd(a.v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC); }
+    WRAY_INLINE double first(const f64x8 &a) noexcept { return _mm_cvtsd_f64(_mm512_castpd512_pd128(a.v)); }
     WRAY_INLINE m64x8 operator==(const f64x8 &a, const f64x8 &b) noexcept { return {_mm512_cmp_pd_mask(a.v, b.v, _CMP_EQ_OQ)}; }
     WRAY_INLINE m64x8 operator!=(const f64x8 &a, const f64x8 &b) noexcept { return {_mm512_cmp_pd_mask(a.v, b.v, _CMP_NEQ_UQ)}; }
     WRAY_INLINE m64x8 operator<(const f64x8 &a, const f64x8 &b) noexcept { return {_mm512_cmp_pd_mask(a.v, b.v, _CMP_LT_OQ)}; }
@@ -1499,6 +1566,14 @@ namespace wray::simd
     template<class T, int N>
         requires split<T, N>
     WRAY_INLINE vec<T, N> sqrt(const vec<T, N> &a) noexcept { return {sqrt(a.lo), sqrt(a.hi)}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE vec<T, N> nearest(const vec<T, N> &a) noexcept { return {nearest(a.lo), nearest(a.hi)}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE T first(const vec<T, N> &a) noexcept { return first(a.lo); }
 
     template<class T, int N>
         requires split<T, N>

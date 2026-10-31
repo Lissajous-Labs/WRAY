@@ -37,11 +37,16 @@ namespace
                 scale += std::fabs(c[k]);
             const double h = wray::numerics::horner(c, x);
             const double e = wray::numerics::estrin(c, x);
+            const double p = wray::numerics::polynomial(c, x);
             CHECK(std::fabs(double(h - ref)) <= 4.0 * double(M) * 0x1p-53 * scale);
             CHECK(std::fabs(double(e - ref)) <= 4.0 * double(M) * 0x1p-53 * scale);
+            CHECK(std::fabs(double(p - ref)) <= 4.0 * double(M) * 0x1p-53 * scale);
             const wray::f64x2 v = wray::numerics::estrin(c, wray::f64x2(x));
             CHECK(v[0] == e);
             CHECK(v[1] == e);
+            const wray::f64x2 w = wray::numerics::polynomial(c, wray::f64x2(x));
+            CHECK(w[0] == p);
+            CHECK(w[1] == p);
         }
     }
 
