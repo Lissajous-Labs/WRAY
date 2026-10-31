@@ -29,7 +29,7 @@ namespace wray::math
         using sin = coeff::sin_f32;
         using cos = coeff::cos_f32;
         using tan = coeff::tan_f32;
-        using atan = coeff::atan_f32;
+        using atan_rest = coeff::atan_rest_f32;
         using tanh = coeff::tanh_f32;
     };
 
@@ -41,7 +41,7 @@ namespace wray::math
         using sin = coeff::sin_f64;
         using cos = coeff::cos_f64;
         using tan = coeff::tan_f64;
-        using atan = coeff::atan_f64;
+        using atan_rest = coeff::atan_rest_f64;
         using tanh = coeff::tanh_f64;
     };
 
@@ -620,22 +620,44 @@ namespace wray::math::detail
     }
 
     template<class Tier, class V>
-    WRAY_INLINE V atan_unit(const V &u) noexcept
+    WRAY_INLINE pair<V> atan_unit(const V &u, const V &delta) noexcept
     {
-        using C = typename table<Tier, scalar_t<V> >::atan;
+        using S = scalar_t<V>;
+        using K = constants<S>;
         const V t = u * u;
         const V ut = u * t;
-        return fma(ut, numerics::rational<C>(t), u);
+        if constexpr (full<Tier>)
+        {
+            using C = typename table<Tier, S>::atan_rest;
+            const V third = ut * V(K::third_hi);
+            const V hi = u - third;
+            const V rounding = fma(ut, V(K::third_hi), -third);
+            const V small = fma(ut, V(K::third_lo), fma(fma(u, t, -ut), V(K::third_hi), rounding));
+            const V slope = fma(t, V(S(-0.5)), V(S(0.25) + S(0.5) * K::sqrt2));
+            const V lo = fma(delta, slope, ((u - hi) - third) - small);
+            return {hi, fma(ut * t, numerics::rational<C>(t), lo)};
+        }
+        else
+        {
+            using C = typename table<Tier, S>::atan;
+            return {fma(ut, numerics::rational<C>(t), u), V(S(0))};
+        }
     }
 
     template<class Tier, class V>
-    WRAY_INLINE V complement(const V &v, scalar_t<V> hi, scalar_t<V> lo) noexcept
+    WRAY_INLINE pair<V> complement(const pair<V> &v, scalar_t<V> hi, scalar_t<V> lo) noexcept
     {
-        const V d = V(hi) - v;
+        const V d = V(hi) - v.hi;
         if constexpr (full<Tier>)
-            return d + V(lo);
+            return {d, ((V(hi) - d) - v.hi) + (V(lo) - v.lo)};
         else
-            return d;
+            return {d, V(scalar_t<V>(0))};
+    }
+
+    template<class V, class M>
+    WRAY_INLINE pair<V> choose(const M &m, const pair<V> &a, const pair<V> &b) noexcept
+    {
+        return {select(m, a.hi, b.hi), select(m, a.lo, b.lo)};
     }
 
     template<class Tier, class V>
@@ -649,9 +671,45 @@ namespace wray::math::detail
         const V n = select(big, one, a);
         const V d = select(big, a, one);
         const V u = n / d;
-        V v = atan_unit<Tier>(u);
-        v = select(big, complement<Tier>(v, K::pio2_hi, K::pio2_lo), v);
-        return copysign_from(v, x);
+        V delta(S(0));
+        if constexpr (full<Tier>)
+            delta = fma(-u, simd::min(d, V(std::numeric_limits<S>::max())), n) * u;
+        const auto v = atan_unit<Tier>(u, delta);
+        const auto w = choose(big, complement<Tier>(v, K::pio2_hi, K::pio2_lo), v);
+        if constexpr (full<Tier>)
+            return copysign_from(w.hi + w.lo, x);
+        else
+            return copysign_from(w.hi, x);
+    }
+
+    template<class V>
+    WRAY_INLINE pair<V> ratio(const V &n, const V &d) noexcept
+    {
+        const V inv = V(scalar_t<V>(1)) / d;
+        const V u = n * inv;
+        return {u, fma(-u, d, n) * inv};
+    }
+
+    template<class S>
+    inline constexpr S residual_floor = format<S>::min_normal * format<S>::two_mantissa * S(2);
+
+    template<class S>
+    inline constexpr S ratio_ceiling = S(1) / format<S>::min_normal;
+
+    template<class V>
+    pair<V> ratio_edge(const V &n, const V &d) noexcept
+    {
+        using S = scalar_t<V>;
+        using F = format<S>;
+        const V up(residual_floor<S> / std::numeric_limits<S>::denorm_min());
+        const V down(S(1) / F::subnormal_scale);
+        const V s = select(n < V(residual_floor<S>), up, select(d < V(ratio_ceiling<S>), V(S(1)), down));
+        const V ns = n * s;
+        const V ds = d * s;
+        const auto q = ratio(ns, ds);
+        const auto finite = both(ds > V(S(0)), ds < inf<V>());
+        const V u = select(finite, q.hi, select(ns == inf<V>(), V(S(1)), V(S(0))));
+        return {u, select(finite, q.lo, V(S(0)))};
     }
 
     template<class Tier, class V>
@@ -666,16 +724,28 @@ namespace wray::math::detail
         const auto swap = ay > ax;
         const V n = select(swap, ax, ay);
         const V d = select(swap, ay, ax);
-        V u = n / d;
-        u = select(d == V(S(0)), V(S(0)), u);
-        u = select(both(ax == inf<V>(), ay == inf<V>()), V(S(1)), u);
-        V v = atan_unit<Tier>(u);
-        v = select(swap, complement<Tier>(v, K::pio2_hi, K::pio2_lo), v);
+        pair<V> q;
+        if constexpr (full<Tier>)
+        {
+            if (simd::any(!both(n >= V(residual_floor<S>), d < V(ratio_ceiling<S>))))
+                q = ratio_edge(n, d);
+            else
+                q = ratio(n, d);
+        }
+        else
+        {
+            V u = n / d;
+            u = select(d == V(S(0)), V(S(0)), u);
+            q = {select(both(ax == inf<V>(), ay == inf<V>()), V(S(1)), u), V(S(0))};
+        }
+        auto v = atan_unit<Tier>(q.hi, q.lo);
+        v = choose(swap, complement<Tier>(v, K::pio2_hi, K::pio2_lo), v);
         const auto negative_x = nonzero(as_bits(x) & I(F::sign_bit));
-        v = select(negative_x, complement<Tier>(v, K::pi_hi, K::pi_lo), v);
-        v = copysign_from(v, y);
-        if constexpr (full<Tier>) v = select(either(isnan(x), isnan(y)), nan<V>(), v);
-        return v;
+        v = choose(negative_x, complement<Tier>(v, K::pi_hi, K::pi_lo), v);
+        if constexpr (full<Tier>)
+            return select(either(isnan(x), isnan(y)), nan<V>(), copysign_from(v.hi + v.lo, y));
+        else
+            return copysign_from(v.hi, y);
     }
 
     template<class Tier, class V>

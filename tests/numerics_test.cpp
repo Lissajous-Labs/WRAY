@@ -80,13 +80,13 @@ int main()
     cores_start_at_one<exp_f32>();
     cores_start_at_one<exp_f64>();
     cores_start_at_one<tan_f64>();
-    cores_start_at_one<atan_f64>();
+    cores_start_at_one<atan_rest_f64>();
     cores_start_at_one<tanh_f64>();
     cores_start_at_one<tanh_range_fast>();
     CHECK(wray::numerics::is_polynomial<exp_f64>);
-    CHECK(!wray::numerics::is_polynomial<atan_f64>);
+    CHECK(!wray::numerics::is_polynomial<atan_rest_f64>);
     CHECK(std::fabs(wray::numerics::rational<exp_f64>(0.0) - 1.0) <= 1e-16);
-    CHECK(std::fabs(wray::numerics::rational<atan_f64>(0.0) + 1.0 / 3.0) <= 1e-16);
+    CHECK(std::fabs(wray::numerics::rational<atan_rest_f64>(0.0) - 1.0 / 5.0) <= 1e-16);
     CHECK(std::fabs(wray::numerics::rational<tan_f64>(0.0) - 1.0 / 3.0) <= 1e-16);
     return wray::test::finish("numerics");
 }

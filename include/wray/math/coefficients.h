@@ -4,25 +4,25 @@
 
 namespace wray::math::coeff
 {
-    struct atan_f32
-    {
-        using value_type = float;
-        static constexpr std::array<float, 9> p{ -0x1.555554p-2f, 0x1.999852p-3f, -0x1.246e9ap-3f, 0x1.c40dp-4f, -0x1.62ffa4p-4f, 0x1.00de7cp-4f, -0x1.27dca2p-5f, 0x1.bf7a64p-7f, -0x1.3da97cp-9f };
-        static constexpr std::array<float, 1> q{ 0x1p+0f };
-    };
-
-    struct atan_f64
-    {
-        using value_type = double;
-        static constexpr std::array<double, 7> p{ -0x1.5555555555555p-2, -0x1.a3aa5a027e4a2p-1, -0x1.74c6b09f73451p-1, -0x1.218ff26aa3f3bp-2, -0x1.7677da0a23466p-5, -0x1.2a6d2f0040b27p-9, -0x1.52160ceea18f8p-19 };
-        static constexpr std::array<double, 7> q{ 0x1p+0, 0x1.878c904eab841p+1, 0x1.cba786efeed4ap+1, 0x1.033d092575e52p+1, 0x1.1ed5c85748ce4p-1, 0x1.1892558136281p-4, 0x1.5b7e723a6390ap-9 };
-    };
-
     struct atan_fast
     {
         using value_type = float;
         static constexpr std::array<float, 7> p{ -0x1.55552cp-2f, 0x1.997942p-3f, -0x1.226a7ep-3f, 0x1.aa6e36p-4f, -0x1.1343c4p-4f, 0x1.ed8e72p-6f, -0x1.a59a0ep-8f };
         static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct atan_rest_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 9> p{ 0x1.999998p-3f, -0x1.24911ep-3f, 0x1.c6db9ap-4f, -0x1.7198a2p-4f, 0x1.2b6cdap-4f, -0x1.b96494p-5f, 0x1.00ba18p-5f, -0x1.8625e4p-7f, 0x1.1586c2p-9f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct atan_rest_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 6> p{ 0x1.9999999999999p-3, 0x1.e4db31f7fab7fp-2, 0x1.9a71ed1583d0ap-2, 0x1.2b6089d7be1adp-3, 0x1.635089b9b4aabp-6, 0x1.f1ea1e7045038p-11 };
+        static constexpr std::array<double, 7> q{ 0x1p+0, 0x1.8a76b6166a678p+1, 0x1.d32d4476596aep+1, 0x1.0a49d3b9442e5p+1, 0x1.2a746f5ea88dbp-1, 0x1.2895b039e09cep-4, 0x1.768b68be7db37p-9 };
     };
 
     struct cos_f32
@@ -178,6 +178,8 @@ namespace wray::math
         static constexpr float pi_lo = -0x1.777a5cp-24f;
         static constexpr float pio2_hi = 0x1.921fb6p+0f;
         static constexpr float pio2_lo = -0x1.777a5cp-25f;
+        static constexpr float third_hi = 0x1.555556p-2f;
+        static constexpr float third_lo = -0x1.555556p-27f;
         static constexpr float max_arg = 0x1.62e43p+6f;
         static constexpr float min_arg = -0x1.9fe368p+6f;
         static constexpr float exp2_max = 0x1p+7f;
@@ -216,6 +218,8 @@ namespace wray::math
         static constexpr double pi_lo = 0x1.1a62633145c07p-53;
         static constexpr double pio2_hi = 0x1.921fb54442d18p+0;
         static constexpr double pio2_lo = 0x1.1a62633145c07p-54;
+        static constexpr double third_hi = 0x1.5555555555555p-2;
+        static constexpr double third_lo = 0x1.5555555555555p-56;
         static constexpr double max_arg = 0x1.62e42fefa39efp+9;
         static constexpr double min_arg = -0x1.74910d52d3052p+9;
         static constexpr double exp2_max = 0x1p+10;

@@ -22,12 +22,13 @@ PLAN = {
     "cos": {"f32": (2, 0), "f64": (5, 0), "fast": (1, 0)},
     "tan": {"f32": (6, 0), "f64": (3, 3)},
     "tan_unit": {"fast": (1, 1)},
-    "atan": {"f32": (8, 0), "f64": (6, 6), "fast": (6, 0)},
+    "atan": {"fast": (6, 0)},
+    "atan_rest": {"f32": (8, 0), "f64": (5, 6)},
     "tanh": {"f32": (4, 0), "f64": (3, 3)},
     "tanh_range": {"fast": (3, 2)},
 }
 
-PARETO = {"exp": "f64", "log": "f64", "tan": "f64", "atan": "f64", "tanh": "f64", "tanh_range": "f32"}
+PARETO = {"exp": "f64", "log": "f64", "tan": "f64", "atan_rest": "f64", "tanh": "f64", "tanh_range": "f32"}
 PARETO_MAX_TOTAL = 12
 PARETO_MAX_DEN = 6
 
@@ -118,6 +119,7 @@ def constants(ctype):
             "sqrt2": mp.sqrt(2), "sqrt_half": mp.sqrt(mp.mpf(1) / 2),
             **pio2_terms, "two_over_pi": 2 / mp.pi,
             "pi_hi": pi_hi, "pi_lo": pi_lo, "pio2_hi": pio2_hi, "pio2_lo": pio2_lo,
+            "third_hi": split(mp.mpf(1) / 3, total, total)[0], "third_lo": split(mp.mpf(1) / 3, total, total)[1],
             "max_arg": round_to(max_arg, total), "min_arg": round_to(min_arg, total),
             "exp2_max": exp2_max, "exp2_min": exp2_min, "trig_arg_max": trig_k_max * pio2,
             "tanh_clamp": tanh_clamp, "tanh_clamp_fast": tanh_clamp_fast, "tanh_switch": mp.mpf("0.625"),

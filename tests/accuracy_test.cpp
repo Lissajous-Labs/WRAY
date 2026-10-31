@@ -145,7 +145,7 @@ namespace
              [](std::mt19937_64& g) { return signed_bits(g, 1e-300, trig64); }, 2.5, 0x1p-16, 2.5},
             {"atan", [](double x) { return std::atan(x); }, all, batch32([](auto v) { return wray::atan(v); }), batch32([](auto v) { return wray::fast::atan(v); }),
              finite, batch64([](auto v) { return wray::atan(v); }),
-             [](std::mt19937_64& g) { return signed_bits(g, 0x1p-1074, 0x1.fffffffffffffp+1023); }, 2.0, 0x1p-16, 1.5},
+             [](std::mt19937_64& g) { return signed_bits(g, 0x1p-1074, 0x1.fffffffffffffp+1023); }, 1.0, 0x1p-16, 1.1},
             {"tanh", [](double x) { return std::tanh(x); }, all, batch32([](auto v) { return wray::tanh(v); }), batch32([](auto v) { return wray::fast::tanh(v); }),
              finite, batch64([](auto v) { return wray::tanh(v); }),
              [](std::mt19937_64& g) { return signed_bits(g, 0x1p-1074, 40.0); }, 1.5, 0x1p-16, 2.5},
@@ -262,7 +262,7 @@ namespace
         }
         if (report && with_atan2)
             std::printf("%-11s f32 %8.3f ulp   fast %.3e   f64 %8.3f ulp (vs libm)\n", "atan2", w32, wf, w64);
-        CHECK(!with_atan2 || w32 <= 2.0 + margin);
+        CHECK(!with_atan2 || w32 <= 1.0 + margin);
         CHECK(!with_atan2 || wf <= 0x1p-16);
         CHECK(!with_atan2 || w64 <= 2.5 + margin);
 

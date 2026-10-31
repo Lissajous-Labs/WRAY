@@ -55,6 +55,10 @@ def atan_tail(t):
     return (atan_core(t) - 1) / t
 
 
+def atan_rest(t):
+    return (atan_tail(t) + mp.mpf(1) / 3) / t
+
+
 def tanh_tail(t):
     return (tanh_core(t) - 1) / t
 
@@ -83,6 +87,7 @@ CORES = {
     "tan": dict(g=_limit(tan_tail, lambda: mp.mpf(1) / 3), interval=lambda tier: (0, pi4_sq())),
     "tan_unit": dict(g=_limit(tan_core, lambda: mp.mpf(1)), interval=lambda tier: (0, pi4_sq())),
     "atan": dict(g=_limit(atan_tail, lambda: mp.mpf(-1) / 3), interval=lambda tier: (0, 1)),
+    "atan_rest": dict(g=_limit(atan_rest, lambda: mp.mpf(1) / 5), interval=lambda tier: (0, 1)),
     "tanh": dict(g=_limit(tanh_tail, lambda: mp.mpf(-1) / 3), interval=lambda tier: (0, mp.mpf("0.390625"))),
     "tanh_range": dict(g=_limit(tanh_core, lambda: mp.mpf(1)), interval=lambda tier: (0, mp.mpf(TANH_CLAMP[tier]) ** 2)),
 }

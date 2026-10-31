@@ -36,10 +36,10 @@ REFERENCE = {
 UNARY = ["exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid", "db_to_gain", "gain_to_db"]
 
 CONTRACTS = {
-    "f32": {"exp": 1.0, "exp2": 1.0, "log": 1.0, "log2": 1.5, "sin": 1.0, "cos": 1.0, "tan": 2.5, "atan": 2.0, "tanh": 1.5,
-            "sigmoid": 2.5, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 2.0, "pow": 2.0},
-    "f64": {"exp": 1.0, "exp2": 1.0, "log": 1.0, "log2": 1.0, "sin": 1.0, "cos": 1.0, "tan": 2.5, "atan": 1.5, "tanh": 2.5,
-            "sigmoid": 2.0, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.5, "pow": 1.5},
+    "f32": {"exp": 1.0, "exp2": 1.0, "log": 1.0, "log2": 1.5, "sin": 1.0, "cos": 1.0, "tan": 2.5, "atan": 1.0, "tanh": 1.5,
+            "sigmoid": 2.5, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.0, "pow": 2.0},
+    "f64": {"exp": 1.0, "exp2": 1.0, "log": 1.0, "log2": 1.0, "sin": 1.0, "cos": 1.0, "tan": 2.5, "atan": 1.1, "tanh": 2.5,
+            "sigmoid": 2.0, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.1, "pow": 1.5},
     "fast": {name: 2.0 ** -16 for name in ["exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid",
                                            "db_to_gain", "gain_to_db", "atan2", "pow"]},
 }
@@ -87,7 +87,7 @@ def domain(fn, tier, rng, n):
         return np.concatenate([value_uniform(rng, fmt, -2 * np.pi, 2 * np.pi, q), value_uniform(rng, fmt, -trig, trig, q),
                                bit_uniform(rng, fmt, 1e-6, trig, n - 3 * q, True), near])
     if fn == "atan":
-        return bit_uniform(rng, fmt, tiny, huge, n, True)
+        return np.concatenate([bit_uniform(rng, fmt, tiny, huge, half, True), value_uniform(rng, fmt, -4.0, 4.0, n - half)])
     if fn == "tanh":
         return np.concatenate([value_uniform(rng, fmt, -20.0, 20.0, half), bit_uniform(rng, fmt, tiny, 30.0, n - half, True)])
     if fn == "sigmoid":
@@ -97,7 +97,8 @@ def domain(fn, tier, rng, n):
         lim = 700.0 if f32 else 6000.0
         return value_uniform(rng, fmt, -lim, lim, n)
     if fn == "atan2":
-        return (bit_uniform(rng, fmt, tiny, huge, n, True), bit_uniform(rng, fmt, tiny, huge, n, True))
+        return tuple(np.concatenate([bit_uniform(rng, fmt, tiny, huge, half, True), value_uniform(rng, fmt, -4.0, 4.0, n - half)])
+                     for _ in range(2))
     if fn == "pow":
         x = bit_uniform(rng, fmt, 1e-10, 1e10, n)
         y = value_uniform(rng, fmt, -3.0, 3.0, n)
