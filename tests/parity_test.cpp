@@ -16,9 +16,8 @@ namespace
     {
         using U = typename wray::simd::bits_of<T>::unsigned_integer;
         std::vector<T> v;
-        std::uniform_real_distribution<double> d(-30.0, 30.0);
         for (int i = 0; i < 40000; ++i)
-            v.push_back(static_cast<T>(d(g)));
+            v.push_back(static_cast<T>(-30.0 + 60.0 * std::ldexp(static_cast<double>(g() >> 11), -53)));
         for (int i = 0; i < 40000; ++i)
             v.push_back(std::bit_cast<T>(static_cast<U>(g())));
         const T specials[] = {T(0), -T(0), T(1), T(-1), std::numeric_limits<T>::infinity(), -std::numeric_limits<T>::infinity(),
@@ -27,6 +26,13 @@ namespace
             for (T s : specials)
                 v.push_back(s);
         return v;
+    }
+
+    template <class T>
+    void shuffle(std::vector<T>& v, std::mt19937_64& g)
+    {
+        for (std::size_t i = v.size(); i > 1; --i)
+            std::swap(v[i - 1], v[static_cast<std::size_t>(g() % i)]);
     }
 
     template <class T>
@@ -66,7 +72,7 @@ namespace
     {
         const auto x = inputs<T>(g);
         auto y = inputs<T>(g);
-        std::shuffle(y.begin(), y.end(), g);
+        shuffle(y, g);
         unary(x, [](auto v) { return wray::exp(v); });
         unary(x, [](auto v) { return wray::exp2(v); });
         unary(x, [](auto v) { return wray::log(v); });
@@ -87,7 +93,7 @@ namespace
     {
         const auto x = inputs<float>(g);
         auto y = inputs<float>(g);
-        std::shuffle(y.begin(), y.end(), g);
+        shuffle(y, g);
         unary(x, [](auto v) { return wray::fast::exp(v); });
         unary(x, [](auto v) { return wray::fast::exp2(v); });
         unary(x, [](auto v) { return wray::fast::log(v); });

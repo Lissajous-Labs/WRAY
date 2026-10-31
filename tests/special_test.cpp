@@ -128,6 +128,17 @@ namespace
         CHECK(same(wray::pow(T(0.5), inf), T(0)));
         CHECK(same(wray::pow(T(2), inf), inf));
         CHECK(same(wray::pow(T(10), T(400)), inf));
+        using V = wray::simd::native<T>;
+        const T huge = std::numeric_limits<T>::max();
+        for (const T y : {huge, -huge, T(1e30), T(-1e30)})
+        {
+            CHECK(same(wray::pow(T(1), y), T(1)));
+            const V v = wray::pow(V(T(1)), V(y));
+            for (int i = 0; i < V::size; ++i)
+                CHECK(same(v[i], T(1)));
+        }
+        CHECK(same(wray::pow(T(2), huge), inf));
+        CHECK(same(wray::pow(T(0.5), huge), T(0)));
     }
 
     void ranges()

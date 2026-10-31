@@ -105,6 +105,7 @@ namespace wray::math::detail
         static constexpr float fast_exp2_min = -126.0f;
         static constexpr float exp_safe = 86.0f;
         static constexpr float exp2_safe = 124.0f;
+        static constexpr float pow_y_safe = 0x1p32f;
     };
 
     template<>
@@ -125,6 +126,7 @@ namespace wray::math::detail
         static constexpr double subnormal_exponent = 54.0;
         static constexpr double exp_safe = 707.0;
         static constexpr double exp2_safe = 1020.0;
+        static constexpr double pow_y_safe = 0x1p64;
     };
 
     template<class Tier>
@@ -724,7 +726,7 @@ namespace wray::math::detail
         using S = scalar_t<V>;
         if constexpr (full<Tier>)
         {
-            if (simd::any(!both(log_regular_mask(x), abs(y) < inf<V>())))
+            if (simd::any(!both(log_regular_mask(x), abs(y) < V(format<S>::pow_y_safe))))
                 return pow_edge<Tier>(x, y);
             const auto l = log2_pair_combine(log_reduce<Tier, false>(x));
             const auto z = two_product(y, l.hi);
