@@ -160,13 +160,13 @@ def emit_header(results, out):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--header", required=True)
-    parser.add_argument("--report", required=True)
+    parser.add_argument("--report")
     parser.add_argument("--jobs", type=int, default=8)
     args = parser.parse_args()
 
     plan_jobs = [(name, tier, m, n) for name, tiers in PLAN.items() for tier, (m, n) in tiers.items()]
     pareto_jobs = [(name, tier, m, n) for name, tier in PARETO.items()
-                   for n in range(PARETO_MAX_DEN + 1) for m in range(0, PARETO_MAX_TOTAL + 1 - n)]
+                   for n in range(PARETO_MAX_DEN + 1) for m in range(0, PARETO_MAX_TOTAL + 1 - n)] if args.report else []
     with ProcessPoolExecutor(args.jobs) as pool:
         plan_out = dict(pool.map(fit, plan_jobs))
         pareto_out = dict(pool.map(fit, pareto_jobs))
@@ -179,6 +179,8 @@ def main():
 
     pathlib.Path(args.header).parent.mkdir(parents=True, exist_ok=True)
     emit_header(results, pathlib.Path(args.header))
+    if not args.report:
+        return
 
     report = {
         "cores": [dict(name=name, tier=tier, m=len(d["p"]) - 1, n=len(d["q"]) - 1, error=d["error"],
