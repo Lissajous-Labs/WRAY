@@ -13,7 +13,7 @@ import numpy as np
 INK = "#1f2328"
 MUTED = "#6e7781"
 GRID = "#d0d7de"
-COLORS = {"std": "#8c959f", "accelerate": "#bf8700", "wray": "#0969da", "wray fast": "#1a7f37",
+COLORS = {"std": "#8c959f", "wray": "#0969da", "wray fast": "#1a7f37",
           "f32": "#0969da", "f64": "#8250df", "fast": "#1a7f37", "contract": "#cf222e"}
 FUNCTIONS = ["exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain", "gain_to_db"]
 TIER_LABEL = {"f32": "float precise", "f64": "double precise", "fast": "float fast"}
@@ -184,11 +184,32 @@ def trig_chart(acc, out):
     save(fig, out, "trig_range.png")
 
 
-def bench_table(bench):
+def bench_table(bench, mode="throughput"):
     table = {}
     for row in bench:
-        table.setdefault(row["type"], {}).setdefault(row["function"], {})[row["variant"]] = row["ns"]
+        if row.get("mode", "throughput") == mode:
+            table.setdefault(row["type"], {}).setdefault(row["function"], {})[row["variant"]] = row["ns"]
     return table
+
+
+def latency_chart(bench, machine, out):
+    table = bench_table(bench, "latency")
+    fig, axes = plt.subplots(1, 2, figsize=(13, 4.2))
+    for ax, kind in zip(axes, ["f32", "f64"]):
+        data = table.get(kind, {})
+        names = [f for f in FUNCTIONS if f in data]
+        variants = [v for v in ["std", "wray", "wray fast"] if any(v in data[f] for f in names)]
+        idx = np.arange(len(names))
+        width = 0.8 / max(len(variants), 1)
+        for k, v in enumerate(variants):
+            vals = [data[f].get(v, np.nan) for f in names]
+            ax.bar(idx + (k - (len(variants) - 1) / 2) * width, vals, width, color=COLORS[v], label=v)
+        ax.set_xticks(idx, names, rotation=40, ha="right")
+        ax.set_ylabel("ns per dependent call (lower is better)")
+        ax.set_title(f"{'float' if kind == 'f32' else 'double'} single-value latency ({machine})")
+        ax.legend(ncols=len(variants))
+    fig.tight_layout()
+    save(fig, out, "latency.png")
 
 
 def throughput_chart(bench, machine, out):
@@ -196,7 +217,7 @@ def throughput_chart(bench, machine, out):
     for kind in ["f32", "f64"]:
         data = table[kind]
         names = [f for f in FUNCTIONS if f in data]
-        variants = [v for v in ["std", "accelerate", "wray", "wray fast"] if any(v in data[f] for f in names)]
+        variants = [v for v in ["std", "wray", "wray fast"] if any(v in data[f] for f in names)]
         fig, ax = plt.subplots(figsize=(12, 4.4))
         idx = np.arange(len(names))
         width = 0.8 / len(variants)
@@ -253,6 +274,7 @@ def main():
     summary_chart(acc, out)
     trig_chart(acc, out)
     throughput_chart(bench, args.machine, out)
+    latency_chart(bench, args.machine, out)
     speedup_chart(bench, args.machine, out)
 
 
