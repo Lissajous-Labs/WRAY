@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <type_traits>
 
 #include "config.h"
@@ -88,6 +89,86 @@ namespace wray::simd
 
     template<class T, int N>
     using int_for = vec<typename bits_of<T>::integer, N>;
+
+    using f32x4 = vec<float, 4>;
+    using f64x2 = vec<double, 2>;
+    using i32x4 = vec<std::int32_t, 4>;
+    using i64x2 = vec<std::int64_t, 2>;
+    using m32x4 = mask<32, 4>;
+    using m64x2 = mask<64, 2>;
+    using f32x8 = vec<float, 8>;
+    using f64x4 = vec<double, 4>;
+    using i32x8 = vec<std::int32_t, 8>;
+    using i64x4 = vec<std::int64_t, 4>;
+    using m32x8 = mask<32, 8>;
+    using m64x4 = mask<64, 4>;
+    using f32x16 = vec<float, 16>;
+    using f64x8 = vec<double, 8>;
+    using i32x16 = vec<std::int32_t, 16>;
+    using i64x8 = vec<std::int64_t, 8>;
+    using m32x16 = mask<32, 16>;
+    using m64x8 = mask<64, 8>;
+
+#if defined(WRAY_SIMD_AVX512)
+    inline constexpr int register_bytes = 64;
+#elif defined(WRAY_SIMD_AVX2)
+    inline constexpr int register_bytes = 32;
+#elif defined(WRAY_SIMD_NEON) || defined(WRAY_SIMD_SSE2)
+    inline constexpr int register_bytes = 16;
+#else
+    inline constexpr int register_bytes = 0;
+#endif
+
+#if defined(WRAY_SIMD_SCALAR)
+    inline constexpr int native_bytes = 16;
+#else
+    inline constexpr int native_bytes = register_bytes;
+#endif
+
+    template<int Bytes, int N>
+    concept wide = register_bytes > 0 && Bytes * N > register_bytes && (N & (N - 1)) == 0;
+
+    template<class T, int N>
+    concept split = wide<static_cast<int>(sizeof(T)), N>;
+
+    template<class T, int N>
+        requires split<T, N>
+    struct vec<T, N>
+    {
+        using value_type = T;
+        using half = vec<T, N / 2>;
+        static constexpr int size = N;
+        half lo;
+        half hi;
+
+        vec() = default;
+
+        WRAY_INLINE vec(const half &l, const half &h) noexcept : lo(l), hi(h)
+        {
+        }
+
+        WRAY_INLINE vec(T s) noexcept : lo(s), hi(s)
+        {
+        }
+
+        WRAY_INLINE static vec load(const T *p) noexcept { return {half::load(p), half::load(p + N / 2)}; }
+
+        WRAY_INLINE void store(T *p) const noexcept
+        {
+            lo.store(p);
+            hi.store(p + N / 2);
+        }
+
+        WRAY_INLINE T operator[](int i) const noexcept { return i < N / 2 ? lo[i] : hi[i - N / 2]; }
+    };
+
+    template<int B, int N>
+        requires wide<B / 8, N>
+    struct mask<B, N>
+    {
+        mask<B, N / 2> lo;
+        mask<B, N / 2> hi;
+    };
 
     template<class T, int N, class F>
     WRAY_INLINE vec<T, N> map(const vec<T, N> &a, F f) noexcept
@@ -438,13 +519,6 @@ namespace wray::simd
         }
     };
 
-    using f32x4 = vec<float, 4>;
-    using f64x2 = vec<double, 2>;
-    using i32x4 = vec<std::int32_t, 4>;
-    using i64x2 = vec<std::int64_t, 2>;
-    using m32x4 = mask<32, 4>;
-    using m64x2 = mask<64, 2>;
-
     WRAY_INLINE f32x4 operator+(const f32x4 &a, const f32x4 &b) noexcept { return vaddq_f32(a.v, b.v); }
     WRAY_INLINE f32x4 operator-(const f32x4 &a, const f32x4 &b) noexcept { return vsubq_f32(a.v, b.v); }
     WRAY_INLINE f32x4 operator*(const f32x4 &a, const f32x4 &b) noexcept { return vmulq_f32(a.v, b.v); }
@@ -663,13 +737,6 @@ namespace wray::simd
         }
     };
 
-    using f32x4 = vec<float, 4>;
-    using f64x2 = vec<double, 2>;
-    using i32x4 = vec<std::int32_t, 4>;
-    using i64x2 = vec<std::int64_t, 2>;
-    using m32x4 = mask<32, 4>;
-    using m64x2 = mask<64, 2>;
-
     WRAY_INLINE f32x4 operator+(const f32x4 &a, const f32x4 &b) noexcept { return _mm_add_ps(a.v, b.v); }
     WRAY_INLINE f32x4 operator-(const f32x4 &a, const f32x4 &b) noexcept { return _mm_sub_ps(a.v, b.v); }
     WRAY_INLINE f32x4 operator*(const f32x4 &a, const f32x4 &b) noexcept { return _mm_mul_ps(a.v, b.v); }
@@ -823,16 +890,653 @@ namespace wray::simd
     WRAY_INLINE bool any(const m64x2 &a) noexcept { return _mm_movemask_epi8(a.v) != 0; }
     WRAY_INLINE bool all(const m64x2 &a) noexcept { return _mm_movemask_epi8(a.v) == 0xFFFF; }
 
+#if defined(WRAY_SIMD_AVX2)
+
+    template<>
+    struct mask<32, 8>
+    {
+        __m256i v;
+    };
+
+    template<>
+    struct mask<64, 4>
+    {
+        __m256i v;
+    };
+
+    template<>
+    struct vec<float, 8>
+    {
+        using value_type = float;
+        static constexpr int size = 8;
+        __m256 v;
+
+        vec() = default;
+
+        WRAY_INLINE vec(__m256 x) noexcept : v(x)
+        {
+        }
+
+        WRAY_INLINE vec(float s) noexcept : v(_mm256_set1_ps(s))
+        {
+        }
+
+        WRAY_INLINE static vec load(const float *p) noexcept { return _mm256_loadu_ps(p); }
+        WRAY_INLINE void store(float *p) const noexcept { _mm256_storeu_ps(p, v); }
+        WRAY_INLINE float operator[](int i) const noexcept
+        {
+            float t[8];
+            store(t);
+            return t[i];
+        }
+    };
+
+    template<>
+    struct vec<double, 4>
+    {
+        using value_type = double;
+        static constexpr int size = 4;
+        __m256d v;
+
+        vec() = default;
+
+        WRAY_INLINE vec(__m256d x) noexcept : v(x)
+        {
+        }
+
+        WRAY_INLINE vec(double s) noexcept : v(_mm256_set1_pd(s))
+        {
+        }
+
+        WRAY_INLINE static vec load(const double *p) noexcept { return _mm256_loadu_pd(p); }
+        WRAY_INLINE void store(double *p) const noexcept { _mm256_storeu_pd(p, v); }
+        WRAY_INLINE double operator[](int i) const noexcept
+        {
+            double t[4];
+            store(t);
+            return t[i];
+        }
+    };
+
+    template<>
+    struct vec<std::int32_t, 8>
+    {
+        using value_type = std::int32_t;
+        static constexpr int size = 8;
+        __m256i v;
+
+        vec() = default;
+
+        WRAY_INLINE vec(__m256i x) noexcept : v(x)
+        {
+        }
+
+        WRAY_INLINE vec(std::int32_t s) noexcept : v(_mm256_set1_epi32(s))
+        {
+        }
+
+        WRAY_INLINE static vec load(const std::int32_t *p) noexcept
+        {
+            return _mm256_loadu_si256(reinterpret_cast<const __m256i *>(p));
+        }
+
+        WRAY_INLINE void store(std::int32_t *p) const noexcept { _mm256_storeu_si256(reinterpret_cast<__m256i *>(p), v); }
+        WRAY_INLINE std::int32_t operator[](int i) const noexcept
+        {
+            std::int32_t t[8];
+            store(t);
+            return t[i];
+        }
+    };
+
+    template<>
+    struct vec<std::int64_t, 4>
+    {
+        using value_type = std::int64_t;
+        static constexpr int size = 4;
+        __m256i v;
+
+        vec() = default;
+
+        WRAY_INLINE vec(__m256i x) noexcept : v(x)
+        {
+        }
+
+        WRAY_INLINE vec(std::int64_t s) noexcept : v(_mm256_set1_epi64x(s))
+        {
+        }
+
+        WRAY_INLINE static vec load(const std::int64_t *p) noexcept
+        {
+            return _mm256_loadu_si256(reinterpret_cast<const __m256i *>(p));
+        }
+
+        WRAY_INLINE void store(std::int64_t *p) const noexcept { _mm256_storeu_si256(reinterpret_cast<__m256i *>(p), v); }
+        WRAY_INLINE std::int64_t operator[](int i) const noexcept
+        {
+            std::int64_t t[4];
+            store(t);
+            return t[i];
+        }
+    };
+
+    WRAY_INLINE f32x8 operator+(const f32x8 &a, const f32x8 &b) noexcept { return _mm256_add_ps(a.v, b.v); }
+    WRAY_INLINE f32x8 operator-(const f32x8 &a, const f32x8 &b) noexcept { return _mm256_sub_ps(a.v, b.v); }
+    WRAY_INLINE f32x8 operator*(const f32x8 &a, const f32x8 &b) noexcept { return _mm256_mul_ps(a.v, b.v); }
+    WRAY_INLINE f32x8 operator/(const f32x8 &a, const f32x8 &b) noexcept { return _mm256_div_ps(a.v, b.v); }
+    WRAY_INLINE f32x8 operator-(const f32x8 &a) noexcept { return _mm256_xor_ps(a.v, _mm256_set1_ps(-0.0f)); }
+#if WRAY_HAS_FMA
+    WRAY_INLINE f32x8 fma(const f32x8 &a, const f32x8 &b, const f32x8 &c) noexcept
+    {
+        return _mm256_fmadd_ps(a.v, b.v, c.v);
+    }
+#else
+    WRAY_INLINE f32x8 fma(const f32x8 &a, const f32x8 &b, const f32x8 &c) noexcept
+    {
+        return _mm256_add_ps(_mm256_mul_ps(a.v, b.v), c.v);
+    }
+#endif
+    WRAY_INLINE f32x8 min(const f32x8 &a, const f32x8 &b) noexcept { return _mm256_min_ps(a.v, b.v); }
+    WRAY_INLINE f32x8 max(const f32x8 &a, const f32x8 &b) noexcept { return _mm256_max_ps(a.v, b.v); }
+    WRAY_INLINE f32x8 abs(const f32x8 &a) noexcept { return _mm256_andnot_ps(_mm256_set1_ps(-0.0f), a.v); }
+    WRAY_INLINE f32x8 sqrt(const f32x8 &a) noexcept { return _mm256_sqrt_ps(a.v); }
+    WRAY_INLINE m32x8 operator==(const f32x8 &a, const f32x8 &b) noexcept
+    {
+        return {_mm256_castps_si256(_mm256_cmp_ps(a.v, b.v, _CMP_EQ_OQ))};
+    }
+    WRAY_INLINE m32x8 operator!=(const f32x8 &a, const f32x8 &b) noexcept
+    {
+        return {_mm256_castps_si256(_mm256_cmp_ps(a.v, b.v, _CMP_NEQ_UQ))};
+    }
+    WRAY_INLINE m32x8 operator<(const f32x8 &a, const f32x8 &b) noexcept
+    {
+        return {_mm256_castps_si256(_mm256_cmp_ps(a.v, b.v, _CMP_LT_OQ))};
+    }
+    WRAY_INLINE m32x8 operator<=(const f32x8 &a, const f32x8 &b) noexcept
+    {
+        return {_mm256_castps_si256(_mm256_cmp_ps(a.v, b.v, _CMP_LE_OQ))};
+    }
+    WRAY_INLINE m32x8 operator>(const f32x8 &a, const f32x8 &b) noexcept
+    {
+        return {_mm256_castps_si256(_mm256_cmp_ps(a.v, b.v, _CMP_GT_OQ))};
+    }
+    WRAY_INLINE m32x8 operator>=(const f32x8 &a, const f32x8 &b) noexcept
+    {
+        return {_mm256_castps_si256(_mm256_cmp_ps(a.v, b.v, _CMP_GE_OQ))};
+    }
+    WRAY_INLINE f32x8 select(const m32x8 &m, const f32x8 &a, const f32x8 &b) noexcept
+    {
+        return _mm256_blendv_ps(b.v, a.v, _mm256_castsi256_ps(m.v));
+    }
+    WRAY_INLINE i32x8 as_bits(const f32x8 &a) noexcept { return _mm256_castps_si256(a.v); }
+    template<>
+    WRAY_INLINE f32x8 from_bits<f32x8, i32x8>(const i32x8 &a) noexcept { return _mm256_castsi256_ps(a.v); }
+
+    WRAY_INLINE f64x4 operator+(const f64x4 &a, const f64x4 &b) noexcept { return _mm256_add_pd(a.v, b.v); }
+    WRAY_INLINE f64x4 operator-(const f64x4 &a, const f64x4 &b) noexcept { return _mm256_sub_pd(a.v, b.v); }
+    WRAY_INLINE f64x4 operator*(const f64x4 &a, const f64x4 &b) noexcept { return _mm256_mul_pd(a.v, b.v); }
+    WRAY_INLINE f64x4 operator/(const f64x4 &a, const f64x4 &b) noexcept { return _mm256_div_pd(a.v, b.v); }
+    WRAY_INLINE f64x4 operator-(const f64x4 &a) noexcept { return _mm256_xor_pd(a.v, _mm256_set1_pd(-0.0)); }
+#if WRAY_HAS_FMA
+    WRAY_INLINE f64x4 fma(const f64x4 &a, const f64x4 &b, const f64x4 &c) noexcept
+    {
+        return _mm256_fmadd_pd(a.v, b.v, c.v);
+    }
+#else
+    WRAY_INLINE f64x4 fma(const f64x4 &a, const f64x4 &b, const f64x4 &c) noexcept
+    {
+        return _mm256_add_pd(_mm256_mul_pd(a.v, b.v), c.v);
+    }
+#endif
+    WRAY_INLINE f64x4 min(const f64x4 &a, const f64x4 &b) noexcept { return _mm256_min_pd(a.v, b.v); }
+    WRAY_INLINE f64x4 max(const f64x4 &a, const f64x4 &b) noexcept { return _mm256_max_pd(a.v, b.v); }
+    WRAY_INLINE f64x4 abs(const f64x4 &a) noexcept { return _mm256_andnot_pd(_mm256_set1_pd(-0.0), a.v); }
+    WRAY_INLINE f64x4 sqrt(const f64x4 &a) noexcept { return _mm256_sqrt_pd(a.v); }
+    WRAY_INLINE m64x4 operator==(const f64x4 &a, const f64x4 &b) noexcept
+    {
+        return {_mm256_castpd_si256(_mm256_cmp_pd(a.v, b.v, _CMP_EQ_OQ))};
+    }
+    WRAY_INLINE m64x4 operator!=(const f64x4 &a, const f64x4 &b) noexcept
+    {
+        return {_mm256_castpd_si256(_mm256_cmp_pd(a.v, b.v, _CMP_NEQ_UQ))};
+    }
+    WRAY_INLINE m64x4 operator<(const f64x4 &a, const f64x4 &b) noexcept
+    {
+        return {_mm256_castpd_si256(_mm256_cmp_pd(a.v, b.v, _CMP_LT_OQ))};
+    }
+    WRAY_INLINE m64x4 operator<=(const f64x4 &a, const f64x4 &b) noexcept
+    {
+        return {_mm256_castpd_si256(_mm256_cmp_pd(a.v, b.v, _CMP_LE_OQ))};
+    }
+    WRAY_INLINE m64x4 operator>(const f64x4 &a, const f64x4 &b) noexcept
+    {
+        return {_mm256_castpd_si256(_mm256_cmp_pd(a.v, b.v, _CMP_GT_OQ))};
+    }
+    WRAY_INLINE m64x4 operator>=(const f64x4 &a, const f64x4 &b) noexcept
+    {
+        return {_mm256_castpd_si256(_mm256_cmp_pd(a.v, b.v, _CMP_GE_OQ))};
+    }
+    WRAY_INLINE f64x4 select(const m64x4 &m, const f64x4 &a, const f64x4 &b) noexcept
+    {
+        return _mm256_blendv_pd(b.v, a.v, _mm256_castsi256_pd(m.v));
+    }
+    WRAY_INLINE i64x4 as_bits(const f64x4 &a) noexcept { return _mm256_castpd_si256(a.v); }
+    template<>
+    WRAY_INLINE f64x4 from_bits<f64x4, i64x4>(const i64x4 &a) noexcept { return _mm256_castsi256_pd(a.v); }
+
+    WRAY_INLINE i32x8 operator+(const i32x8 &a, const i32x8 &b) noexcept { return _mm256_add_epi32(a.v, b.v); }
+    WRAY_INLINE i32x8 operator-(const i32x8 &a, const i32x8 &b) noexcept { return _mm256_sub_epi32(a.v, b.v); }
+    WRAY_INLINE i32x8 operator&(const i32x8 &a, const i32x8 &b) noexcept { return _mm256_and_si256(a.v, b.v); }
+    WRAY_INLINE i32x8 operator|(const i32x8 &a, const i32x8 &b) noexcept { return _mm256_or_si256(a.v, b.v); }
+    WRAY_INLINE i32x8 operator^(const i32x8 &a, const i32x8 &b) noexcept { return _mm256_xor_si256(a.v, b.v); }
+    WRAY_INLINE i32x8 operator<<(const i32x8 &a, int s) noexcept { return _mm256_sll_epi32(a.v, _mm_cvtsi32_si128(s)); }
+    WRAY_INLINE i32x8 shift_right_logical(const i32x8 &a, int s) noexcept
+    {
+        return _mm256_srl_epi32(a.v, _mm_cvtsi32_si128(s));
+    }
+    WRAY_INLINE m32x8 operator==(const i32x8 &a, const i32x8 &b) noexcept { return {_mm256_cmpeq_epi32(a.v, b.v)}; }
+    WRAY_INLINE m32x8 nonzero(const i32x8 &a) noexcept
+    {
+        return {_mm256_xor_si256(_mm256_cmpeq_epi32(a.v, _mm256_setzero_si256()), _mm256_set1_epi32(-1))};
+    }
+
+    WRAY_INLINE i64x4 operator+(const i64x4 &a, const i64x4 &b) noexcept { return _mm256_add_epi64(a.v, b.v); }
+    WRAY_INLINE i64x4 operator-(const i64x4 &a, const i64x4 &b) noexcept { return _mm256_sub_epi64(a.v, b.v); }
+    WRAY_INLINE i64x4 operator&(const i64x4 &a, const i64x4 &b) noexcept { return _mm256_and_si256(a.v, b.v); }
+    WRAY_INLINE i64x4 operator|(const i64x4 &a, const i64x4 &b) noexcept { return _mm256_or_si256(a.v, b.v); }
+    WRAY_INLINE i64x4 operator^(const i64x4 &a, const i64x4 &b) noexcept { return _mm256_xor_si256(a.v, b.v); }
+    WRAY_INLINE i64x4 operator<<(const i64x4 &a, int s) noexcept { return _mm256_sll_epi64(a.v, _mm_cvtsi32_si128(s)); }
+    WRAY_INLINE i64x4 shift_right_logical(const i64x4 &a, int s) noexcept
+    {
+        return _mm256_srl_epi64(a.v, _mm_cvtsi32_si128(s));
+    }
+    WRAY_INLINE m64x4 operator==(const i64x4 &a, const i64x4 &b) noexcept { return {_mm256_cmpeq_epi64(a.v, b.v)}; }
+    WRAY_INLINE m64x4 nonzero(const i64x4 &a) noexcept
+    {
+        return {_mm256_xor_si256(_mm256_cmpeq_epi64(a.v, _mm256_setzero_si256()), _mm256_set1_epi32(-1))};
+    }
+
+    WRAY_INLINE m32x8 operator&(const m32x8 &a, const m32x8 &b) noexcept { return {_mm256_and_si256(a.v, b.v)}; }
+    WRAY_INLINE m32x8 operator|(const m32x8 &a, const m32x8 &b) noexcept { return {_mm256_or_si256(a.v, b.v)}; }
+    WRAY_INLINE m32x8 operator!(const m32x8 &a) noexcept { return {_mm256_xor_si256(a.v, _mm256_set1_epi32(-1))}; }
+    WRAY_INLINE bool any(const m32x8 &a) noexcept { return _mm256_testz_si256(a.v, a.v) == 0; }
+    WRAY_INLINE bool all(const m32x8 &a) noexcept { return _mm256_movemask_epi8(a.v) == -1; }
+    WRAY_INLINE m64x4 operator&(const m64x4 &a, const m64x4 &b) noexcept { return {_mm256_and_si256(a.v, b.v)}; }
+    WRAY_INLINE m64x4 operator|(const m64x4 &a, const m64x4 &b) noexcept { return {_mm256_or_si256(a.v, b.v)}; }
+    WRAY_INLINE m64x4 operator!(const m64x4 &a) noexcept { return {_mm256_xor_si256(a.v, _mm256_set1_epi32(-1))}; }
+    WRAY_INLINE bool any(const m64x4 &a) noexcept { return _mm256_testz_si256(a.v, a.v) == 0; }
+    WRAY_INLINE bool all(const m64x4 &a) noexcept { return _mm256_movemask_epi8(a.v) == -1; }
+
 #endif
 
-#if !defined(WRAY_SIMD_NEON) && !defined(WRAY_SIMD_SSE2)
-    using f32x4 = vec<float, 4>;
-    using f64x2 = vec<double, 2>;
-    using i32x4 = vec<std::int32_t, 4>;
-    using i64x2 = vec<std::int64_t, 2>;
-    using m32x4 = mask<32, 4>;
-    using m64x2 = mask<64, 2>;
+#if defined(WRAY_SIMD_AVX512)
+
+    template<>
+    struct mask<32, 16>
+    {
+        __mmask16 v;
+    };
+
+    template<>
+    struct mask<64, 8>
+    {
+        __mmask8 v;
+    };
+
+    template<>
+    struct vec<float, 16>
+    {
+        using value_type = float;
+        static constexpr int size = 16;
+        __m512 v;
+
+        vec() = default;
+
+        WRAY_INLINE vec(__m512 x) noexcept : v(x)
+        {
+        }
+
+        WRAY_INLINE vec(float s) noexcept : v(_mm512_set1_ps(s))
+        {
+        }
+
+        WRAY_INLINE static vec load(const float *p) noexcept { return _mm512_loadu_ps(p); }
+        WRAY_INLINE void store(float *p) const noexcept { _mm512_storeu_ps(p, v); }
+        WRAY_INLINE float operator[](int i) const noexcept
+        {
+            float t[16];
+            store(t);
+            return t[i];
+        }
+    };
+
+    template<>
+    struct vec<double, 8>
+    {
+        using value_type = double;
+        static constexpr int size = 8;
+        __m512d v;
+
+        vec() = default;
+
+        WRAY_INLINE vec(__m512d x) noexcept : v(x)
+        {
+        }
+
+        WRAY_INLINE vec(double s) noexcept : v(_mm512_set1_pd(s))
+        {
+        }
+
+        WRAY_INLINE static vec load(const double *p) noexcept { return _mm512_loadu_pd(p); }
+        WRAY_INLINE void store(double *p) const noexcept { _mm512_storeu_pd(p, v); }
+        WRAY_INLINE double operator[](int i) const noexcept
+        {
+            double t[8];
+            store(t);
+            return t[i];
+        }
+    };
+
+    template<>
+    struct vec<std::int32_t, 16>
+    {
+        using value_type = std::int32_t;
+        static constexpr int size = 16;
+        __m512i v;
+
+        vec() = default;
+
+        WRAY_INLINE vec(__m512i x) noexcept : v(x)
+        {
+        }
+
+        WRAY_INLINE vec(std::int32_t s) noexcept : v(_mm512_set1_epi32(s))
+        {
+        }
+
+        WRAY_INLINE static vec load(const std::int32_t *p) noexcept { return _mm512_loadu_si512(p); }
+        WRAY_INLINE void store(std::int32_t *p) const noexcept { _mm512_storeu_si512(p, v); }
+        WRAY_INLINE std::int32_t operator[](int i) const noexcept
+        {
+            std::int32_t t[16];
+            store(t);
+            return t[i];
+        }
+    };
+
+    template<>
+    struct vec<std::int64_t, 8>
+    {
+        using value_type = std::int64_t;
+        static constexpr int size = 8;
+        __m512i v;
+
+        vec() = default;
+
+        WRAY_INLINE vec(__m512i x) noexcept : v(x)
+        {
+        }
+
+        WRAY_INLINE vec(std::int64_t s) noexcept : v(_mm512_set1_epi64(s))
+        {
+        }
+
+        WRAY_INLINE static vec load(const std::int64_t *p) noexcept { return _mm512_loadu_si512(p); }
+        WRAY_INLINE void store(std::int64_t *p) const noexcept { _mm512_storeu_si512(p, v); }
+        WRAY_INLINE std::int64_t operator[](int i) const noexcept
+        {
+            std::int64_t t[8];
+            store(t);
+            return t[i];
+        }
+    };
+
+    WRAY_INLINE f32x16 operator+(const f32x16 &a, const f32x16 &b) noexcept { return _mm512_add_ps(a.v, b.v); }
+    WRAY_INLINE f32x16 operator-(const f32x16 &a, const f32x16 &b) noexcept { return _mm512_sub_ps(a.v, b.v); }
+    WRAY_INLINE f32x16 operator*(const f32x16 &a, const f32x16 &b) noexcept { return _mm512_mul_ps(a.v, b.v); }
+    WRAY_INLINE f32x16 operator/(const f32x16 &a, const f32x16 &b) noexcept { return _mm512_div_ps(a.v, b.v); }
+    WRAY_INLINE f32x16 operator-(const f32x16 &a) noexcept
+    {
+        return _mm512_castsi512_ps(_mm512_xor_si512(_mm512_castps_si512(a.v), _mm512_set1_epi32(std::numeric_limits<std::int32_t>::min())));
+    }
+#if WRAY_HAS_FMA
+    WRAY_INLINE f32x16 fma(const f32x16 &a, const f32x16 &b, const f32x16 &c) noexcept
+    {
+        return _mm512_fmadd_ps(a.v, b.v, c.v);
+    }
+#else
+    WRAY_INLINE f32x16 fma(const f32x16 &a, const f32x16 &b, const f32x16 &c) noexcept
+    {
+        return _mm512_add_ps(_mm512_mul_ps(a.v, b.v), c.v);
+    }
 #endif
+    WRAY_INLINE f32x16 min(const f32x16 &a, const f32x16 &b) noexcept { return _mm512_min_ps(a.v, b.v); }
+    WRAY_INLINE f32x16 max(const f32x16 &a, const f32x16 &b) noexcept { return _mm512_max_ps(a.v, b.v); }
+    WRAY_INLINE f32x16 abs(const f32x16 &a) noexcept { return _mm512_abs_ps(a.v); }
+    WRAY_INLINE f32x16 sqrt(const f32x16 &a) noexcept { return _mm512_sqrt_ps(a.v); }
+    WRAY_INLINE m32x16 operator==(const f32x16 &a, const f32x16 &b) noexcept { return {_mm512_cmp_ps_mask(a.v, b.v, _CMP_EQ_OQ)}; }
+    WRAY_INLINE m32x16 operator!=(const f32x16 &a, const f32x16 &b) noexcept { return {_mm512_cmp_ps_mask(a.v, b.v, _CMP_NEQ_UQ)}; }
+    WRAY_INLINE m32x16 operator<(const f32x16 &a, const f32x16 &b) noexcept { return {_mm512_cmp_ps_mask(a.v, b.v, _CMP_LT_OQ)}; }
+    WRAY_INLINE m32x16 operator<=(const f32x16 &a, const f32x16 &b) noexcept { return {_mm512_cmp_ps_mask(a.v, b.v, _CMP_LE_OQ)}; }
+    WRAY_INLINE m32x16 operator>(const f32x16 &a, const f32x16 &b) noexcept { return {_mm512_cmp_ps_mask(a.v, b.v, _CMP_GT_OQ)}; }
+    WRAY_INLINE m32x16 operator>=(const f32x16 &a, const f32x16 &b) noexcept { return {_mm512_cmp_ps_mask(a.v, b.v, _CMP_GE_OQ)}; }
+    WRAY_INLINE f32x16 select(const m32x16 &m, const f32x16 &a, const f32x16 &b) noexcept
+    {
+        return _mm512_mask_blend_ps(m.v, b.v, a.v);
+    }
+    WRAY_INLINE i32x16 as_bits(const f32x16 &a) noexcept { return _mm512_castps_si512(a.v); }
+    template<>
+    WRAY_INLINE f32x16 from_bits<f32x16, i32x16>(const i32x16 &a) noexcept { return _mm512_castsi512_ps(a.v); }
+
+    WRAY_INLINE f64x8 operator+(const f64x8 &a, const f64x8 &b) noexcept { return _mm512_add_pd(a.v, b.v); }
+    WRAY_INLINE f64x8 operator-(const f64x8 &a, const f64x8 &b) noexcept { return _mm512_sub_pd(a.v, b.v); }
+    WRAY_INLINE f64x8 operator*(const f64x8 &a, const f64x8 &b) noexcept { return _mm512_mul_pd(a.v, b.v); }
+    WRAY_INLINE f64x8 operator/(const f64x8 &a, const f64x8 &b) noexcept { return _mm512_div_pd(a.v, b.v); }
+    WRAY_INLINE f64x8 operator-(const f64x8 &a) noexcept
+    {
+        return _mm512_castsi512_pd(_mm512_xor_si512(_mm512_castpd_si512(a.v), _mm512_set1_epi64(std::numeric_limits<std::int64_t>::min())));
+    }
+#if WRAY_HAS_FMA
+    WRAY_INLINE f64x8 fma(const f64x8 &a, const f64x8 &b, const f64x8 &c) noexcept
+    {
+        return _mm512_fmadd_pd(a.v, b.v, c.v);
+    }
+#else
+    WRAY_INLINE f64x8 fma(const f64x8 &a, const f64x8 &b, const f64x8 &c) noexcept
+    {
+        return _mm512_add_pd(_mm512_mul_pd(a.v, b.v), c.v);
+    }
+#endif
+    WRAY_INLINE f64x8 min(const f64x8 &a, const f64x8 &b) noexcept { return _mm512_min_pd(a.v, b.v); }
+    WRAY_INLINE f64x8 max(const f64x8 &a, const f64x8 &b) noexcept { return _mm512_max_pd(a.v, b.v); }
+    WRAY_INLINE f64x8 abs(const f64x8 &a) noexcept { return _mm512_abs_pd(a.v); }
+    WRAY_INLINE f64x8 sqrt(const f64x8 &a) noexcept { return _mm512_sqrt_pd(a.v); }
+    WRAY_INLINE m64x8 operator==(const f64x8 &a, const f64x8 &b) noexcept { return {_mm512_cmp_pd_mask(a.v, b.v, _CMP_EQ_OQ)}; }
+    WRAY_INLINE m64x8 operator!=(const f64x8 &a, const f64x8 &b) noexcept { return {_mm512_cmp_pd_mask(a.v, b.v, _CMP_NEQ_UQ)}; }
+    WRAY_INLINE m64x8 operator<(const f64x8 &a, const f64x8 &b) noexcept { return {_mm512_cmp_pd_mask(a.v, b.v, _CMP_LT_OQ)}; }
+    WRAY_INLINE m64x8 operator<=(const f64x8 &a, const f64x8 &b) noexcept { return {_mm512_cmp_pd_mask(a.v, b.v, _CMP_LE_OQ)}; }
+    WRAY_INLINE m64x8 operator>(const f64x8 &a, const f64x8 &b) noexcept { return {_mm512_cmp_pd_mask(a.v, b.v, _CMP_GT_OQ)}; }
+    WRAY_INLINE m64x8 operator>=(const f64x8 &a, const f64x8 &b) noexcept { return {_mm512_cmp_pd_mask(a.v, b.v, _CMP_GE_OQ)}; }
+    WRAY_INLINE f64x8 select(const m64x8 &m, const f64x8 &a, const f64x8 &b) noexcept
+    {
+        return _mm512_mask_blend_pd(m.v, b.v, a.v);
+    }
+    WRAY_INLINE i64x8 as_bits(const f64x8 &a) noexcept { return _mm512_castpd_si512(a.v); }
+    template<>
+    WRAY_INLINE f64x8 from_bits<f64x8, i64x8>(const i64x8 &a) noexcept { return _mm512_castsi512_pd(a.v); }
+
+    WRAY_INLINE i32x16 operator+(const i32x16 &a, const i32x16 &b) noexcept { return _mm512_add_epi32(a.v, b.v); }
+    WRAY_INLINE i32x16 operator-(const i32x16 &a, const i32x16 &b) noexcept { return _mm512_sub_epi32(a.v, b.v); }
+    WRAY_INLINE i32x16 operator&(const i32x16 &a, const i32x16 &b) noexcept { return _mm512_and_si512(a.v, b.v); }
+    WRAY_INLINE i32x16 operator|(const i32x16 &a, const i32x16 &b) noexcept { return _mm512_or_si512(a.v, b.v); }
+    WRAY_INLINE i32x16 operator^(const i32x16 &a, const i32x16 &b) noexcept { return _mm512_xor_si512(a.v, b.v); }
+    WRAY_INLINE i32x16 operator<<(const i32x16 &a, int s) noexcept { return _mm512_sll_epi32(a.v, _mm_cvtsi32_si128(s)); }
+    WRAY_INLINE i32x16 shift_right_logical(const i32x16 &a, int s) noexcept
+    {
+        return _mm512_srl_epi32(a.v, _mm_cvtsi32_si128(s));
+    }
+    WRAY_INLINE m32x16 operator==(const i32x16 &a, const i32x16 &b) noexcept { return {_mm512_cmpeq_epi32_mask(a.v, b.v)}; }
+    WRAY_INLINE m32x16 nonzero(const i32x16 &a) noexcept { return {_mm512_test_epi32_mask(a.v, a.v)}; }
+
+    WRAY_INLINE i64x8 operator+(const i64x8 &a, const i64x8 &b) noexcept { return _mm512_add_epi64(a.v, b.v); }
+    WRAY_INLINE i64x8 operator-(const i64x8 &a, const i64x8 &b) noexcept { return _mm512_sub_epi64(a.v, b.v); }
+    WRAY_INLINE i64x8 operator&(const i64x8 &a, const i64x8 &b) noexcept { return _mm512_and_si512(a.v, b.v); }
+    WRAY_INLINE i64x8 operator|(const i64x8 &a, const i64x8 &b) noexcept { return _mm512_or_si512(a.v, b.v); }
+    WRAY_INLINE i64x8 operator^(const i64x8 &a, const i64x8 &b) noexcept { return _mm512_xor_si512(a.v, b.v); }
+    WRAY_INLINE i64x8 operator<<(const i64x8 &a, int s) noexcept { return _mm512_sll_epi64(a.v, _mm_cvtsi32_si128(s)); }
+    WRAY_INLINE i64x8 shift_right_logical(const i64x8 &a, int s) noexcept
+    {
+        return _mm512_srl_epi64(a.v, _mm_cvtsi32_si128(s));
+    }
+    WRAY_INLINE m64x8 operator==(const i64x8 &a, const i64x8 &b) noexcept { return {_mm512_cmpeq_epi64_mask(a.v, b.v)}; }
+    WRAY_INLINE m64x8 nonzero(const i64x8 &a) noexcept { return {_mm512_test_epi64_mask(a.v, a.v)}; }
+
+    WRAY_INLINE m32x16 operator&(const m32x16 &a, const m32x16 &b) noexcept { return {static_cast<__mmask16>(a.v & b.v)}; }
+    WRAY_INLINE m32x16 operator|(const m32x16 &a, const m32x16 &b) noexcept { return {static_cast<__mmask16>(a.v | b.v)}; }
+    WRAY_INLINE m32x16 operator!(const m32x16 &a) noexcept { return {static_cast<__mmask16>(~a.v)}; }
+    WRAY_INLINE bool any(const m32x16 &a) noexcept { return a.v != 0; }
+    WRAY_INLINE bool all(const m32x16 &a) noexcept { return a.v == 0xFFFF; }
+    WRAY_INLINE m64x8 operator&(const m64x8 &a, const m64x8 &b) noexcept { return {static_cast<__mmask8>(a.v & b.v)}; }
+    WRAY_INLINE m64x8 operator|(const m64x8 &a, const m64x8 &b) noexcept { return {static_cast<__mmask8>(a.v | b.v)}; }
+    WRAY_INLINE m64x8 operator!(const m64x8 &a) noexcept { return {static_cast<__mmask8>(~a.v)}; }
+    WRAY_INLINE bool any(const m64x8 &a) noexcept { return a.v != 0; }
+    WRAY_INLINE bool all(const m64x8 &a) noexcept { return a.v == 0xFF; }
+
+#endif
+
+#endif
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE vec<T, N> operator+(const vec<T, N> &a, const vec<T, N> &b) noexcept { return {a.lo + b.lo, a.hi + b.hi}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE vec<T, N> operator-(const vec<T, N> &a, const vec<T, N> &b) noexcept { return {a.lo - b.lo, a.hi - b.hi}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE vec<T, N> operator*(const vec<T, N> &a, const vec<T, N> &b) noexcept { return {a.lo * b.lo, a.hi * b.hi}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE vec<T, N> operator/(const vec<T, N> &a, const vec<T, N> &b) noexcept { return {a.lo / b.lo, a.hi / b.hi}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE vec<T, N> operator-(const vec<T, N> &a) noexcept { return {-a.lo, -a.hi}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE vec<T, N> operator&(const vec<T, N> &a, const vec<T, N> &b) noexcept { return {a.lo & b.lo, a.hi & b.hi}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE vec<T, N> operator|(const vec<T, N> &a, const vec<T, N> &b) noexcept { return {a.lo | b.lo, a.hi | b.hi}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE vec<T, N> operator^(const vec<T, N> &a, const vec<T, N> &b) noexcept { return {a.lo ^ b.lo, a.hi ^ b.hi}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE vec<T, N> operator<<(const vec<T, N> &a, int s) noexcept { return {a.lo << s, a.hi << s}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE vec<T, N> shift_right_logical(const vec<T, N> &a, int s) noexcept
+    {
+        return {shift_right_logical(a.lo, s), shift_right_logical(a.hi, s)};
+    }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE mask_for<T, N> operator==(const vec<T, N> &a, const vec<T, N> &b) noexcept { return {a.lo == b.lo, a.hi == b.hi}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE mask_for<T, N> operator!=(const vec<T, N> &a, const vec<T, N> &b) noexcept { return {a.lo != b.lo, a.hi != b.hi}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE mask_for<T, N> operator<(const vec<T, N> &a, const vec<T, N> &b) noexcept { return {a.lo < b.lo, a.hi < b.hi}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE mask_for<T, N> operator<=(const vec<T, N> &a, const vec<T, N> &b) noexcept { return {a.lo <= b.lo, a.hi <= b.hi}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE mask_for<T, N> operator>(const vec<T, N> &a, const vec<T, N> &b) noexcept { return {a.lo > b.lo, a.hi > b.hi}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE mask_for<T, N> operator>=(const vec<T, N> &a, const vec<T, N> &b) noexcept { return {a.lo >= b.lo, a.hi >= b.hi}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE mask_for<T, N> nonzero(const vec<T, N> &a) noexcept { return {nonzero(a.lo), nonzero(a.hi)}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE vec<T, N> fma(const vec<T, N> &a, const vec<T, N> &b, const vec<T, N> &c) noexcept
+    {
+        return {fma(a.lo, b.lo, c.lo), fma(a.hi, b.hi, c.hi)};
+    }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE vec<T, N> min(const vec<T, N> &a, const vec<T, N> &b) noexcept { return {min(a.lo, b.lo), min(a.hi, b.hi)}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE vec<T, N> max(const vec<T, N> &a, const vec<T, N> &b) noexcept { return {max(a.lo, b.lo), max(a.hi, b.hi)}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE vec<T, N> abs(const vec<T, N> &a) noexcept { return {abs(a.lo), abs(a.hi)}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE vec<T, N> sqrt(const vec<T, N> &a) noexcept { return {sqrt(a.lo), sqrt(a.hi)}; }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE vec<T, N> select(const mask_for<T, N> &m, const vec<T, N> &a, const vec<T, N> &b) noexcept
+    {
+        return {select(m.lo, a.lo, b.lo), select(m.hi, a.hi, b.hi)};
+    }
+
+    template<class T, int N>
+        requires split<T, N>
+    WRAY_INLINE int_for<T, N> as_bits(const vec<T, N> &a) noexcept { return {as_bits(a.lo), as_bits(a.hi)}; }
+
+    template<class V, class I>
+        requires split<typename V::value_type, V::size>
+    WRAY_INLINE V from_bits(const I &a) noexcept
+    {
+        return {from_bits<typename V::half>(a.lo), from_bits<typename V::half>(a.hi)};
+    }
+
+    template<int B, int N>
+        requires wide<B / 8, N>
+    WRAY_INLINE mask<B, N> operator&(const mask<B, N> &a, const mask<B, N> &b) noexcept { return {a.lo & b.lo, a.hi & b.hi}; }
+
+    template<int B, int N>
+        requires wide<B / 8, N>
+    WRAY_INLINE mask<B, N> operator|(const mask<B, N> &a, const mask<B, N> &b) noexcept { return {a.lo | b.lo, a.hi | b.hi}; }
+
+    template<int B, int N>
+        requires wide<B / 8, N>
+    WRAY_INLINE mask<B, N> operator!(const mask<B, N> &a) noexcept { return {!a.lo, !a.hi}; }
+
+    template<int B, int N>
+        requires wide<B / 8, N>
+    WRAY_INLINE bool any(const mask<B, N> &a) noexcept { return any(a.lo | a.hi); }
+
+    template<int B, int N>
+        requires wide<B / 8, N>
+    WRAY_INLINE bool all(const mask<B, N> &a) noexcept { return all(a.lo & a.hi); }
 
     WRAY_INLINE float fma(float a, float b, float c) noexcept
     {
@@ -956,7 +1660,7 @@ namespace wray::simd
     concept real = std::is_floating_point_v<scalar_t<V> >;
 
     template<class T>
-    inline constexpr int native_width = 16 / static_cast<int>(sizeof(T));
+    inline constexpr int native_width = native_bytes / static_cast<int>(sizeof(T));
 
     template<class T>
     using native = vec<T, native_width<T> >;

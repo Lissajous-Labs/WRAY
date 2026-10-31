@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <limits>
 #include <random>
+#include <type_traits>
 
 #include "check.h"
 
@@ -36,12 +37,26 @@ namespace
             CHECK((r[i] == T(1)) == op(a[i], b[i]));
     }
 
-    template <class T>
+    template <class V>
+    void comparisons(const V& va, const V& vb)
+    {
+        using T = typename V::value_type;
+        mask_lanes(va, vb, va < vb, +[](T x, T y) { return x < y; });
+        mask_lanes(va, vb, va <= vb, +[](T x, T y) { return x <= y; });
+        mask_lanes(va, vb, va > vb, +[](T x, T y) { return x > y; });
+        mask_lanes(va, vb, va >= vb, +[](T x, T y) { return x >= y; });
+        mask_lanes(va, vb, va == vb, +[](T x, T y) { return x == y; });
+        mask_lanes(va, vb, va != vb, +[](T x, T y) { return x != y; });
+        mask_lanes(va, vb, !(va < vb), +[](T x, T y) { return !(x < y); });
+    }
+
+    template <class T, int n>
     void floats(std::mt19937_64& g)
     {
-        using V = native<T>;
-        constexpr int n = V::size;
+        using V = vec<T, n>;
+        static_assert(std::is_same_v<mask_t<V>, mask_for<T, n>>);
         std::uniform_real_distribution<T> d(T(-100), T(100));
+        const T nan = std::numeric_limits<T>::quiet_NaN();
         for (int iter = 0; iter < 2000; ++iter)
         {
             T a[n], b[n], c[n];
@@ -64,42 +79,53 @@ namespace
             const V f = fma(va, vb, vc);
             for (int i = 0; i < n; ++i)
                 CHECK(same<T>(f[i], wray::simd::fma(a[i], b[i], c[i])));
-            mask_lanes(va, vb, va < vb, +[](T x, T y) { return x < y; });
-            mask_lanes(va, vb, va <= vb, +[](T x, T y) { return x <= y; });
-            mask_lanes(va, vb, va > vb, +[](T x, T y) { return x > y; });
-            mask_lanes(va, vb, va >= vb, +[](T x, T y) { return x >= y; });
-            mask_lanes(va, vb, va == vb, +[](T x, T y) { return x == y; });
-            mask_lanes(va, vb, va != vb, +[](T x, T y) { return x != y; });
-            const V both_mask = select((va < vb) & (vb > vc), V(T(1)), V(T(0)));
+            comparisons(va, vb);
+            const V both_mask = select(both(va < vb, vb > vc), V(T(1)), V(T(0)));
+            const V either_mask = select(either(va < vb, vb > vc), V(T(1)), V(T(0)));
             for (int i = 0; i < n; ++i)
+            {
                 CHECK((both_mask[i] == T(1)) == (a[i] < b[i] && b[i] > c[i]));
+                CHECK((either_mask[i] == T(1)) == (a[i] < b[i] || b[i] > c[i]));
+            }
             const auto bits = as_bits(va);
+            static_assert(std::is_same_v<std::remove_const_t<decltype(bits)>, integer_t<V>>);
             const V back = from_bits<V>(bits);
             for (int i = 0; i < n; ++i)
             {
                 CHECK(bits[i] == std::bit_cast<typename bits_of<T>::integer>(a[i]));
                 CHECK(same<T>(back[i], a[i]));
             }
+            T p[n], q[n];
+            for (int i = 0; i < n; ++i)
+            {
+                p[i] = (iter + i) % 3 == 0 ? nan : a[i];
+                q[i] = (iter + i) % 5 == 0 ? nan : b[i];
+            }
+            comparisons(V::load(p), V::load(q));
+            T out[n];
+            va.store(out);
+            for (int i = 0; i < n; ++i)
+                CHECK(same<T>(out[i], a[i]));
         }
     }
 
-    template <class I>
+    template <class I, int n>
     void integers(std::mt19937_64& g)
     {
-        using V = vec<I, 16 / int(sizeof(I))>;
-        constexpr int n = V::size;
+        using V = vec<I, n>;
         using U = typename bits_of<I>::unsigned_integer;
+        using F = std::conditional_t<sizeof(I) == 4, float, double>;
         for (int iter = 0; iter < 2000; ++iter)
         {
             I a[n], b[n];
             for (int i = 0; i < n; ++i)
             {
                 a[i] = static_cast<I>(g());
-                b[i] = static_cast<I>(g());
+                b[i] = (iter % 5 == 0 && i % 3 == 0) ? a[i] : static_cast<I>(g());
             }
             const V va = V::load(a), vb = V::load(b);
             const int s = int(g() % (sizeof(I) * 8));
-            const V sum = va + vb, diff = va - vb, conj = va & vb, disj = va | vb, ex = va ^ vb, left = va << s, right = shift_right_logical(va, s);
+            const V sum = va + vb, diff = va - vb, conj = va & vb, disj = va | vb, ex = va ^ vb, left = va << s, left2 = shift_left(va, s), right = shift_right_logical(va, s);
             for (int i = 0; i < n; ++i)
             {
                 CHECK(sum[i] == static_cast<I>(static_cast<U>(a[i]) + static_cast<U>(b[i])));
@@ -108,17 +134,66 @@ namespace
                 CHECK(disj[i] == static_cast<I>(a[i] | b[i]));
                 CHECK(ex[i] == static_cast<I>(a[i] ^ b[i]));
                 CHECK(left[i] == static_cast<I>(static_cast<U>(a[i]) << s));
+                CHECK(left2[i] == static_cast<I>(static_cast<U>(a[i]) << s));
                 CHECK(right[i] == static_cast<I>(static_cast<U>(a[i]) >> s));
             }
             I z[n];
             for (int i = 0; i < n; ++i)
-                z[i] = (i % 2 == 0) ? I(0) : a[i];
+                z[i] = ((i + iter) % 2 == 0) ? I(0) : a[i];
             const auto m = nonzero(V::load(z));
-            using F = std::conditional_t<sizeof(I) == 4, float, double>;
-            const auto picked = select(m, native<F>(F(1)), native<F>(F(0)));
+            static_assert(std::is_same_v<std::remove_const_t<decltype(m)>, mask_for<F, n>>);
+            const auto picked = select(m, vec<F, n>(F(1)), vec<F, n>(F(0)));
+            const auto equal = select(va == vb, vec<F, n>(F(1)), vec<F, n>(F(0)));
             for (int i = 0; i < n; ++i)
+            {
                 CHECK((picked[i] == F(1)) == (z[i] != 0));
+                CHECK((equal[i] == F(1)) == (a[i] == b[i]));
+            }
+            I out[n];
+            va.store(out);
+            for (int i = 0; i < n; ++i)
+                CHECK(out[i] == a[i]);
         }
+    }
+
+    template <class T, int n>
+    void reductions()
+    {
+        using V = vec<T, n>;
+        using F = std::conditional_t<sizeof(T) == 4, float, double>;
+        using R = vec<F, n>;
+        T a[n];
+        for (int i = 0; i < n; ++i)
+            a[i] = T(i);
+        const V va = V::load(a);
+        const auto none = va == V(T(n));
+        CHECK(!any(none));
+        CHECK(all(!none));
+        for (int k = 0; k < n; ++k)
+        {
+            const auto one = va == V(T(k));
+            CHECK(any(one));
+            CHECK(all(one) == (n == 1));
+            CHECK(!all(!one));
+            CHECK(any(!one) == (n > 1));
+            CHECK(all(either(one, !one)));
+            CHECK(!any(both(one, !one)));
+            CHECK(any(either(one, none)));
+            CHECK(!any(both(one, none)));
+            const R r = select(one, R(F(1)), R(F(0)));
+            for (int i = 0; i < n; ++i)
+                CHECK((r[i] == F(1)) == (i == k));
+        }
+    }
+
+    template <class T, int n>
+    void width(std::mt19937_64& g)
+    {
+        using I = typename bits_of<T>::integer;
+        floats<T, n>(g);
+        integers<I, n>(g);
+        reductions<T, n>();
+        reductions<I, n>();
     }
 
     void masks()
@@ -137,11 +212,19 @@ namespace
 
 int main()
 {
+    static_assert(native_width<float> * int(sizeof(float)) == native_bytes);
+    static_assert(native_width<double> * int(sizeof(double)) == native_bytes);
+    static_assert(native<float>::size == native_width<float>);
+    static_assert(native<double>::size == native_width<double>);
     std::mt19937_64 g(3);
-    floats<float>(g);
-    floats<double>(g);
-    integers<std::int32_t>(g);
-    integers<std::int64_t>(g);
+    width<float, 4>(g);
+    width<float, 8>(g);
+    width<float, 16>(g);
+    width<float, 32>(g);
+    width<double, 2>(g);
+    width<double, 4>(g);
+    width<double, 8>(g);
+    width<double, 16>(g);
     masks();
     return wray::test::finish("simd");
 }

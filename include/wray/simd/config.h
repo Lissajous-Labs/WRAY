@@ -7,14 +7,20 @@
 #elif defined(__SSE2__) || defined(_M_X64)
 #define WRAY_SIMD_SSE2 1
 #include <emmintrin.h>
-#if defined(__FMA__)
+#if defined(__AVX2__)
+#define WRAY_SIMD_AVX2 1
+#endif
+#if defined(__AVX512F__)
+#define WRAY_SIMD_AVX512 1
+#endif
+#if defined(__FMA__) || defined(__AVX2__) || defined(__AVX512F__)
 #include <immintrin.h>
 #endif
 #else
 #define WRAY_SIMD_SCALAR 1
 #endif
 
-#if defined(__aarch64__) || defined(__FMA__)
+#if defined(__aarch64__) || defined(__FMA__) || (defined(_MSC_VER) && defined(__AVX2__))
 #define WRAY_HAS_FMA 1
 #else
 #define WRAY_HAS_FMA 0
