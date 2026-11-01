@@ -532,6 +532,12 @@ namespace wray::inline WRAY_ABI::math::detail
         return log_specials(x, log_combine(log_reduce<Tier, true>(x)));
     }
 
+    template<class V>
+    WRAY_INLINE V fast_log_domain(const V &x, const V &res) noexcept
+    {
+        return select(x >= V(scalar_t<V>(0)), res, nan<V>());
+    }
+
     template<class Tier, class V>
     WRAY_INLINE V log(const V &x) noexcept
     {
@@ -539,8 +545,11 @@ namespace wray::inline WRAY_ABI::math::detail
         {
             if (simd::any(!log_regular_mask(x)))
                 return log_edge<Tier>(x);
+            return log_combine(log_reduce<Tier, false>(x));
+        } else
+        {
+            return fast_log_domain(x, log_combine(log_reduce<Tier, false>(abs(x))));
         }
-        return log_combine(log_reduce<Tier, false>(x));
     }
 
     template<class Tier, bool Subnormal, class V>
@@ -592,9 +601,9 @@ namespace wray::inline WRAY_ABI::math::detail
         } else
         {
             using K = constants<scalar_t<V> >;
-            const auto p = log_reduce<Tier, false>(x);
+            const auto p = log_reduce<Tier, false>(abs(x));
             const V v = p.hi * V(K::inv_ln2);
-            return p.e + v;
+            return fast_log_domain(x, p.e + v);
         }
     }
 
@@ -871,7 +880,7 @@ namespace wray::inline WRAY_ABI::math::detail
         {
             const V v = fma(rt, numerics::rational<C>(t), r);
             const V c = V(S(-1)) / v;
-            return keep_zero(x, select(odd, c, v));
+            return keep_zero(x, select(odd, c, v) * trig_unit<Tier>(x));
         }
     }
 
@@ -1135,7 +1144,7 @@ namespace wray::inline WRAY_ABI::math::detail
         else
         {
             V u = n / d;
-            u = select(d == V(S(0)), V(S(0)), u);
+            u = select(d == V(S(0)), n, u);
             q = {select(both(ax == inf<V>(), ay == inf<V>()), V(S(1)), u), V(S(0))};
         }
         auto v = atan_unit<Tier>(q.hi, q.lo);
@@ -1171,7 +1180,7 @@ namespace wray::inline WRAY_ABI::math::detail
         } else
         {
             const V c(K::tanh_clamp_fast);
-            const auto inside = a < c;
+            const auto inside = !(a >= c);
             const V ac = select(inside, a, c);
             const V t = ac * ac;
             const V vs = select(ac < V(S(0x1p-9)), ac, ac * numerics::rational<C>(t));

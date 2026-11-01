@@ -396,6 +396,98 @@ namespace
         CHECK(sc.sin == wray::sin(0.5f));
         CHECK(sc.cos == wray::cos(0.5f));
     }
+
+    struct fast_unary
+    {
+        const char *name;
+        float (*fn)(float);
+        wray::simd::native<float> (*vfn)(wray::simd::native<float>);
+    };
+
+#define WRAY_FAST_ROW(f) fast_unary{#f, [](float x) { return wray::fast::f(x); }, [](wray::simd::native<float> x) { return wray::fast::f(x); }}
+
+    void fast_specials()
+    {
+        using V = wray::simd::native<float>;
+        const float inf = std::numeric_limits<float>::infinity();
+        const float nan = std::numeric_limits<float>::quiet_NaN();
+        const float tiny = std::numeric_limits<float>::denorm_min();
+        const float small = std::numeric_limits<float>::min();
+        const float huge = std::numeric_limits<float>::max();
+        const fast_unary all[] = {WRAY_FAST_ROW(exp), WRAY_FAST_ROW(exp2), WRAY_FAST_ROW(log), WRAY_FAST_ROW(log2), WRAY_FAST_ROW(sin_turns),
+                                  WRAY_FAST_ROW(sin), WRAY_FAST_ROW(cos_turns), WRAY_FAST_ROW(cos), WRAY_FAST_ROW(tanpi), WRAY_FAST_ROW(tan_turns),
+                                  WRAY_FAST_ROW(tan), WRAY_FAST_ROW(atan), WRAY_FAST_ROW(omega), WRAY_FAST_ROW(product_log), WRAY_FAST_ROW(tanh),
+                                  WRAY_FAST_ROW(sigmoid), WRAY_FAST_ROW(db_to_gain), WRAY_FAST_ROW(gain_to_db)};
+        const float inputs[] = {nan, -nan, inf, -inf, 0.0f, -0.0f, tiny, -tiny, small, -small, 1.0f, -1.0f, huge, -huge};
+        for (const auto &f: all)
+        {
+            for (const float x: inputs)
+            {
+                const float got = f.fn(x);
+                const V v = f.vfn(V(x));
+                for (int i = 0; i < V::size; ++i)
+                    CHECK(same(v[i], got));
+                if (std::isnan(x) && !std::isnan(got))
+                    std::printf("fast %s(nan) = %g\n", f.name, static_cast<double>(got));
+                CHECK(!std::isnan(x) || std::isnan(got));
+            }
+        }
+        for (const auto &f: {all[2], all[3], all[17]})
+        {
+            for (const float x: {-tiny, -small, -1.0f, -huge, -inf})
+                CHECK(std::isnan(f.fn(x)));
+            CHECK(same(f.fn(-0.0f), f.fn(0.0f)));
+            CHECK(std::isfinite(f.fn(0.0f)) && f.fn(0.0f) <= f.fn(small));
+            CHECK(std::isfinite(f.fn(inf)) && f.fn(inf) >= f.fn(huge));
+        }
+        for (const auto &f: {all[0], all[1], all[16]})
+        {
+            for (const float x: {inf, -inf, huge, -huge, tiny, -tiny})
+            {
+                const float y = f.fn(x);
+                CHECK(std::isfinite(y) && y >= small);
+            }
+        }
+        for (const float x: {88.0f, 100.0f, huge, inf})
+            CHECK(same(wray::fast::exp(x), wray::fast::exp(88.0f)));
+        for (const float x: {-87.0f, -100.0f, -huge, -inf})
+            CHECK(same(wray::fast::exp(x), wray::fast::exp(-87.0f)));
+        for (const float x: {127.0f, 200.0f, inf})
+            CHECK(same(wray::fast::exp2(x), wray::fast::exp2(127.0f)));
+        for (const float x: {-126.0f, -200.0f, -inf})
+            CHECK(same(wray::fast::exp2(x), wray::fast::exp2(-126.0f)));
+        CHECK(same(wray::fast::pow(2.0f, 300.0f), wray::fast::exp2(127.0f)));
+        CHECK(same(wray::fast::pow(2.0f, -300.0f), wray::fast::exp2(-126.0f)));
+        for (const float x: {5.9f, 6.0f, 100.0f, huge, inf})
+        {
+            CHECK(same(wray::fast::tanh(x), 1.0f));
+            CHECK(same(wray::fast::tanh(-x), -1.0f));
+        }
+        CHECK(wray::fast::tanh(std::nextafter(5.9f, 0.0f)) < 1.0f);
+        for (const auto &f: {all[5], all[7], all[10]})
+            for (const float x: {inf, -inf})
+                CHECK(std::isnan(f.fn(x)));
+        for (const auto &f: {all[4], all[5], all[8], all[9], all[10], all[11], all[13], all[14]})
+        {
+            CHECK(same(f.fn(0.0f), 0.0f));
+            CHECK(same(f.fn(-0.0f), -0.0f));
+        }
+        for (const float y: {nan, 0.0f, 1.0f, 2.0f, -1.0f, 0.5f})
+        {
+            CHECK(std::isnan(wray::fast::pow(nan, y)));
+            CHECK(std::isnan(wray::fast::pow(y, nan)));
+            CHECK(std::isnan(wray::fast::atan2(nan, y)));
+            CHECK(std::isnan(wray::fast::atan2(y, nan)));
+        }
+        CHECK(std::isnan(wray::fast::pow(-2.0f, 0.5f)));
+        CHECK(same(wray::fast::pow(-2.0f, 3.0f), -wray::fast::pow(2.0f, 3.0f)));
+        CHECK(same(wray::fast::pow(0.0f, 2.0f), wray::fast::exp2(-126.0f)));
+        CHECK(same(wray::fast::pow(0.0f, -2.0f), wray::fast::exp2(127.0f)));
+        CHECK(same(wray::fast::pow(inf, 2.0f), wray::fast::exp2(127.0f)));
+        CHECK(same(wray::fast::pow(inf, -2.0f), wray::fast::exp2(-126.0f)));
+    }
+
+#undef WRAY_FAST_ROW
 }
 
 int main()
@@ -409,5 +501,6 @@ int main()
     ranges();
     huge_trig<float, wray::f32x4>();
     huge_trig<double, wray::f64x2>();
+    fast_specials();
     return wray::test::finish("special");
 }
