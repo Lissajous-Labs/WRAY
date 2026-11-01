@@ -1157,8 +1157,8 @@ namespace wray::math::detail
         using I = integer_t<V>;
         const V r = pow_magnitude<Tier>(abs(x), y);
         const V half = y * V(S(0.5));
-        const auto whole = nearest(y) == y;
-        const auto odd = both(whole, nearest(half) != half);
+        const auto whole = round_nearest(y) == y;
+        const auto odd = both(whole, round_nearest(half) != half);
         const auto negative = nonzero(as_bits(x) & I(F::sign_bit));
         const V signed_r = select(both(negative, odd), -r, r);
         const auto invalid = both(both(x < V(S(0)), abs(x) < inf<V>()), !whole);
