@@ -136,6 +136,17 @@ def erfc_scaled(a):
     return mp.erfc(a) * mp.exp(a * a)
 
 
+def omega(x):
+    x = mp.mpf(x)
+    y = x - mp.log(x) if x > 1 else mp.exp(x)
+    for _ in range(200):
+        step = (y + mp.log(y) - x) * y / (1 + y)
+        y -= step
+        if abs(step) <= mp.mpf(10) ** (5 - mp.mp.dps) * abs(y):
+            break
+    return y
+
+
 def tan_turns(t):
     s = mp.sqrt(t)
     return (mp.tan(mp.pi * s) - mp.pi * s) / (s * t)
@@ -161,6 +172,7 @@ CORES = {
     "erf_mid": dict(g=_limit(precise(erf_mid), lambda: 2 / mp.sqrt(mp.pi) * mp.exp(-mp.mpf(9) / 16)), interval=lambda tier: (-mp.mpf(1) / 4, mp.mpf(1) / 4)),
     "erf_mid2": dict(g=_limit(precise(erf_mid2), lambda: 2 / mp.sqrt(mp.pi) * mp.exp(-mp.mpf(25) / 16)), interval=lambda tier: (-mp.mpf(1) / 4, mp.mpf(1) / 4)),
     "erfc": dict(g=erfc_scaled, interval=lambda tier: (mp.mpf(3) / 2, 4 if tier == "f32" else 6)),
+    "omega": dict(g=omega, interval=lambda tier: (-2, 3)),
     "sin_turns": dict(g=_limit(precise(sin_turns), lambda: -(2 * mp.pi) ** 3 / 6), interval=lambda tier: (0, mp.mpf(1) / 64)),
     "cos_turns": dict(g=_limit(precise(cos_turns), lambda: (2 * mp.pi) ** 4 / 24), interval=lambda tier: (0, mp.mpf(1) / 64)),
     "tan_turns": dict(g=_limit(precise(tan_turns), lambda: mp.pi ** 3 / 3), interval=lambda tier: (0, mp.mpf(1) / 16)),

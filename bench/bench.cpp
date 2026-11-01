@@ -76,7 +76,11 @@ namespace
     workload<T> make(const std::string& name, std::mt19937_64& rng)
     {
         workload<T> w;
-        if (name == "smoothing_coefficient")
+        if (name == "product_log")
+            w.a = uniform<T>(rng, -0.3, 10);
+        else if (name == "omega")
+            w.a = uniform<T>(rng, -10, 30);
+        else if (name == "smoothing_coefficient")
         {
             w.a = log_uniform<T>(rng, 1e-4, 10);
             w.b = uniform<T>(rng, 44100, 192000);
@@ -157,7 +161,11 @@ namespace
         const double tiny = double(std::numeric_limits<T>::denorm_min());
         const double normal = double(std::numeric_limits<T>::min());
         workload<T> w;
-        if (name == "ratio_from_cents")
+        if (name == "product_log")
+            w.a = mirrored<T>(rng, 1e20, 1e30);
+        else if (name == "omega")
+            w.a = mirrored<T>(rng, 1e20, 1e30);
+        else if (name == "ratio_from_cents")
             w.a = mirrored<T>(rng, 1e6, 1e7);
         else if (name == "hz_to_midi")
             w.a = log_uniform<T>(rng, double(std::numeric_limits<T>::denorm_min()), double(std::numeric_limits<T>::min()));
@@ -330,6 +338,10 @@ namespace
             binary(s, [](T hz, T fs) { return std::exp(T(-2) * std::numbers::pi_v<T> * hz / fs); }, [](auto hz, auto fs) { return wray::pole_from_cutoff(hz, fs); }, none{});
         if (n == "prewarp")
             binary(s, [](T hz, T fs) { return std::tan(std::numbers::pi_v<T> * hz / fs); }, [](auto hz, auto fs) { return wray::prewarp(hz, fs); }, none{});
+        if (n == "omega")
+            unary(s, [](T x) { return std::log1p(std::exp(x)); }, [](auto x) { return wray::omega(x); }, [](auto x) { return wray::fast::omega(x); });
+        if (n == "product_log")
+            unary(s, [](T x) { return std::log1p(x); }, [](auto x) { return wray::product_log(x); }, [](auto x) { return wray::fast::product_log(x); });
         if (n == "expm1")
             unary(s, [](T x) { return std::expm1(x); }, [](auto x) { return wray::expm1(x); }, none{});
         if (n == "exp2")
@@ -387,7 +399,7 @@ namespace
     template <class T>
     void run(const char* type, std::FILE* json, bool& first, const std::vector<std::string>& only)
     {
-        const char* names[] = {"smoothing_coefficient", "pole_from_cutoff", "prewarp", "ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "sincos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain",
+        const char* names[] = {"product_log", "omega", "smoothing_coefficient", "pole_from_cutoff", "prewarp", "ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "sincos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain",
                                "gain_to_db"};
         std::mt19937_64 rng(7);
         std::mt19937_64 edge_rng(11);

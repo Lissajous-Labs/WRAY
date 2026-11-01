@@ -196,6 +196,12 @@ namespace wray
     WRAY_INLINE V ratio_from_cents(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::ratio_from_cents<math::precise>(v); }); }
 
     template<simd::real V>
+    WRAY_INLINE V omega(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::omega<math::precise>(v); }); }
+
+    template<simd::real V>
+    WRAY_INLINE V product_log(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::product_log<math::precise>(v); }); }
+
+    template<simd::real V>
     WRAY_INLINE V tanh(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::tanh<math::precise>(v); }); }
 
     template<simd::real V>
@@ -278,6 +284,12 @@ namespace wray
 
     template<math::real_range In, class Out>
     void ratio_from_cents(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::ratio_from_cents(v); }); }
+
+    template<math::real_range In, class Out>
+    void omega(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::omega(v); }); }
+
+    template<math::real_range In, class Out>
+    void product_log(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::product_log(v); }); }
 
     template<math::real_range In, class Out>
     void tanh(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::tanh(v); }); }
@@ -376,6 +388,12 @@ namespace wray::fast
     WRAY_INLINE V atan2(const V &y, const V &x) noexcept { return math::lift(y, x, [](const auto &a, const auto &b) { return math::detail::atan2<math::fast>(a, b); }); }
 
     template<single V>
+    WRAY_INLINE V omega(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::omega<math::fast>(v); }); }
+
+    template<single V>
+    WRAY_INLINE V product_log(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::product_log<math::fast>(v); }); }
+
+    template<single V>
     WRAY_INLINE V tanh(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::tanh<math::fast>(v); }); }
 
     template<single V>
@@ -422,6 +440,12 @@ namespace wray::fast
 
     template<math::real_range In, class Out>
     void atan(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return fast::atan(v); }); }
+
+    template<math::real_range In, class Out>
+    void omega(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return fast::omega(v); }); }
+
+    template<math::real_range In, class Out>
+    void product_log(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return fast::product_log(v); }); }
 
     template<math::real_range In, class Out>
     void tanh(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return fast::tanh(v); }); }

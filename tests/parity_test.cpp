@@ -87,6 +87,8 @@ namespace
         unary(x, [](auto v) { return wray::midi_to_hz(v); });
         unary(x, [](auto v) { return wray::hz_to_midi(v); });
         unary(x, [](auto v) { return wray::ratio_from_cents(v); });
+        unary(x, [](auto v) { return wray::omega(v); });
+        unary(x, [](auto v) { return wray::product_log(v); });
         unary(x, [](auto v) { return wray::expm1(v); });
         unary(x, [](auto v) { return wray::exp2(v); });
         unary(x, [](auto v) { return wray::log(v); });
@@ -114,6 +116,8 @@ namespace
         unary(x, [](auto v) { return wray::fast::sin_turns(v); });
         unary(x, [](auto v) { return wray::fast::cos_turns(v); });
         unary(x, [](auto v) { return wray::fast::tan_turns(v); });
+        unary(x, [](auto v) { return wray::fast::omega(v); });
+        unary(x, [](auto v) { return wray::fast::product_log(v); });
         unary(x, [](auto v) { return wray::fast::exp(v); });
         unary(x, [](auto v) { return wray::fast::exp2(v); });
         unary(x, [](auto v) { return wray::fast::log(v); });

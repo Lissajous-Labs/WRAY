@@ -200,6 +200,27 @@ namespace wray::math::coeff
         static constexpr std::array<float, 1> q{ 0x1p+0f };
     };
 
+    struct omega_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 4> p{ 0x1.225f4p-1f, 0x1.756d7cp-2f, 0x1.7c1e9ap-4f, 0x1.2ebb18p-7f };
+        static constexpr std::array<float, 4> q{ 0x1p+0f, 0x1.4ba4dp-8f, 0x1.f39208p-6f, -0x1.bf2402p-10f };
+    };
+
+    struct omega_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 4> p{ 0x1.225f3f9806fe9p-1, 0x1.756d7c7ad0e8bp-2, 0x1.7c1e99a8c7643p-4, 0x1.2ebb17307364cp-7 };
+        static constexpr std::array<double, 4> q{ 0x1p+0, 0x1.4ba4cf10bafafp-8, 0x1.f39207779a638p-6, -0x1.bf2402f2c40f8p-10 };
+    };
+
+    struct omega_fast
+    {
+        using value_type = float;
+        static constexpr std::array<float, 4> p{ 0x1.225f4p-1f, 0x1.756d7cp-2f, 0x1.7c1e9ap-4f, 0x1.2ebb18p-7f };
+        static constexpr std::array<float, 4> q{ 0x1p+0f, 0x1.4ba4dp-8f, 0x1.f39208p-6f, -0x1.bf2402p-10f };
+    };
+
     struct sin_f32
     {
         using value_type = float;
@@ -368,6 +389,8 @@ namespace wray::math
         static constexpr float ln2_per_cent_lo = -0x1.b585c4p-36f;
         static constexpr float log2_a4_hi = 0x1.1900e6p+3f;
         static constexpr float log2_a4_lo = 0x1.60002cp-25f;
+        static constexpr float e_hi = 0x1.5bf0a8p+1f;
+        static constexpr float e_lo = 0x1.628aeep-24f;
         static constexpr float midi_zero_hz_hi = 0x1.05a026p+3f;
         static constexpr float midi_zero_hz_lo = -0x1.e7a8d6p-22f;
         static constexpr float semitones_per_ln_hi = 0x1.14ff58p+4f;
@@ -430,6 +453,8 @@ namespace wray::math
         static constexpr double ln2_per_cent_lo = 0x1.885a5be7c292cp-66;
         static constexpr double log2_a4_hi = 0x1.1900e6160002dp+3;
         static constexpr double log2_a4_lo = -0x1.80de057bdc174p-52;
+        static constexpr double e_hi = 0x1.5bf0a8b145769p+1;
+        static constexpr double e_lo = 0x1.4d57ee2b1013ap-53;
         static constexpr double midi_zero_hz_hi = 0x1.05a0250c2b956p+3;
         static constexpr double midi_zero_hz_lo = 0x1.9ba0bcca28c7cp-52;
         static constexpr double semitones_per_ln_hi = 0x1.14ff58be0a23fp+4;

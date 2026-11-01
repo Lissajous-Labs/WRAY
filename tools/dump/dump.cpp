@@ -102,6 +102,8 @@ namespace
                 add("tan_turns", [](auto v) { return wray::fast::tan_turns(v); });
                 add("tan", [](auto v) { return wray::fast::tan(v); });
                 add("atan", [](auto v) { return wray::fast::atan(v); });
+                add("omega", [](auto v) { return wray::fast::omega(v); });
+                add("product_log", [](auto v) { return wray::fast::product_log(v); });
                 add("tanh", [](auto v) { return wray::fast::tanh(v); });
                 add("sigmoid", [](auto v) { return wray::fast::sigmoid(v); });
                 add("db_to_gain", [](auto v) { return wray::fast::db_to_gain(v); });
@@ -133,6 +135,8 @@ namespace
                 add("midi_to_hz", [](auto v) { return wray::midi_to_hz(v); });
                 add("hz_to_midi", [](auto v) { return wray::hz_to_midi(v); });
                 add("ratio_from_cents", [](auto v) { return wray::ratio_from_cents(v); });
+                add("omega", [](auto v) { return wray::omega(v); });
+                add("product_log", [](auto v) { return wray::product_log(v); });
                 add("tanh", [](auto v) { return wray::tanh(v); });
                 add("sigmoid", [](auto v) { return wray::sigmoid(v); });
                 add("db_to_gain", [](auto v) { return wray::db_to_gain(v); });

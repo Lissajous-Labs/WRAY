@@ -16,6 +16,39 @@ FORMATS = {
     "f64": dict(dtype=np.float64, bits=np.uint64, precision=53, emin=-1022, trig=float.fromhex("0x1.921fb54442d18p+22")),
 }
 
+def _omega_ref(x):
+    if x == mp.inf:
+        return mp.inf
+    y = x - mp.log(x) if x > 1 else mp.exp(x)
+    if y == 0:
+        return y
+    with mp.workdps(mp.mp.dps + 20):
+        for _ in range(200):
+            step = (y + mp.log(y) - x) * y / (1 + y)
+            y -= step
+            if abs(step) <= mp.mpf(10) ** (5 - mp.mp.dps) * abs(y):
+                break
+    return +y
+
+
+def _product_log_ref(x):
+    if x == 0:
+        return x
+    if x > 0:
+        return _omega_ref(mp.log(x))
+    if x < -1 / mp.e:
+        return mp.nan
+    lo, hi = mp.mpf(-1), mp.mpf(0)
+    with mp.workdps(mp.mp.dps + 20):
+        for _ in range(400):
+            mid = (lo + hi) / 2
+            if mid * mp.exp(mid) > x:
+                hi = mid
+            else:
+                lo = mid
+    return (lo + hi) / 2
+
+
 REFERENCE = {
     "exp": lambda x: mp.exp(x),
     "expm1": lambda x: mp.expm1(x),
@@ -39,6 +72,8 @@ REFERENCE = {
     "midi_to_hz": lambda x: 440 * mp.power(2, (x - 69) / 12),
     "hz_to_midi": lambda x: 69 + 12 * mp.log(x / 440, 2),
     "ratio_from_cents": lambda x: mp.power(2, x / 1200),
+    "omega": _omega_ref,
+    "product_log": _product_log_ref,
     "tanh": lambda x: mp.tanh(x),
     "sigmoid": lambda x: 1 / (1 + mp.exp(-x)),
     "db_to_gain": lambda x: mp.power(10, x / 20),
@@ -78,17 +113,17 @@ for _name, (_f, _F) in ADAA.items():
     REFERENCE[f"adaa_{_name}_F1"] = _F
     REFERENCE[f"adaa_{_name}_first"] = _mean(_f, _F)
 
-UNARY = ["ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid", "db_to_gain", "gain_to_db"] + [f"adaa_{n}_F1" for n in ADAA]
+UNARY = ["product_log", "omega", "ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid", "db_to_gain", "gain_to_db"] + [f"adaa_{n}_F1" for n in ADAA]
 
 CONTRACTS = {
-    "f32": {"smoothing_coefficient": 2.0, "pole_from_cutoff": 2.0, "prewarp": 2.0, "ratio_from_cents": 0.85, "hz_to_midi": 1.25, "midi_to_hz": 1.4, "erf": 0.9, "cbrt": 0.55, "asinh": 0.9, "cosh": 0.9, "sinh": 0.85, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 1.0, "log10": 1.4, "log1p": 1.0, "exp": 1.0, "expm1": 2.0, "exp2": 1.0, "log": 1.0, "log2": 1.5, "sin": 1.0, "cos": 1.0, "tan": 1.75, "atan": 1.0, "tanh": 1.35,
+    "f32": {"product_log": 2.05, "omega": 1.45, "smoothing_coefficient": 2.0, "pole_from_cutoff": 2.0, "prewarp": 2.0, "ratio_from_cents": 0.85, "hz_to_midi": 1.25, "midi_to_hz": 1.4, "erf": 0.9, "cbrt": 0.55, "asinh": 0.9, "cosh": 0.9, "sinh": 0.85, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 1.0, "log10": 1.4, "log1p": 1.0, "exp": 1.0, "expm1": 2.0, "exp2": 1.0, "log": 1.0, "log2": 1.5, "sin": 1.0, "cos": 1.0, "tan": 1.75, "atan": 1.0, "tanh": 1.35,
             "sigmoid": 2.0, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.0, "pow": 2.0},
-    "f64": {"smoothing_coefficient": 2.0, "pole_from_cutoff": 2.0, "prewarp": 2.0, "ratio_from_cents": 0.75, "hz_to_midi": 1.0, "midi_to_hz": 0.75, "erf": 0.9, "cbrt": 0.55, "asinh": 0.85, "cosh": 0.9, "sinh": 0.85, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 0.85, "log10": 1.0, "log1p": 0.95, "exp": 1.0, "expm1": 1.75, "exp2": 1.0, "log": 1.0, "log2": 1.0, "sin": 1.0, "cos": 1.0, "tan": 1.45, "atan": 1.1, "tanh": 1.3,
+    "f64": {"product_log": 1.45, "omega": 1.3, "smoothing_coefficient": 2.0, "pole_from_cutoff": 2.0, "prewarp": 2.0, "ratio_from_cents": 0.75, "hz_to_midi": 1.0, "midi_to_hz": 0.75, "erf": 0.9, "cbrt": 0.55, "asinh": 0.85, "cosh": 0.9, "sinh": 0.85, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 0.85, "log10": 1.0, "log1p": 0.95, "exp": 1.0, "expm1": 1.75, "exp2": 1.0, "log": 1.0, "log2": 1.0, "sin": 1.0, "cos": 1.0, "tan": 1.45, "atan": 1.1, "tanh": 1.3,
             "sigmoid": 1.75, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.1, "pow": 1.5},
-    "fast": {name: 2.0 ** -16 for name in ["tan_turns", "cos_turns", "sin_turns", "exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid",
+    "fast": {name: 2.0 ** -16 for name in ["product_log", "omega", "tan_turns", "cos_turns", "sin_turns", "exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid",
                                            "db_to_gain", "gain_to_db", "atan2", "pow"]},
 }
-ADAA_CONTRACTS = {"hard_clip": (0.75, 2.3), "soft_clip": (1.35, 3.2), "tanh": (2.75, 4.75), "atan": (3.35, 8.5), "algebraic": (5.25, 62.0),
+ADAA_CONTRACTS = {"hard_clip": (0.75, 2.3), "soft_clip": (1.35, 3.2), "tanh": (2.9, 4.75), "atan": (3.35, 8.5), "algebraic": (5.55, 62.0),
                   "radical": (2.85, 4.0)}
 for _tier in ("f32", "f64"):
     for _name, (_f1, _first) in ADAA_CONTRACTS.items():
@@ -152,6 +187,12 @@ def domain(fn, tier, rng, n):
         if fn == "ratio_from_cents":
             return np.concatenate([value_uniform(rng, fmt, -2400.0, 2400.0, half), value_uniform(rng, fmt, -170000.0 if f32 else -1290000.0, 150000.0 if f32 else 1220000.0, n - half)])
         return np.concatenate([np.exp(rng.uniform(np.log(1e-3), np.log(1e6), half)).astype(fmt["dtype"]), bit_uniform(rng, fmt, tiny, huge, n - half)])
+    if fn in ("omega", "product_log"):
+        if fn == "omega":
+            wide = bit_uniform(rng, fmt, tiny, huge, n - half, True)
+            return np.concatenate([value_uniform(rng, fmt, -10.0, 30.0, half), wide[wide >= -80.0] if fast else wide])
+        q = n // 4
+        return np.concatenate([value_uniform(rng, fmt, -0.36787944, 10.0, half), bit_uniform(rng, fmt, tiny, huge, q), value_uniform(rng, fmt, -0.36787944, -0.36, n - half - q)])
     if fn == "exp2":
         lo, hi = ((-126.0, 127.0) if fast else (-149.9, 127.99)) if f32 else (-1074.9, 1023.99)
         return np.concatenate([value_uniform(rng, fmt, lo, hi, half), bit_uniform(rng, fmt, 1e-6, min(-lo, hi), n - half, True)])

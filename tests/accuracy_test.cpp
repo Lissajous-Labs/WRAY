@@ -119,6 +119,49 @@ namespace
         return std::ldexp(440.0 * std::exp2(r / 12.0), int(q));
     }
 
+    double omega_ref(double x)
+    {
+        if (std::isnan(x) || x == std::numeric_limits<double>::infinity())
+            return x;
+        if (x < -2.0)
+        {
+            const double e = std::exp(x);
+            double y = e;
+            for (int i = 0; i < 40; ++i)
+                y = e * std::exp(-y);
+            return y;
+        }
+        double y = x > 1.0 ? x - std::log(x) : std::exp(x);
+        for (int i = 0; i < 60; ++i)
+        {
+            const double step = (y + std::log(y) - x) * y / (1.0 + y);
+            y -= step;
+            if (std::abs(step) <= 0x1p-60 * y)
+                break;
+        }
+        return y;
+    }
+
+    double product_log_ref(double x)
+    {
+        if (std::isnan(x) || x < -0.36787944117144233)
+            return std::numeric_limits<double>::quiet_NaN();
+        if (x == 0.0 || x == std::numeric_limits<double>::infinity())
+            return x;
+        if (x > 0.5)
+            return omega_ref(std::log(x));
+        double w = x < -0.32 ? -1.0 + std::sqrt(2.0 * (1.0 + 2.718281828459045 * x)) : std::log1p(x);
+        for (int i = 0; i < 60; ++i)
+        {
+            const double e = std::exp(w);
+            const double f = w * e - x;
+            if (f == 0.0)
+                break;
+            w -= f / (e * (w + 1.0) - (w + 2.0) * f / (2.0 * w + 2.0));
+        }
+        return w;
+    }
+
     double sin_turns_ref(double x)
     {
         const double w = x - std::nearbyint(x);
@@ -161,6 +204,10 @@ namespace
         constexpr double trig32 = 0x1.921fb6p+12;
         constexpr double trig64 = 0x1.921fb54442d18p+22;
         return {
+            {"product_log", [](double x) { return product_log_ref(x); }, all, batch32([](auto v) { return wray::product_log(v); }), batch32([](auto v) { return wray::fast::product_log(v); }), all,
+             batch64([](auto v) { return wray::product_log(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -0.36787944117144, 10.0) : bit_uniform(g, 0x1p-1074, 0x1p1000); }, 2.05, 0x1p-16, 200.0},
+            {"omega", [](double x) { return omega_ref(x); }, all, batch32([](auto v) { return wray::omega(v); }), batch32([](auto v) { return wray::fast::omega(v); }), [](float x) { return x >= -80.0f; },
+             batch64([](auto v) { return wray::omega(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -10.0, 30.0) : signed_bits(g, 0x1p-1074, 0x1p1000); }, 1.45, 0x1p-16, 1.3},
             {"ratio_from_cents", [](double x) { return std::exp2(x / 1200.0); }, all, batch32([](auto v) { return wray::ratio_from_cents(v); }), {}, all,
              batch64([](auto v) { return wray::ratio_from_cents(v); }), [](std::mt19937_64& g) { return uniform(g, -2400.0, 2400.0); }, 0.85, 0.0, 0.75},
             {"hz_to_midi", [](double x) { return 69.0 + 12.0 * std::log2(x / 440.0); }, all, batch32([](auto v) { return wray::hz_to_midi(v); }), {}, all,
@@ -593,6 +640,8 @@ namespace
             {"midi_to_hz", parity::none, {{-inf, inf, 1}}, 0.0, inf, [](double x, bool w) { return below(x, w ? 12250.0 : 1499.0); }, 200.0, {69.0, 81.0, 57.0, 63.0, 75.0, 1499.0, 12250.0}},
             {"hz_to_midi", parity::none, {{0.0, inf, 1}}, -inf, inf, logarithmic, 4.0, {440.0, 880.0, 27.5, 8.175798915643707, 1.0, 1e300}},
             {"ratio_from_cents", parity::none, {{-inf, inf, 1}}, 0.0, inf, [](double x, bool w) { return below(x, w ? 1228000.0 : 153000.0); }, 2400.0, {0.0, 1200.0, -1200.0, 600.0, 100.0}},
+            {"omega", parity::none, {{-inf, inf, 1}}, 0.0, inf, [](double x, bool) { return std::isnan(x) ? any : x < inf ? bounded : defined; }, 10.0, {-2.0, 3.0, -40.0, 1.0, 0.0, -104.0, -746.0}},
+            {"product_log", parity::none, {{-0.36787944117144233, inf, 1}}, -1.0, inf, [](double x, bool) { return std::isnan(x) ? any : x >= -0.36787944117144233 && x < inf ? bounded : any; }, 1.0, {-0.36, 0.5, 1.0, 0.0, 2.718281828459045, 0x1p-30}},
             {"expm1", parity::none, {{-inf, inf, 1}}, -1.0, inf, [](double x, bool w) { return below(x, w ? 709.78 : 88.72); }, 2.0,
              joined(multiples(ln2, 0.5, 60), {86.0, 707.0, 88.72, 709.78, 0x1p-25, 0x1p-54, 17.3, 37.5})},
             {"exp2", parity::none, {{-inf, inf, 1}}, 0.0, inf, [](double x, bool w) { return below(x, w ? 1024.0 : 128.0); }, 20.0,
@@ -768,6 +817,12 @@ namespace
         {"erf", "f64", "monotonic", "past 1.5 one input step moves erf by a fifth of an ulp, the size of the tail rounding"},
         {"midi_to_hz", "f32", "monotonic", "the pitch offset is carried as a pair, and a step of its high part can move the rounding boundary by an ulp"},
         {"midi_to_hz", "f64", "monotonic", "without FMA the pair products round twice", true},
+        {"omega", "f32", "monotonic", "the root is polished from a residual that rounds to an ulp, so neighbouring inputs can land on either side of a rounding boundary"},
+        {"omega", "fast", "monotonic", "the root is polished from a residual that rounds to an ulp, so neighbouring inputs can land on either side of a rounding boundary"},
+        {"omega", "f64", "monotonic", "the root is polished from a residual that rounds to an ulp, so neighbouring inputs can land on either side of a rounding boundary"},
+        {"product_log", "f32", "monotonic", "the root is polished from a residual that rounds to an ulp, so neighbouring inputs can land on either side of a rounding boundary"},
+        {"product_log", "fast", "monotonic", "the root is polished from a residual that rounds to an ulp, so neighbouring inputs can land on either side of a rounding boundary"},
+        {"product_log", "f64", "monotonic", "the root is polished from a residual that rounds to an ulp, so neighbouring inputs can land on either side of a rounding boundary"},
         {"tanh", "fast", "monotonic", "a monotone saturation needs the exp form of wray::tanh, which costs as much as the precise tier"},
         {"atan", "f32", "monotonic", "without FMA the core's fused steps round twice", true},
         {"atan", "fast", "monotonic", "without FMA the core's fused steps round twice", true},
