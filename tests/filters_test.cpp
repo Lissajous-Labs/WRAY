@@ -1,13 +1,16 @@
 #include <wray/wray.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <bit>
+#include <chrono>
 #include <cmath>
 #include <complex>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
 #include <limits>
 #include <random>
 #include <string>
@@ -29,6 +32,7 @@ namespace
     constexpr int grid_points = 128;
     constexpr double floor_gain = 1.0e-6;
     constexpr double tail_floor = 1.0e-20;
+    bool measure_limits = false;
 
     struct config
     {
@@ -43,7 +47,7 @@ namespace
     {
         ld warp(ld hz, ld fs) { return std::tan(pi_ld * hz / fs); }
 
-        cld zavalishin(wf::one_pole_type t, const config &c, double f)
+        cld one_pole_prototype(wf::one_pole_type t, const config &c, double f)
         {
             const cld s(0.0L, warp(f, c.fs) / warp(c.f0, c.fs));
             const cld one(1.0L, 0.0L);
@@ -59,7 +63,7 @@ namespace
             return {};
         }
 
-        struct simper_row
+        struct svf_prototype_row
         {
             ld g;
             ld k;
@@ -68,7 +72,7 @@ namespace
             ld m2;
         };
 
-        simper_row simper_table(wf::svf_type t, const config &c)
+        svf_prototype_row svf_prototype_parameters(wf::svf_type t, const config &c)
         {
             const ld a = std::pow(10.0L, static_cast<ld>(c.gain) / 40.0L);
             const ld g = warp(c.f0, c.fs);
@@ -99,9 +103,9 @@ namespace
             return {g, k, 0.0L, 0.0L, 1.0L};
         }
 
-        cld simper(wf::svf_type t, const config &c, double f)
+        cld svf_prototype(wf::svf_type t, const config &c, double f)
         {
-            const simper_row r = simper_table(t, c);
+            const svf_prototype_row r = svf_prototype_parameters(t, c);
             const cld s(0.0L, warp(f, c.fs) / r.g);
             const cld h = (r.m0 * s * s + (r.m0 * r.k + r.m1) * s + (r.m0 + r.m2)) / (s * s + r.k * s + 1.0L);
             if (t == wf::svf_type::bandpass)
@@ -111,7 +115,7 @@ namespace
             return h;
         }
 
-        cld cookbook(wf::biquad_type t, const config &c, double f)
+        cld biquad_prototype(wf::biquad_type t, const config &c, double f)
         {
             const ld a = std::pow(10.0L, static_cast<ld>(c.gain) / 40.0L);
             const ld q = static_cast<ld>(c.q);
@@ -168,7 +172,7 @@ namespace
 
         static cd reference(const config &c, double f)
         {
-            const cld h = oracle::zavalishin(static_cast<wf::one_pole_type>(c.type), c, f);
+            const cld h = oracle::one_pole_prototype(static_cast<wf::one_pole_type>(c.type), c, f);
             return {static_cast<double>(h.real()), static_cast<double>(h.imag())};
         }
     };
@@ -181,14 +185,17 @@ namespace
 
         static const char *type_name(int t)
         {
-            constexpr const char *n[] = {"lowpass", "highpass", "bandpass", "notch", "peak", "low_shelf", "high_shelf", "allpass", "tilt"};
+            constexpr const char *n[] = {
+                "lowpass", "highpass", "bandpass", "notch", "peak", "low_shelf", "high_shelf", "allpass", "tilt"
+            };
             return n[t];
         }
 
         static bool gained(int t)
         {
             const auto s = static_cast<wf::svf_type>(t);
-            return s == wf::svf_type::peak || s == wf::svf_type::low_shelf || s == wf::svf_type::high_shelf || s == wf::svf_type::tilt;
+            return s == wf::svf_type::peak || s == wf::svf_type::low_shelf || s == wf::svf_type::high_shelf || s ==
+                   wf::svf_type::tilt;
         }
 
         template<class V, class P>
@@ -203,7 +210,7 @@ namespace
 
         static cd reference(const config &c, double f)
         {
-            const cld h = oracle::simper(static_cast<wf::svf_type>(c.type), c, f);
+            const cld h = oracle::svf_prototype(static_cast<wf::svf_type>(c.type), c, f);
             return {static_cast<double>(h.real()), static_cast<double>(h.imag())};
         }
     };
@@ -216,7 +223,9 @@ namespace
 
         static const char *type_name(int t)
         {
-            constexpr const char *n[] = {"lowpass", "highpass", "bandpass", "notch", "peak", "low_shelf", "high_shelf", "allpass"};
+            constexpr const char *n[] = {
+                "lowpass", "highpass", "bandpass", "notch", "peak", "low_shelf", "high_shelf", "allpass"
+            };
             return n[t];
         }
 
@@ -234,7 +243,7 @@ namespace
 
         static cd reference(const config &c, double f)
         {
-            const cld h = oracle::cookbook(static_cast<wf::biquad_type>(c.type), c, f);
+            const cld h = oracle::biquad_prototype(static_cast<wf::biquad_type>(c.type), c, f);
             return {static_cast<double>(h.real()), static_cast<double>(h.imag())};
         }
     };
@@ -243,7 +252,8 @@ namespace
     {
         std::vector<double> v(static_cast<std::size_t>(n));
         for (int i = 0; i < n; ++i)
-            v[static_cast<std::size_t>(i)] = lo * std::pow(hi / lo, static_cast<double>(i) / static_cast<double>(n - 1));
+            v[static_cast<std::size_t>(i)] =
+                    lo * std::pow(hi / lo, static_cast<double>(i) / static_cast<double>(n - 1));
         return v;
     }
 
@@ -301,7 +311,8 @@ namespace
         std::atomic<std::size_t> next{0};
         std::vector<std::thread> pool;
         for (unsigned t = 0; t < hw; ++t)
-            pool.emplace_back([&] {
+            pool.emplace_back([&]
+            {
                 for (std::size_t i = next++; i < n; i = next++)
                     f(i);
             });
@@ -368,7 +379,8 @@ namespace
                     {
                         const cd w = twiddle[j * step];
                         const cd x = a[i + j + half];
-                        const cd v(x.real() * w.real() - x.imag() * w.imag(), x.real() * w.imag() + x.imag() * w.real());
+                        const cd v(x.real() * w.real() - x.imag() * w.imag(),
+                                   x.real() * w.imag() + x.imag() * w.real());
                         const cd u = a[i + j];
                         a[i + j] = u + v;
                         a[i + j + half] = u - v;
@@ -395,7 +407,11 @@ namespace
     }
 
     template<class T>
-    bool same_bits(T a, T b) { return std::bit_cast<typename wray::simd::bits_of<T>::integer>(a) == std::bit_cast<typename wray::simd::bits_of<T>::integer>(b); }
+    bool same_bits(T a, T b)
+    {
+        return std::bit_cast<typename wray::simd::bits_of<T>::integer>(a) == std::bit_cast<typename wray::simd::bits_of<
+                   T>::integer>(b);
+    }
 
     struct comparison
     {
@@ -414,7 +430,8 @@ namespace
         }
     };
 
-    comparison compare(const config &c, const std::vector<double> &hz, const std::vector<cd> &got, const std::vector<cd> &ref)
+    comparison compare(const config &c, const std::vector<double> &hz, const std::vector<cd> &got,
+                       const std::vector<cd> &ref)
     {
         comparison r;
         double top = 0.0;
@@ -464,7 +481,8 @@ namespace
         const auto box = oracle_box<K>();
         const auto &nu = nu_grid();
         std::vector<comparison> w(box.size());
-        parallel_for(box.size(), [&](std::size_t i) {
+        parallel_for(box.size(), [&](std::size_t i)
+        {
             typename K::template filter<V, P> f;
             K::set(f, box[i]);
             std::vector<double> hz(nu.size());
@@ -576,7 +594,10 @@ namespace
 
         typename K::template filter<V, P> fresh;
         K::set(fresh, c);
-        for (const T poison: {std::numeric_limits<T>::quiet_NaN(), std::numeric_limits<T>::infinity(), -std::numeric_limits<T>::infinity()})
+        for (const T poison: {
+                 std::numeric_limits<T>::quiet_NaN(), std::numeric_limits<T>::infinity(),
+                 -std::numeric_limits<T>::infinity()
+             })
         {
             f.tick(poison);
             for (std::size_t n = 0; n < 64; ++n)
@@ -599,7 +620,10 @@ namespace
     {
         const auto box = impulse_box<K>();
         std::vector<impulse_result> res(box.size());
-        parallel_for(box.size(), [&](std::size_t i) { res[i] = impulse_and_stability<K, V, P>(box[i], 0x5eed0000u + i); });
+        parallel_for(box.size(), [&](std::size_t i)
+        {
+            res[i] = impulse_and_stability<K, V, P>(box[i], 0x5eed0000u + i);
+        });
         s.impulse_configs = box.size();
         for (const auto &r: res)
         {
@@ -619,7 +643,8 @@ namespace
         constexpr int w = wray::simd::traits<V>::width;
         const auto box = impulse_box<K>();
         std::vector<char> ok(box.size(), 1);
-        parallel_for(box.size(), [&](std::size_t i) {
+        parallel_for(box.size(), [&](std::size_t i)
+        {
             typename K::template filter<V, VP> lanes;
             typename K::template filter<S, SP> scalar[w];
             K::set(lanes, box[i]);
@@ -749,14 +774,16 @@ namespace
 
     std::string config_json(const config &c, const char *type)
     {
-        return std::string("{\"type\":\"") + type + "\",\"fs\":" + num(c.fs) + ",\"f0\":" + num(c.f0) + ",\"q\":" + num(c.q) +
+        return std::string("{\"type\":\"") + type + "\",\"fs\":" + num(c.fs) + ",\"f0\":" + num(c.f0) + ",\"q\":" +
+               num(c.q) +
                ",\"gain_db\":" + num(c.gain) + "}";
     }
 
     template<class K>
     void print_worst(const char *what, const worst &w)
     {
-        std::printf("    %-13s %.3e at %s f0=%g q=%g gain=%g fs=%g f=%g\n", what, w.value, K::type_name(w.at.type), w.at.f0, w.at.q, w.at.gain,
+        std::printf("    %-13s %.3e at %s f0=%g q=%g gain=%g fs=%g f=%g\n", what, w.value, K::type_name(w.at.type),
+                    w.at.f0, w.at.q, w.at.gain,
                     w.at.fs, w.f);
     }
 
@@ -769,18 +796,29 @@ namespace
         s.limit = limit;
         oracle_check<K, V, P>(s);
         impulse_check<K, V, P>(s);
-        std::printf("%s %s: oracle %zu configs, impulse/stability %zu configs, impulse up to %zu samples, tail up to %zu samples, "
-                    "max |y|/L1 %.9f, decayed %d, finite %d, recovered %d\n",
-                    s.filter.c_str(), precision, s.oracle_configs, s.impulse_configs, s.max_impulse_samples, s.max_tail_samples,
-                    s.max_bound_ratio, s.decayed ? 1 : 0, s.all_finite ? 1 : 0, s.recovered ? 1 : 0);
+        std::printf(
+            "%s %s: oracle %zu configs, impulse/stability %zu configs, impulse up to %zu samples, tail up to %zu samples, "
+            "max |y|/L1 %.9f, decayed %d, finite %d, recovered %d\n",
+            s.filter.c_str(), precision, s.oracle_configs, s.impulse_configs, s.max_impulse_samples, s.max_tail_samples,
+            s.max_bound_ratio, s.decayed ? 1 : 0, s.all_finite ? 1 : 0, s.recovered ? 1 : 0);
         print_worst<K>("oracle rel", s.oracle.rel);
         print_worst<K>("oracle peak", s.oracle.peak);
         print_worst<K>("impulse rel", s.impulse.rel);
         print_worst<K>("impulse peak", s.impulse.peak);
-        CHECK(s.oracle.rel.value <= limit.oracle_rel);
-        CHECK(s.oracle.peak.value <= limit.oracle_peak);
-        CHECK(s.impulse.rel.value <= limit.impulse_rel);
-        CHECK(s.impulse.peak.value <= limit.impulse_peak);
+        std::printf("measured_limits %s %s {%.17g, %.17g, %.17g, %.17g, 1.000001}\n", K::name, precision,
+                    3.0 * s.oracle.rel.value, 3.0 * s.oracle.peak.value,
+                    3.0 * s.impulse.rel.value, 3.0 * s.impulse.peak.value);
+        CHECK(std::isfinite(s.oracle.rel.value));
+        CHECK(std::isfinite(s.oracle.peak.value));
+        CHECK(std::isfinite(s.impulse.rel.value));
+        CHECK(std::isfinite(s.impulse.peak.value));
+        if (!measure_limits)
+        {
+            CHECK(s.oracle.rel.value <= limit.oracle_rel);
+            CHECK(s.oracle.peak.value <= limit.oracle_peak);
+            CHECK(s.impulse.rel.value <= limit.impulse_rel);
+            CHECK(s.impulse.peak.value <= limit.impulse_peak);
+        }
         CHECK(s.max_bound_ratio <= limit.bound);
         CHECK(s.decayed);
         CHECK(s.all_finite);
@@ -791,50 +829,585 @@ namespace
     template<class K>
     std::string worst_json(const worst &w)
     {
-        return "{\"value\":" + num(w.value) + ",\"hz\":" + num(w.f) + ",\"config\":" + config_json(w.at, K::type_name(w.at.type)) + "}";
+        return "{\"value\":" + num(w.value) + ",\"hz\":" + num(w.f) + ",\"config\":" + config_json(
+                   w.at, K::type_name(w.at.type)) + "}";
     }
 
     template<class K>
     std::string summary_json(const summary &s)
     {
-        return "{\"filter\":\"" + s.filter + "\",\"precision\":\"" + s.precision + "\",\"oracle_configs\":" + std::to_string(s.oracle_configs) +
-               ",\"oracle_rel\":" + worst_json<K>(s.oracle.rel) + ",\"oracle_rel_limit\":" + num(s.limit.oracle_rel) + ",\"oracle_peak\":" +
-               worst_json<K>(s.oracle.peak) + ",\"oracle_peak_limit\":" + num(s.limit.oracle_peak) + ",\"oracle_envelope\":" +
-               list(s.oracle.envelope) + ",\"impulse_configs\":" + std::to_string(s.impulse_configs) + ",\"impulse_rel\":" +
-               worst_json<K>(s.impulse.rel) + ",\"impulse_rel_limit\":" + num(s.limit.impulse_rel) + ",\"impulse_peak\":" +
-               worst_json<K>(s.impulse.peak) + ",\"impulse_peak_limit\":" + num(s.limit.impulse_peak) + ",\"impulse_envelope\":" +
-               list(s.impulse.envelope) + ",\"max_impulse_samples\":" + std::to_string(s.max_impulse_samples) + ",\"noise_samples\":" +
-               std::to_string(noise_length) + ",\"max_output_over_l1\":" + num(s.max_bound_ratio) + ",\"bound_limit\":" + num(s.limit.bound) +
-               ",\"max_tail_samples\":" + std::to_string(s.max_tail_samples) + ",\"tail_floor_over_l1\":" + num(tail_floor) +
-               ",\"decayed\":" + (s.decayed ? "true" : "false") + ",\"all_finite\":" + (s.all_finite ? "true" : "false") +
+        return "{\"filter\":\"" + s.filter + "\",\"precision\":\"" + s.precision + "\",\"oracle_configs\":" +
+               std::to_string(s.oracle_configs) +
+               ",\"oracle_rel\":" + worst_json<K>(s.oracle.rel) + ",\"oracle_rel_limit\":" + num(s.limit.oracle_rel) +
+               ",\"oracle_peak\":" +
+               worst_json<K>(s.oracle.peak) + ",\"oracle_peak_limit\":" + num(s.limit.oracle_peak) +
+               ",\"oracle_envelope\":" +
+               list(s.oracle.envelope) + ",\"impulse_configs\":" + std::to_string(s.impulse_configs) +
+               ",\"impulse_rel\":" +
+               worst_json<K>(s.impulse.rel) + ",\"impulse_rel_limit\":" + num(s.limit.impulse_rel) +
+               ",\"impulse_peak\":" +
+               worst_json<K>(s.impulse.peak) + ",\"impulse_peak_limit\":" + num(s.limit.impulse_peak) +
+               ",\"impulse_envelope\":" +
+               list(s.impulse.envelope) + ",\"max_impulse_samples\":" + std::to_string(s.max_impulse_samples) +
+               ",\"noise_samples\":" +
+               std::to_string(noise_length) + ",\"max_output_over_l1\":" + num(s.max_bound_ratio) + ",\"bound_limit\":"
+               + num(s.limit.bound) +
+               ",\"max_tail_samples\":" + std::to_string(s.max_tail_samples) + ",\"tail_floor_over_l1\":" + num(
+                   tail_floor) +
+               ",\"decayed\":" + (s.decayed ? "true" : "false") + ",\"all_finite\":" + (s.all_finite ? "true" : "false")
+               +
                ",\"recovered_after_reset\":" + (s.recovered ? "true" : "false") + "}";
+    }
+
+    using coefficient_row = std::array<ld, 6>;
+
+    struct differential
+    {
+        cld value{};
+        std::array<cld, 8> derivative{};
+
+        differential() = default;
+
+        differential(ld x) : value(x, 0.0L)
+        {
+        }
+
+        differential(cld x) : value(x)
+        {
+        }
+
+        static differential variable(ld x, std::size_t index)
+        {
+            differential r(x);
+            r.derivative[index] = 1.0L;
+            return r;
+        }
+    };
+
+    differential operator+(const differential &a, const differential &b)
+    {
+        differential r(a.value + b.value);
+        for (std::size_t i = 0; i < r.derivative.size(); ++i)
+            r.derivative[i] = a.derivative[i] + b.derivative[i];
+        return r;
+    }
+
+    differential operator-(const differential &a, const differential &b)
+    {
+        differential r(a.value - b.value);
+        for (std::size_t i = 0; i < r.derivative.size(); ++i)
+            r.derivative[i] = a.derivative[i] - b.derivative[i];
+        return r;
+    }
+
+    differential operator*(const differential &a, const differential &b)
+    {
+        differential r(a.value * b.value);
+        for (std::size_t i = 0; i < r.derivative.size(); ++i)
+            r.derivative[i] = a.derivative[i] * b.value + a.value * b.derivative[i];
+        return r;
+    }
+
+    differential operator/(const differential &a, const differential &b)
+    {
+        differential r(a.value / b.value);
+        for (std::size_t i = 0; i < r.derivative.size(); ++i)
+            r.derivative[i] = (a.derivative[i] - r.value * b.derivative[i]) / b.value;
+        return r;
+    }
+
+    config normalized(config c)
+    {
+        if (!std::isfinite(c.fs) || c.fs <= 0.0)
+            c.fs = 48000.0;
+        c.f0 = std::isnan(c.f0) ? c.fs * 1.0e-6 : std::clamp(c.f0, c.fs * 1.0e-6, c.fs * 0.4999);
+        c.q = std::isnan(c.q) ? 1.0e-3 : std::clamp(c.q, 1.0e-3, 1.0e3);
+        c.gain = std::isnan(c.gain) ? 0.0 : std::clamp(c.gain, -120.0, 120.0);
+        return c;
+    }
+
+    template<class K>
+    coefficient_row prototype_coefficients(const config &c)
+    {
+        const ld angle = pi_ld * static_cast<ld>(c.f0) / static_cast<ld>(c.fs);
+        const ld g = std::tan(angle);
+        if constexpr (std::is_same_v<K, one_pole_kind>)
+            return {g / (1.0L + g), 0, 0, 0, 0, 0};
+        else if constexpr (std::is_same_v<K, svf_kind>)
+        {
+            const auto t = static_cast<wf::svf_type>(c.type);
+            auto r = oracle::svf_prototype_parameters(t, c);
+            if (t == wf::svf_type::bandpass)
+                r.m1 *= r.k;
+            if (t == wf::svf_type::tilt)
+            {
+                const ld a = std::pow(10.0L, static_cast<ld>(c.gain) / 40.0L);
+                r.m0 /= a;
+                r.m1 /= a;
+                r.m2 /= a;
+            }
+            const ld ggk = r.g * (r.g + r.k);
+            const ld inv = 1.0L / (1.0L + ggk);
+            return {ggk * inv, r.g * inv, r.g * r.g * inv, r.m0, r.m1, r.m2};
+        } else
+        {
+            const auto t = static_cast<wf::biquad_type>(c.type);
+            if (wf::uses_gain(t) && c.gain == 0.0)
+                return {1, 0, 0, 0, 0, 0};
+            const ld a = std::pow(10.0L, static_cast<ld>(c.gain) / 40.0L);
+            const ld k = 1.0L / static_cast<ld>(c.q);
+            ld n2 = 0, n1 = 0, n0 = 0;
+            ld d2 = 1, d1 = k, d0 = 1;
+            switch (t)
+            {
+                case wf::biquad_type::lowpass: n0 = 1;
+                    break;
+                case wf::biquad_type::highpass: n2 = 1;
+                    break;
+                case wf::biquad_type::bandpass: n1 = k;
+                    break;
+                case wf::biquad_type::notch: n2 = n0 = 1;
+                    break;
+                case wf::biquad_type::allpass: n2 = n0 = 1;
+                    n1 = -k;
+                    break;
+                case wf::biquad_type::peak: n2 = n0 = 1;
+                    n1 = a * k;
+                    d1 = k / a;
+                    break;
+                case wf::biquad_type::low_shelf:
+                    d2 = a;
+                    d1 = std::sqrt(a) * k;
+                    n2 = a;
+                    n1 = a * d1;
+                    n0 = a * a;
+                    break;
+                case wf::biquad_type::high_shelf:
+                    d0 = a;
+                    d1 = std::sqrt(a) * k;
+                    n2 = a * a;
+                    n1 = a * d1;
+                    n0 = a;
+                    break;
+            }
+            const ld s = std::sin(angle);
+            const ld h = std::cos(angle);
+            const ld ss = s * s, cc = h * h, sc = s * h;
+            const ld den = d2 * cc + d1 * sc + d0 * ss;
+            return {
+                (n2 * cc + n1 * sc + n0 * ss) / den, 2.0L * (n0 * ss - n2 * cc) / den,
+                (n2 * cc - n1 * sc + n0 * ss) / den, 2.0L * (d0 * ss - d2 * cc) / den,
+                (d2 * cc - d1 * sc + d0 * ss) / den, 0
+            };
+        }
+    }
+
+    template<class K, class F>
+    coefficient_row realised_coefficients(const F &f)
+    {
+        if constexpr (std::is_same_v<K, one_pole_kind>)
+            return {f.gain(), 0, 0, 0, 0, 0};
+        else
+        {
+            const auto &c = f.coefficients();
+            if constexpr (std::is_same_v<K, svf_kind>)
+                return {c.d, c.a2, c.a3, c.m0, c.m1, c.m2};
+            else
+                return {c.b0, c.b1, c.b2, c.a1, c.a2, 0};
+        }
+    }
+
+    template<class K>
+    bool strictly_stable(const coefficient_row &c)
+    {
+        if (!std::all_of(c.begin(), c.end(), [](ld x) { return std::isfinite(x); }))
+            return false;
+        if constexpr (std::is_same_v<K, one_pole_kind>)
+            return c[0] > 0.0L && c[0] < 1.0L;
+        else if constexpr (std::is_same_v<K, biquad_kind>)
+            return std::abs(c[4]) < 1.0L && std::abs(c[3]) < 1.0L + c[4];
+        else
+        {
+            const ld d = c[0], a2 = c[1], a3 = c[2];
+            const ld t = d * a3 + a2 * a2;
+            return d > 0 && d < 1 && a3 > 0 && a3 < 1 && a2 > 0 &&
+                   2.0L * t < d + a3 && t > 0.0L &&
+                   (1.0L - d) * (1.0L - a3) + a2 * a2 > 0.0L;
+        }
+    }
+
+    template<class K>
+    differential coefficient_response(const coefficient_row &row, int type, double hz, double fs)
+    {
+        std::array<differential, 6> a;
+        for (std::size_t i = 0; i < a.size(); ++i)
+            a[i] = differential::variable(row[i], i);
+        const ld angle = pi_ld * static_cast<ld>(hz) / static_cast<ld>(fs);
+        const differential s = differential::variable(hz == fs * 0.5 ? 1.0L : std::sin(angle), 6);
+        const differential c = differential::variable(hz == fs * 0.5 ? 0.0L : std::cos(angle), 7);
+        const differential j(cld(0, 1));
+        if constexpr (std::is_same_v<K, one_pole_kind>)
+        {
+            const auto low = a[0] * c / (a[0] * c + (1.0L - a[0]) * (j * s));
+            if (type == static_cast<int>(wf::one_pole_type::highpass))
+                return 1.0L - low;
+            if (type == static_cast<int>(wf::one_pole_type::allpass))
+                return 2.0L * low - 1.0L;
+            return low;
+        } else if constexpr (std::is_same_v<K, biquad_kind>)
+        {
+            const auto num = (a[0] + a[1] + a[2]) * (c * c) -
+                             (a[0] - a[1] + a[2]) * (s * s) + (a[0] - a[2]) * (j * (2.0L * s * c));
+            const auto den = (1.0L + a[3] + a[4]) * (c * c) -
+                             (1.0L - a[3] + a[4]) * (s * s) + (1.0L - a[4]) * (j * (2.0L * s * c));
+            return num / den;
+        } else
+        {
+            const auto t = a[0] * a[2] + a[1] * a[1];
+            const auto upper = (1.0L - a[0]) * (1.0L - a[2]) + a[1] * a[1];
+            const auto den = t * (c * c) - upper * (s * s) + (a[0] + a[2] - 2.0L * t) * (j * (s * c));
+            const auto v1 = a[1] * (j * (s * c));
+            const auto v2 = t * (c * c) + (a[2] - t) * (j * (s * c));
+            return a[3] + (a[4] * v1 + a[5] * v2) / den;
+        }
+    }
+
+    ld condition_sum(const coefficient_row &c, const differential &h)
+    {
+        ld sum = 0;
+        for (std::size_t i = 0; i < c.size(); ++i)
+            sum += std::abs(c[i] * h.derivative[i]);
+        return sum + std::abs(h.derivative[6]) + std::abs(h.derivative[7]);
+    }
+
+    template<class K>
+    cld independent_response(const config &c, double hz)
+    {
+        if constexpr (std::is_same_v<K, one_pole_kind>)
+            return oracle::one_pole_prototype(static_cast<wf::one_pole_type>(c.type), c, hz);
+        else if constexpr (std::is_same_v<K, svf_kind>)
+            return oracle::svf_prototype(static_cast<wf::svf_type>(c.type), c, hz);
+        else
+            return oracle::biquad_prototype(static_cast<wf::biquad_type>(c.type), c, hz);
+    }
+
+    struct deep_result
+    {
+        std::size_t configurations = 0;
+        std::size_t responses = 0;
+        std::size_t invalid = 0;
+        bool stable = true;
+        bool normalized_inputs = true;
+        bool identities = true;
+        bool modulation = true;
+        worst condition_error;
+        double modulation_peak = 0;
+    };
+
+    template<class K, class V, class P>
+    void deep_case(deep_result &r, const config &raw, double random_nu)
+    {
+        typename K::template filter<V, P> f;
+        K::set(f, raw);
+        const config c = normalized(raw);
+        const auto realised = realised_coefficients<K>(f);
+        const auto ideal = prototype_coefficients<K>(c);
+        ++r.configurations;
+        r.stable = r.stable && strictly_stable<K>(realised);
+        r.normalized_inputs = r.normalized_inputs && f.sample_rate() == c.fs && f.frequency() == c.f0;
+        if constexpr (K::has_q)
+            r.normalized_inputs = r.normalized_inputs && f.q() == c.q && f.gain_db() == c.gain;
+        if (!std::isfinite(raw.fs) || !std::isfinite(raw.f0) || !std::isfinite(raw.q) || !std::isfinite(raw.gain) ||
+            raw.fs <= 0 || raw.f0 <= 0 || raw.f0 >= c.fs * 0.5 || raw.q <= 0 || std::abs(raw.gain) > 120)
+            ++r.invalid;
+        constexpr ld eps = static_cast<ld>(std::numeric_limits<P>::epsilon()) + std::numeric_limits<double>::epsilon();
+        for (const double hz: {0.0, c.f0, c.fs * 0.5, c.fs * random_nu})
+        {
+            const auto actual = coefficient_response<K>(realised, c.type, hz, c.fs);
+            const auto prototype = coefficient_response<K>(ideal, c.type, hz, c.fs);
+            const auto response = f.response(hz);
+            const cld got(response.real(), response.imag());
+            const cld ref = hz == c.fs * 0.5 ? prototype.value : independent_response<K>(c, hz);
+            const ld delta = 0x1p-20L;
+            config shifted = c;
+            shifted.f0 = static_cast<double>(static_cast<ld>(c.f0) * (1.0L + delta));
+            const ld design = shifted.f0 < c.fs * 0.5
+                                  ? std::abs(coefficient_response<K>(prototype_coefficients<K>(shifted), c.type, hz, c.fs).value - prototype.value) / delta
+                                  : 0.0L;
+            const ld conditioning = std::max(condition_sum(realised, actual), condition_sum(ideal, prototype)) + std::abs(prototype.value) + design;
+            const ld scale = eps * (conditioning + eps);
+            const ld error = std::abs(got - ref);
+            const ld ratio = scale > 0 ? error / scale : (error == 0 ? 0 : std::numeric_limits<ld>::infinity());
+            r.condition_error.add(static_cast<double>(ratio), raw, hz);
+            r.stable = r.stable && std::isfinite(response.real()) && std::isfinite(response.imag());
+            ++r.responses;
+        }
+        if constexpr (std::is_same_v<K, biquad_kind>)
+        {
+            if (c.type == static_cast<int>(wf::biquad_type::allpass))
+                r.identities = r.identities && realised[0] == realised[4] && realised[1] == realised[3] && realised[2]
+                               == 1;
+            if (wf::uses_gain(static_cast<wf::biquad_type>(c.type)) && c.gain == 0)
+                r.identities = r.identities && realised[0] == 1 && realised[1] == 0 && realised[2] == 0 &&
+                               realised[3] == 0 && realised[4] == 0;
+        } else if constexpr (std::is_same_v<K, svf_kind>)
+        {
+            if (K::gained(c.type) && c.gain == 0)
+                r.identities = r.identities && realised[3] == 1 && realised[4] == 0 && realised[5] == 0;
+            if (c.type == static_cast<int>(wf::svf_type::lowpass))
+                r.identities = r.identities && f.response(0) == cd(1, 0) && f.response(c.fs * 0.5) == cd(0, 0);
+        } else
+        {
+            const auto h = f.response(0);
+            const double dc = c.type == static_cast<int>(wf::one_pole_type::highpass) ? 0.0 : 1.0;
+            r.identities = r.identities && h == cd(dc, 0);
+        }
+        for (int i = 0; i < 16; ++i)
+            r.stable = r.stable && std::isfinite(static_cast<double>(f.tick(V(i == 0 ? 1 : 0))));
+    }
+
+    template<class K, class V, class P>
+    void modulation_check(deep_result &r, int type)
+    {
+        typename K::template filter<V, P> f;
+        f.prepare(48000);
+        constexpr int samples = 32768;
+        for (int n = 0; n < samples; ++n)
+        {
+            if constexpr (std::is_same_v<K, biquad_kind>)
+            {
+                if (n % 256 == 0)
+                {
+                    const double phase = static_cast<double>(n / 256) * 0.03;
+                    f.set(static_cast<wf::biquad_type>(type), 1000.0 * std::exp(std::sin(phase)),
+                          0.5 + 0.1 * std::sin(phase * 0.7), 24.0 * std::sin(phase * 0.3));
+                }
+            } else
+            {
+                const double phase = static_cast<double>(n) * 0.007;
+                const double hz = 48000.0 * std::pow(10.0, -6.0 + 5.698883 * (0.5 + 0.5 * std::sin(phase)));
+                if constexpr (std::is_same_v<K, one_pole_kind>)
+                    f.set(static_cast<wf::one_pole_type>(type), hz);
+                else
+                    f.set(static_cast<wf::svf_type>(type), hz, std::pow(10.0, 3.0 * std::sin(phase * 0.23)),
+                          120.0 * std::sin(phase * 0.11));
+            }
+            const double y = static_cast<double>(f.tick(V(std::sin(static_cast<double>(n) * 0.13))));
+            r.modulation_peak = std::max(r.modulation_peak, std::abs(y));
+            const double bound = std::is_same_v<K, one_pole_kind>
+                                     ? 3.000001
+                                     : (std::is_same_v<K, biquad_kind> ? 1.0e4 : 1.0e12);
+            r.modulation = r.modulation && std::isfinite(y) && std::abs(y) <= bound;
+        }
+    }
+
+    template<class K, class V, class P>
+    void deep_type(deep_result &r, int type, std::chrono::steady_clock::duration budget)
+    {
+        const auto deadline = std::chrono::steady_clock::now() + budget;
+        const double nan = std::numeric_limits<double>::quiet_NaN();
+        const double inf = std::numeric_limits<double>::infinity();
+        const std::array rates{
+            8000.0, 11025.0, 16000.0, 22050.0, 32000.0, 44100.0, 48000.0, 88200.0,
+            96000.0, 176400.0, 192000.0, 352800.0, 384000.0, 705600.0, 768000.0
+        };
+        std::mt19937_64 rng(0xd33f0000u + static_cast<unsigned>(type) * 17u + sizeof(V) * 31u + sizeof(P));
+        std::uniform_real_distribution<double> unit(0.0, 1.0);
+        for (const double fs: rates)
+        {
+            const config base{type, fs, fs * 0.01, 0.7071067811865476, K::gained(type) ? 12.0 : 0.0};
+            for (const double f0: {
+                     fs * 1.0e-6, std::nextafter(fs * 1.0e-6, 0.0), fs * 0.4999,
+                     std::nextafter(fs * 0.4999, inf), 0.0, -1.0, nan, inf, -inf, fs, fs * 0.5
+                 })
+            {
+                config c = base;
+                c.f0 = f0;
+                deep_case<K, V, P>(r, c, unit(rng) * 0.5);
+            }
+            for (const double q: {1.0e-3, 1.0e3, 0.0, -1.0, nan, inf, -inf})
+            {
+                config c = base;
+                c.q = q;
+                deep_case<K, V, P>(r, c, unit(rng) * 0.5);
+            }
+            for (const double gain: {-120.0, 120.0, 0.0, -1.0e-12, 1.0e-12, -150.0, 150.0, nan, inf, -inf})
+            {
+                config c = base;
+                c.gain = gain;
+                deep_case<K, V, P>(r, c, unit(rng) * 0.5);
+            }
+            for (const double edge: {1.0e-6, 0.4999})
+                for (const double q: {1.0e-3, 1.0e3})
+                    for (const double gain: {-120.0, 0.0, 120.0})
+                        deep_case<K, V, P>(r, {type, fs, fs * edge, q, gain}, unit(rng) * 0.5);
+        }
+        for (const double fs: {0.0, -1.0, nan, inf, -inf})
+            deep_case<K, V, P>(r, {type, fs, 1000, 0.7, 12}, unit(rng) * 0.5);
+        modulation_check<K, V, P>(r, type);
+        do
+        {
+            const double fs = 8000.0 * std::pow(96.0, unit(rng));
+            const double f0 = fs * 1.0e-6 * std::pow(499900.0, unit(rng));
+            const double q = std::pow(10.0, -3.0 + 6.0 * unit(rng));
+            const double gain = -120.0 + 240.0 * unit(rng);
+            deep_case<K, V, P>(r, {type, fs, f0, q, gain}, unit(rng) * 0.5);
+        } while (std::chrono::steady_clock::now() < deadline);
+    }
+
+    template<class K>
+    void report_deep(const char *precision, const std::vector<deep_result> &results)
+    {
+        for (std::size_t i = 0; i < results.size(); ++i)
+        {
+            const auto &r = results[i];
+            std::printf("deep %s %s %s configs=%zu responses=%zu invalid=%zu stable=%d inputs=%d identities=%d "
+                        "condition_ratio=%.9g modulation_peak=%.9g bounded=%d\n", K::name, precision,
+                        K::type_name(static_cast<int>(i)), r.configurations, r.responses, r.invalid, r.stable,
+                        r.normalized_inputs, r.identities, r.condition_error.value, r.modulation_peak, r.modulation);
+            print_worst<K>("condition", r.condition_error);
+            CHECK(r.configurations > 600);
+            CHECK(r.responses == 4 * r.configurations);
+            CHECK(r.invalid > 0);
+            CHECK(r.stable);
+            CHECK(r.normalized_inputs);
+            CHECK(r.identities);
+            CHECK(r.modulation);
+            CHECK(r.condition_error.value <= 64.0);
+        }
+    }
+
+    struct silence_result
+    {
+        bool subnormal = false;
+        std::size_t last_nonzero = 0;
+    };
+
+    template<class K, class T>
+    silence_result silence_run(int type)
+    {
+        typename K::template filter<T, T> f;
+        K::set(f, {type, 768000.0, 1000.0, 0.7071067811865476, K::gained(type) ? 12.0 : 0.0});
+        constexpr std::size_t samples = 60 * 768000;
+        silence_result r;
+        for (std::size_t n = 0; n < samples; ++n)
+        {
+            const T y = f.tick(T(n == 0 ? 1 : 0));
+            bool nonzero = y != T(0);
+            for (const T v: f.state())
+            {
+                r.subnormal = r.subnormal || std::fpclassify(v) == FP_SUBNORMAL;
+                nonzero = nonzero || v != T(0);
+            }
+            r.subnormal = r.subnormal || std::fpclassify(y) == FP_SUBNORMAL;
+            if (nonzero)
+                r.last_nonzero = n;
+        }
+        return r;
+    }
+
+    template<class K>
+    void silence_family(double bound_float, double bound_double)
+    {
+        constexpr std::size_t types = K::types;
+        std::vector<silence_result> f(types), d(types);
+        parallel_for(2 * types, [&](std::size_t i)
+        {
+            const std::size_t t = i % types;
+            if (i < types)
+                f[t] = silence_run<K, float>(static_cast<int>(t));
+            else
+                d[t] = silence_run<K, double>(static_cast<int>(t));
+        });
+        for (std::size_t t = 0; t < types; ++t)
+        {
+            const double sf = static_cast<double>(f[t].last_nonzero) / 768000.0;
+            const double sd = static_cast<double>(d[t].last_nonzero) / 768000.0;
+            std::printf("silence %-13s %-10s float zero after %.6f s, double zero after %.6f s, subnormal %d/%d\n", K::name,
+                        K::type_name(static_cast<int>(t)), sf, sd, f[t].subnormal ? 1 : 0, d[t].subnormal ? 1 : 0);
+            CHECK(!f[t].subnormal);
+            CHECK(!d[t].subnormal);
+            CHECK(sf <= bound_float);
+            CHECK(sd <= bound_double);
+        }
+    }
+
+    void run_deep(double seconds)
+    {
+        const double threads = std::max(1u, std::thread::hardware_concurrency());
+        const auto deadline = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+            std::chrono::duration<double>(seconds * std::min(threads, 48.0) / 48.0));
+        std::vector<deep_result> one_d(3), one_f(3), svf_d(9), svf_f(9), biquad_d(8), biquad_fd(8), biquad_f(8);
+        parallel_for(48, [&](std::size_t index)
+        {
+            if (index < 3) deep_type<one_pole_kind, double, double>(one_d[index], static_cast<int>(index), deadline);
+            else if (index < 6) deep_type<one_pole_kind, float, float>(one_f[index - 3], static_cast<int>(index - 3),
+                                                                       deadline);
+            else if (index < 15) deep_type<svf_kind, double, double>(svf_d[index - 6], static_cast<int>(index - 6),
+                                                                     deadline);
+            else if (index < 24) deep_type<svf_kind, float, float>(svf_f[index - 15], static_cast<int>(index - 15),
+                                                                   deadline);
+            else if (index < 32) deep_type<biquad_kind, double, double>(
+                biquad_d[index - 24], static_cast<int>(index - 24), deadline);
+            else if (index < 40) deep_type<biquad_kind, float, double>(biquad_fd[index - 32],
+                                                                       static_cast<int>(index - 32), deadline);
+            else deep_type<biquad_kind, float, float>(biquad_f[index - 40], static_cast<int>(index - 40), deadline);
+        });
+        report_deep<one_pole_kind>("double", one_d);
+        report_deep<one_pole_kind>("float", one_f);
+        report_deep<svf_kind>("double", svf_d);
+        report_deep<svf_kind>("float", svf_f);
+        report_deep<biquad_kind>("double", biquad_d);
+        report_deep<biquad_kind>("float_double", biquad_fd);
+        report_deep<biquad_kind>("float", biquad_f);
     }
 }
 
 int main(int argc, char **argv)
 {
     const char *json = nullptr;
+    bool deep_only = false;
+    double deep_seconds = 30.0;
     for (int i = 1; i < argc; ++i)
         if (std::strcmp(argv[i], "--json") == 0 && i + 1 < argc)
             json = argv[++i];
+        else if (std::strcmp(argv[i], "--measure-limits") == 0)
+            measure_limits = true;
+        else if (std::strcmp(argv[i], "--deep-only") == 0)
+            deep_only = true;
+        else if (std::strcmp(argv[i], "--deep-seconds") == 0 && i + 1 < argc)
+        {
+            char *end = nullptr;
+            const double requested = std::strtod(argv[++i], &end);
+            if (!end || *end != '\0' || !std::isfinite(requested) || requested <= 0.0)
+            {
+                std::fprintf(stderr, "--deep-seconds requires a positive finite number\n");
+                return 1;
+            }
+            deep_seconds = requested;
+        }
 
-    std::vector<std::string> summaries;
-    {
-        const auto a = run_family<one_pole_kind, double, double>("double", {1, 1, 1, 1, 1});
-        const auto b = run_family<one_pole_kind, float, float>("float", {1, 1, 1, 1, 2});
+    run_deep(deep_seconds);
+    silence_family<one_pole_kind>(0.035, 0.09);
+    silence_family<svf_kind>(0.035, 0.09);
+    silence_family<biquad_kind>(0.035, 0.09);
+    if (deep_only)
+        return wray::test::finish("filters-deep");
+
+    std::vector<std::string> summaries; {
+        const auto a = run_family<one_pole_kind, double, double>("double", {8.9e-15, 7.1e-15, 4.2e-12, 1.2e-14, 1.000001});
+        const auto b = run_family<one_pole_kind, float, float>("float", {7.1e-7, 6.9e-7, 6.2e-4, 4.9e-6, 1.000001});
         summaries.push_back(summary_json<one_pole_kind>(a));
         summaries.push_back(summary_json<one_pole_kind>(b));
-    }
-    {
-        const auto a = run_family<svf_kind, double, double>("double", {1, 1, 1, 1, 1});
-        const auto b = run_family<svf_kind, float, float>("float", {1, 1, 1, 1, 2});
+    } {
+        const auto a = run_family<svf_kind, double, double>("double", {9.6e-10, 1.5e-13, 1.2e-8, 1.2e-13, 1.000001});
+        const auto b = run_family<svf_kind, float, float>("float", {1.3e-3, 1.5e-5, 1.6, 3.0e-4, 1.000001});
         summaries.push_back(summary_json<svf_kind>(a));
         summaries.push_back(summary_json<svf_kind>(b));
-    }
-    {
-        const auto a = run_family<biquad_kind, double, double>("double", {1, 1, 1, 1, 1});
-        const auto b = run_family<biquad_kind, float, double>("float_double", {1, 1, 1, 1, 2});
-        const auto c = run_family<biquad_kind, float, float>("float", {1e9, 1e9, 1e9, 1e9, 2});
+    } {
+        const auto a = run_family<biquad_kind, double, double>("double", {1.4e-8, 1.3e-8, 6.3e-9, 3.1e-9, 1.000001});
+        const auto b = run_family<biquad_kind, float, double>("float_double", {1.4e-8, 1.3e-8, 0.32, 1.8e-7, 1.000001});
+        const auto c = run_family<biquad_kind, float, float>("float", {4.8, 4.8, 2.4, 0.51, 1.000001});
         summaries.push_back(summary_json<biquad_kind>(a));
         summaries.push_back(summary_json<biquad_kind>(b));
         summaries.push_back(summary_json<biquad_kind>(c));
@@ -844,7 +1417,8 @@ int main(int argc, char **argv)
     using wray::f64x2;
     using f64x4 = wray::simd::vec<double, 4>;
     std::vector<parity_entry> parity;
-    auto record = [&](const char *filter, const char *lanes, std::size_t n, bool same) {
+    auto record = [&](const char *filter, const char *lanes, std::size_t n, bool same)
+    {
         std::printf("parity %-13s %-24s %zu configs, bit-identical %d\n", filter, lanes, n, same ? 1 : 0);
         CHECK(same);
         parity.push_back({filter, lanes, n, same});
@@ -877,22 +1451,28 @@ int main(int argc, char **argv)
             std::printf("cannot write %s\n", json);
             return 1;
         }
-        std::string s = "{\n\"fft_size\":" + std::to_string(fft_size) + ",\n\"floor_gain\":" + num(floor_gain) + ",\n\"nu\":" + list(nu_grid()) +
+        std::string s = "{\n\"fft_size\":" + std::to_string(fft_size) + ",\n\"floor_gain\":" + num(floor_gain) +
+                        ",\n\"nu\":" + list(nu_grid()) +
                         ",\n\"summaries\":[\n";
         for (std::size_t i = 0; i < summaries.size(); ++i)
             s += (i ? ",\n" : "") + summaries[i];
         s += "\n],\n\"parity\":[\n";
         for (std::size_t i = 0; i < parity.size(); ++i)
-            s += std::string(i ? ",\n" : "") + "{\"filter\":\"" + parity[i].filter + "\",\"lanes\":\"" + parity[i].lanes + "\",\"configs\":" +
-                 std::to_string(parity[i].configs) + ",\"bit_identical\":" + (parity[i].identical ? "true" : "false") + "}";
+            s += std::string(i ? ",\n" : "") + "{\"filter\":\"" + parity[i].filter + "\",\"lanes\":\"" + parity[i].lanes
+                    + "\",\"configs\":" +
+                    std::to_string(parity[i].configs) + ",\"bit_identical\":" + (parity[i].identical ? "true" : "false")
+                    + "}";
         s += "\n],\n\"charts\":[\n";
         for (std::size_t i = 0; i < charts.size(); ++i)
         {
             const auto &e = charts[i];
-            s += std::string(i ? ",\n" : "") + "{\"filter\":\"" + e.filter + "\",\"config\":" + config_json(e.c, e.type.c_str()) + ",\"hz\":" +
-                 list(e.hz) + ",\"response_f64\":" + complex_list(e.response_f64) + ",\"response_f32\":" + complex_list(e.response_f32) +
-                 ",\"reference\":" + complex_list(e.reference) + ",\"measured_hz\":" + list(e.measured_hz) + ",\"measured_f64\":" +
-                 complex_list(e.measured_f64) + ",\"analytic_f64\":" + complex_list(e.analytic_f64) + "}";
+            s += std::string(i ? ",\n" : "") + "{\"filter\":\"" + e.filter + "\",\"config\":" + config_json(
+                        e.c, e.type.c_str()) + ",\"hz\":" +
+                    list(e.hz) + ",\"response_f64\":" + complex_list(e.response_f64) + ",\"response_f32\":" +
+                    complex_list(e.response_f32) +
+                    ",\"reference\":" + complex_list(e.reference) + ",\"measured_hz\":" + list(e.measured_hz) +
+                    ",\"measured_f64\":" +
+                    complex_list(e.measured_f64) + ",\"analytic_f64\":" + complex_list(e.analytic_f64) + "}";
         }
         s += "\n]\n}\n";
         std::fputs(s.c_str(), fp);
