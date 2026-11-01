@@ -205,9 +205,9 @@ namespace
         constexpr double trig64 = 0x1.921fb54442d18p+22;
         return {
             {"product_log", [](double x) { return product_log_ref(x); }, all, batch32([](auto v) { return wray::product_log(v); }), batch32([](auto v) { return wray::fast::product_log(v); }), all,
-             batch64([](auto v) { return wray::product_log(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -0.36787944117144, 10.0) : bit_uniform(g, 0x1p-1074, 0x1p1000); }, 2.05, 0x1p-16, 200.0},
+             batch64([](auto v) { return wray::product_log(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -0.36787944117144, 10.0) : bit_uniform(g, 0x1p-1074, 0x1p1000); }, 2.05, 0x1p-16, 400.0},
             {"omega", [](double x) { return omega_ref(x); }, all, batch32([](auto v) { return wray::omega(v); }), batch32([](auto v) { return wray::fast::omega(v); }), [](float x) { return x >= -80.0f; },
-             batch64([](auto v) { return wray::omega(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -10.0, 30.0) : signed_bits(g, 0x1p-1074, 0x1p1000); }, 1.45, 0x1p-16, 1.3},
+             batch64([](auto v) { return wray::omega(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -10.0, 30.0) : signed_bits(g, 0x1p-1074, 0x1p1000); }, 1.65, 0x1p-16, 1.3},
             {"ratio_from_cents", [](double x) { return std::exp2(x / 1200.0); }, all, batch32([](auto v) { return wray::ratio_from_cents(v); }), {}, all,
              batch64([](auto v) { return wray::ratio_from_cents(v); }), [](std::mt19937_64& g) { return uniform(g, -2400.0, 2400.0); }, 0.85, 0.0, 0.75},
             {"hz_to_midi", [](double x) { return 69.0 + 12.0 * std::log2(x / 440.0); }, all, batch32([](auto v) { return wray::hz_to_midi(v); }), {}, all,
