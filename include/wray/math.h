@@ -121,6 +121,9 @@ namespace wray
     WRAY_INLINE V log(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::log<math::precise>(v); }); }
 
     template<simd::real V>
+    WRAY_INLINE V log1p(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::log1p<math::precise>(v); }); }
+
+    template<simd::real V>
     WRAY_INLINE V log2(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::log2<math::precise>(v); }); }
 
     template<simd::real V>
@@ -167,6 +170,9 @@ namespace wray
 
     template<math::real_range In, class Out>
     void log(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::log(v); }); }
+
+    template<math::real_range In, class Out>
+    void log1p(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::log1p(v); }); }
 
     template<math::real_range In, class Out>
     void log2(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::log2(v); }); }

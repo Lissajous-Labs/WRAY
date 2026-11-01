@@ -74,6 +74,7 @@ namespace
         auto y = inputs<T>(g);
         shuffle(y, g);
         unary(x, [](auto v) { return wray::exp(v); });
+        unary(x, [](auto v) { return wray::log1p(v); });
         unary(x, [](auto v) { return wray::expm1(v); });
         unary(x, [](auto v) { return wray::exp2(v); });
         unary(x, [](auto v) { return wray::log(v); });

@@ -509,6 +509,38 @@ namespace wray::math::detail
         return log_combine(log_reduce<Tier, false>(x));
     }
 
+    template<class Tier, bool Subnormal, class V>
+    WRAY_INLINE V log1p_combine(const V &x, const V &u) noexcept
+    {
+        using S = scalar_t<V>;
+        auto p = log_reduce<Tier, Subnormal>(u);
+        const V f = u - V(S(1));
+        const V c = x - f;
+        const V q = c / u;
+        const V near = x - ((((f - p.hi) - p.lo) + c * (f / u)) + q * q * V(S(0.5)));
+        p.lo = p.lo + q;
+        const V tiny(S(1) / (format<S>::two_mantissa * S(4)));
+        return select(abs(x) <= tiny, x, select(p.e == V(S(0)), near, log_combine(p)));
+    }
+
+    template<class Tier, class V>
+    V log1p_edge(const V &x) noexcept
+    {
+        using S = scalar_t<V>;
+        const V u = V(S(1)) + x;
+        return log_specials(u, log1p_combine<Tier, true>(x, u));
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V log1p(const V &x) noexcept
+    {
+        using S = scalar_t<V>;
+        const V u = V(S(1)) + x;
+        if (simd::any(!log_regular_mask(u)))
+            return log1p_edge<Tier>(x);
+        return log1p_combine<Tier, false>(x, u);
+    }
+
     template<class Tier, class V>
     V log2_edge(const V &x) noexcept
     {

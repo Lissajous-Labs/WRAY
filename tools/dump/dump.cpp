@@ -112,6 +112,7 @@ namespace
                 add("expm1", [](auto v) { return wray::expm1(v); });
                 add("exp2", [](auto v) { return wray::exp2(v); });
                 add("log", [](auto v) { return wray::log(v); });
+                add("log1p", [](auto v) { return wray::log1p(v); });
                 add("log2", [](auto v) { return wray::log2(v); });
                 add("sin", [](auto v) { return wray::sin(v); });
                 add("cos", [](auto v) { return wray::cos(v); });
