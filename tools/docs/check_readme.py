@@ -93,6 +93,10 @@ def main():
             check(n in limits, f"README states {n}")
 
     claims("add 0.5 ulp")
+    contracts = section(text, "Accuracy contracts")
+    check(f"|y·log₂|x|| ≤ {oracle.POW_SCALE:g}" in contracts and f"|y·log₂|x|| / {oracle.POW_SCALE:g} ulp" in contracts, "pow scaling threshold")
+    neg = dump("pow", "f64", [-2.0, -2.0, -2.0], [3.0, 2.0, 0.5])
+    check(neg[0] == -8.0 and neg[1] == 4.0 and np.isnan(neg[2]), "pow negative bases follow C")
     check(oracle.NO_FMA_MARGIN == 0.5, "no-FMA margin")
 
     for tier, kind, shown in (("f32", "float", "6434"), ("f64", "double", "6.59e6")):

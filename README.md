@@ -55,6 +55,8 @@ Maximum error in ulp against 40-digit references, over the full domain.
 | ratio_from_cents | 0.85 | 0.75 | pole_from_cutoff | 2.0 | 2.0 |
 | prewarp | 2.0 | 2.0 | tan_turns | 1.2 | 1.2 |
 
+`pow` meets its bound while |y·log₂|x|| ≤ 4; past that the bound scales with the product, to contract × |y·log₂|x|| / 4 ulp, because the error of log₂|x| is multiplied by y. Negative bases follow C: integer exponents give the signed power and other exponents give NaN. The fast tier's 2^-16 bound for `pow` is likewise relative to 1 + |y·log₂|x||.
+
 Beyond the error bound, the precise tier keeps shape: every function is checked for monotonicity on its monotone intervals, exact odd or even symmetry, range bounds, and finite outputs for finite inputs, over every `float` and a dense `double` sample. The few documented exceptions are listed in `tests/accuracy_test.cpp`. `midi_to_hz(69 + 12k)` is exactly `440 * 2^k`, and the turns functions are exact at multiples of 1/8 turn.
 
 ![accuracy](docs/charts/accuracy_summary.png)

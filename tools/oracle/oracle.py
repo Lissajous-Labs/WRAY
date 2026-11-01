@@ -132,6 +132,7 @@ for _tier in ("f32", "f64"):
         CONTRACTS[_tier][f"adaa_{_name}_first"] = _first
 BINARY = ["atan2", "pow", "smoothing_coefficient", "pole_from_cutoff", "prewarp"] + [f"adaa_{n}_first" for n in ADAA]
 NO_FMA_MARGIN = 0.5
+POW_SCALE = 4.0
 
 
 def bit_uniform(rng, fmt, lo, hi, n, signed=False):
@@ -236,9 +237,17 @@ def domain(fn, tier, rng, n):
         x1 = np.concatenate([value_uniform(rng, fmt, -8.0, 8.0, q), near, x0[2 * q:3 * q], bit_uniform(rng, fmt, 1e-3, huge / 4, n - 3 * q, True)])
         return (x0, x1)
     if fn == "pow":
-        x = bit_uniform(rng, fmt, 1e-10, 1e10, n)
-        y = value_uniform(rng, fmt, -3.0, 3.0, n)
-        return (x, y)
+        q = n // 4
+        x = bit_uniform(rng, fmt, 1e-10, 1e10, n - q)
+        y = value_uniform(rng, fmt, -3.0, 3.0, n - q)
+        nx = -bit_uniform(rng, fmt, 1e-3, 1e3, q)
+        ny = rng.integers(-12, 13, size=q).astype(fmt["dtype"])
+        w = q // 2
+        top = 120.0 if f32 else 1000.0
+        wx = np.exp2(rng.uniform(-1.0, 1.0, w)).astype(fmt["dtype"])
+        wy = (rng.uniform(-top, top, w) / np.log2(wx.astype(np.float64))).astype(fmt["dtype"])
+        x, y = x[: n - q - w], y[: n - q - w]
+        return (np.concatenate([x, nx, wx]).astype(fmt["dtype"]), np.concatenate([y, ny, wy]).astype(fmt["dtype"]))
     raise KeyError(fn)
 
 
@@ -292,13 +301,15 @@ def measure(job):
         rels.append(err_rel)
         mags.append(float(abs(ref)) if mp.isfinite(ref) else float("inf"))
     xs, ys, ulps, rels, mags = np.array(xs), np.array(ys), np.array(ulps), np.array(rels), np.array(mags)
+    precise = ulps
     if fn == "pow":
         z = np.abs(ys * np.log2(np.abs(xs)))
         scaled = rels / (1 + z)
+        precise = ulps / np.maximum(1.0, z / POW_SCALE)
     else:
         scaled = rels
     normal_out = (mags >= np.finfo(np.float32).tiny) | (mags == 0)
-    score = float(scaled[normal_out].max()) if tier == "fast" else float(ulps.max())
+    score = float(scaled[normal_out].max()) if tier == "fast" else float(precise.max())
     order = np.argsort(xs)
     keep = order[np.linspace(0, len(order) - 1, min(len(order), 6000)).astype(int)]
     finite = np.isfinite(ulps)

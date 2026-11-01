@@ -1128,7 +1128,7 @@ namespace wray::math::detail
     }
 
     template<class Tier, class V>
-    WRAY_INLINE V pow(const V &x, const V &y) noexcept
+    WRAY_INLINE V pow_magnitude(const V &x, const V &y) noexcept
     {
         using S = scalar_t<V>;
         if constexpr (full<Tier>)
@@ -1147,6 +1147,22 @@ namespace wray::math::detail
             const V z = y * l;
             return exp2<Tier>(z);
         }
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V pow(const V &x, const V &y) noexcept
+    {
+        using S = scalar_t<V>;
+        using F = format<S>;
+        using I = integer_t<V>;
+        const V r = pow_magnitude<Tier>(abs(x), y);
+        const V half = y * V(S(0.5));
+        const auto whole = nearest(y) == y;
+        const auto odd = both(whole, nearest(half) != half);
+        const auto negative = nonzero(as_bits(x) & I(F::sign_bit));
+        const V signed_r = select(both(negative, odd), -r, r);
+        const auto invalid = both(both(x < V(S(0)), abs(x) < inf<V>()), !whole);
+        return select(invalid, nan<V>(), signed_r);
     }
 
     template<class Tier, class V>

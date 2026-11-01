@@ -41,7 +41,7 @@ f32 adaa_soft_clip_first 2928e72bc46e1b9e
 f32 adaa_tanh_first 4df2ae696cfa20f2
 f32 atan2 03405634ab361b13
 f32 pole_from_cutoff e82f733e4c115e3f
-f32 pow b9b658f91e6311f5
+f32 pow cf6396eb7d920340
 f32 prewarp 023189a480588cef
 f32 smoothing_coefficient db995d09124120b2
 f64 adaa_algebraic_F1 cf26c61a033a61b9
@@ -87,7 +87,7 @@ f64 adaa_soft_clip_first 305fcaa0bf3789ed
 f64 adaa_tanh_first 6c31b91f41a51530
 f64 atan2 a5ef71f14b6477ef
 f64 pole_from_cutoff b460091a9f6bf809
-f64 pow 48c96b842ee35732
+f64 pow ad1f3e0111f3e7a6
 f64 prewarp 0182812dfd476174
 f64 smoothing_coefficient 06cea959381d26e9
 fast atan d5e6a6944933cc7c
@@ -109,4 +109,4 @@ fast tan_turns 8b984c55cf7bbaec
 fast tanh 8fefb3a2086016de
 fast tanpi 9eae4f156c9a2598
 fast atan2 a7971d3efc1ae9a1
-fast pow 2e69727971c3e5d1
+fast pow a43658e754839183
