@@ -89,6 +89,28 @@ def fast_pi4(tier):
     return [pi4_sq()] if tier == "fast" else []
 
 
+def precise(fn):
+    def g(t):
+        with mp.workprec(mp.mp.prec + max(0, -int(mp.floor(mp.log(abs(t), 2)))) * 3 + 16):
+            return fn(t)
+    return g
+
+
+def sin_turns(t):
+    s = mp.sqrt(t)
+    return (mp.sin(2 * mp.pi * s) - 2 * mp.pi * s) / (s * t)
+
+
+def cos_turns(t):
+    return (mp.cos(2 * mp.pi * mp.sqrt(t)) - 1 + 2 * mp.pi ** 2 * t) / (t * t)
+
+
+def tan_turns(t):
+    s = mp.sqrt(t)
+    return (mp.tan(mp.pi * s) - mp.pi * s) / (s * t)
+
+
+
 CORES = {
     "exp": dict(g=_limit(exp_tail, lambda: mp.mpf(1) / 2), interval=lambda tier: (-ln2_half(), ln2_half()), weight=exp_weight,
                 pin=lambda tier: [-ln2_half(), ln2_half()] if tier == "fast" else []),
@@ -100,4 +122,7 @@ CORES = {
     "atan_rest": dict(g=_limit(atan_rest, lambda: mp.mpf(1) / 5), interval=lambda tier: (0, 1)),
     "tanh": dict(g=_limit(tanh_tail, lambda: mp.mpf(-1) / 3), interval=lambda tier: (0, mp.mpf("0.390625"))),
     "tanh_range": dict(g=_limit(tanh_core, lambda: mp.mpf(1)), interval=lambda tier: (0, mp.mpf(TANH_CLAMP[tier]) ** 2)),
+    "sin_turns": dict(g=_limit(precise(sin_turns), lambda: -(2 * mp.pi) ** 3 / 6), interval=lambda tier: (0, mp.mpf(1) / 64)),
+    "cos_turns": dict(g=_limit(precise(cos_turns), lambda: (2 * mp.pi) ** 4 / 24), interval=lambda tier: (0, mp.mpf(1) / 64)),
+    "tan_turns": dict(g=_limit(precise(tan_turns), lambda: mp.pi ** 3 / 3), interval=lambda tier: (0, mp.mpf(1) / 16)),
 }

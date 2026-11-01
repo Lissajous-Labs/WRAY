@@ -130,13 +130,28 @@ namespace wray
     WRAY_INLINE V log2(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::log2<math::precise>(v); }); }
 
     template<simd::real V>
+    WRAY_INLINE V wrap_turns(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::wrap_turns(v); }); }
+
+    template<simd::real V>
+    WRAY_INLINE math::sincos_result<V> sincos_turns(const V &x) noexcept { return math::lift_pair(x, [](const auto &v) { return math::detail::sincos_turns<math::precise>(v); }); }
+
+    template<simd::real V>
+    WRAY_INLINE V sin_turns(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::sin_turns<math::precise>(v); }); }
+
+    template<simd::real V>
     WRAY_INLINE V sin(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::sin<math::precise>(v); }); }
+
+    template<simd::real V>
+    WRAY_INLINE V cos_turns(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::cos_turns<math::precise>(v); }); }
 
     template<simd::real V>
     WRAY_INLINE V cos(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::cos<math::precise>(v); }); }
 
     template<simd::real V>
     WRAY_INLINE math::sincos_result<V> sincos(const V &x) noexcept { return math::lift_pair(x, [](const auto &v) { return math::detail::sincos<math::precise>(v); }); }
+
+    template<simd::real V>
+    WRAY_INLINE V tan_turns(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::tan_turns<math::precise>(v); }); }
 
     template<simd::real V>
     WRAY_INLINE V tan(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::tan<math::precise>(v); }); }
@@ -184,10 +199,22 @@ namespace wray
     void log2(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::log2(v); }); }
 
     template<math::real_range In, class Out>
+    void wrap_turns(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::wrap_turns(v); }); }
+
+    template<math::real_range In, class Out>
+    void sin_turns(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::sin_turns(v); }); }
+
+    template<math::real_range In, class Out>
     void sin(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::sin(v); }); }
 
     template<math::real_range In, class Out>
+    void cos_turns(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::cos_turns(v); }); }
+
+    template<math::real_range In, class Out>
     void cos(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::cos(v); }); }
+
+    template<math::real_range In, class Out>
+    void tan_turns(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::tan_turns(v); }); }
 
     template<math::real_range In, class Out>
     void tan(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::tan(v); }); }
@@ -244,13 +271,25 @@ namespace wray::fast
     WRAY_INLINE V log2(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::log2<math::fast>(v); }); }
 
     template<single V>
+    WRAY_INLINE math::sincos_result<V> sincos_turns(const V &x) noexcept { return math::lift_pair(x, [](const auto &v) { return math::detail::sincos_turns<math::fast>(v); }); }
+
+    template<single V>
+    WRAY_INLINE V sin_turns(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::sin_turns<math::fast>(v); }); }
+
+    template<single V>
     WRAY_INLINE V sin(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::sin<math::fast>(v); }); }
+
+    template<single V>
+    WRAY_INLINE V cos_turns(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::cos_turns<math::fast>(v); }); }
 
     template<single V>
     WRAY_INLINE V cos(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::cos<math::fast>(v); }); }
 
     template<single V>
     WRAY_INLINE math::sincos_result<V> sincos(const V &x) noexcept { return math::lift_pair(x, [](const auto &v) { return math::detail::sincos<math::fast>(v); }); }
+
+    template<single V>
+    WRAY_INLINE V tan_turns(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::tan_turns<math::fast>(v); }); }
 
     template<single V>
     WRAY_INLINE V tan(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::tan<math::fast>(v); }); }
@@ -289,10 +328,19 @@ namespace wray::fast
     void log2(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return fast::log2(v); }); }
 
     template<math::real_range In, class Out>
+    void sin_turns(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return fast::sin_turns(v); }); }
+
+    template<math::real_range In, class Out>
     void sin(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return fast::sin(v); }); }
 
     template<math::real_range In, class Out>
+    void cos_turns(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return fast::cos_turns(v); }); }
+
+    template<math::real_range In, class Out>
     void cos(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return fast::cos(v); }); }
+
+    template<math::real_range In, class Out>
+    void tan_turns(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return fast::tan_turns(v); }); }
 
     template<math::real_range In, class Out>
     void tan(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return fast::tan(v); }); }

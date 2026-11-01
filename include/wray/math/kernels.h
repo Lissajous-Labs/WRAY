@@ -31,6 +31,9 @@ namespace wray::math
         using tan = coeff::tan_f32;
         using atan_rest = coeff::atan_rest_f32;
         using tanh = coeff::tanh_f32;
+        using sin_turns = coeff::sin_turns_f32;
+        using cos_turns = coeff::cos_turns_f32;
+        using tan_turns = coeff::tan_turns_f32;
     };
 
     template<>
@@ -43,6 +46,9 @@ namespace wray::math
         using tan = coeff::tan_f64;
         using atan_rest = coeff::atan_rest_f64;
         using tanh = coeff::tanh_f64;
+        using sin_turns = coeff::sin_turns_f64;
+        using cos_turns = coeff::cos_turns_f64;
+        using tan_turns = coeff::tan_turns_f64;
     };
 
     template<>
@@ -697,6 +703,139 @@ namespace wray::math::detail
             const V c = V(S(-1)) / v;
             return keep_zero(x, select(odd, c, v));
         }
+    }
+
+    template<class V>
+    WRAY_INLINE V wrap_turns(const V &x) noexcept
+    {
+        return x - round_nearest(x);
+    }
+
+    template<class V>
+    struct turns
+    {
+        V f;
+        integer_t<V> q;
+    };
+
+    template<class V>
+    WRAY_INLINE turns<V> reduce_turns(const V &x, scalar_t<V> parts) noexcept
+    {
+        const V w = wrap_turns(x);
+        const V k = round_nearest(w * V(parts));
+        return {w - k / V(parts), to_integer(k)};
+    }
+
+    template<class V>
+    WRAY_INLINE V odd_zero(const V &x, const V &v) noexcept
+    {
+        return select(v == V(scalar_t<V>(0)), copysign_from(V(scalar_t<V>(0)), x), v);
+    }
+
+    template<class V>
+    WRAY_INLINE V even_zero(const V &v) noexcept
+    {
+        return select(v == V(scalar_t<V>(0)), V(scalar_t<V>(0)), v);
+    }
+
+    template<class S>
+    inline constexpr S tiny_turn = format<S>::min_normal * format<S>::two_mantissa * S(4);
+
+    template<class Tier, class V>
+    WRAY_INLINE sincos_result<V> turns_core(const V &f) noexcept
+    {
+        using S = scalar_t<V>;
+        using K = constants<S>;
+        const V two_pi(S(2) * K::pi_hi);
+        V s;
+        V c;
+        if constexpr (full<Tier>)
+        {
+            using Cs = typename table<Tier, S>::sin_turns;
+            using Cc = typename table<Tier, S>::cos_turns;
+            const V t = f * f;
+            const auto p = two_product(f, two_pi);
+            s = p.hi + (fma(f, V(S(2) * K::pi_lo), p.lo) + (f * t) * numerics::rational<Cs>(t));
+            s = select(abs(f) < V(tiny_turn<S>), f * two_pi, s);
+            const auto sq = two_product(f, f);
+            const auto a = two_product(sq.hi, V(-K::two_pi_sq_hi));
+            const V w = V(S(1)) + a.hi;
+            const V werr = (V(S(1)) - w) + a.hi;
+            const V cross = fma(sq.hi, V(-K::two_pi_sq_lo), sq.lo * V(-K::two_pi_sq_hi));
+            c = w + (werr + ((a.lo + cross) + (sq.hi * sq.hi) * numerics::rational<Cc>(t)));
+        } else
+        {
+            using Cs = typename table<Tier, S>::sin;
+            using Cc = typename table<Tier, S>::cos;
+            const V theta = f * two_pi;
+            const V t = theta * theta;
+            s = fma(theta * t, numerics::rational<Cs>(t), theta);
+            c = fma(t, fma(t, numerics::rational<Cc>(t), V(S(-0.5))), V(S(1)));
+        }
+        const auto eighth = abs(f) == V(S(0.125));
+        return {select(eighth, copysign_from(V(K::sqrt_half), f), s), select(eighth, V(K::sqrt_half), c)};
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V sin_turns(const V &x) noexcept
+    {
+        using S = scalar_t<V>;
+        const auto r = reduce_turns(x, S(4));
+        return odd_zero(x, orient(turns_core<Tier>(r.f), r.q, V(S(1))));
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V cos_turns(const V &x) noexcept
+    {
+        using S = scalar_t<V>;
+        using I = integer_t<V>;
+        const auto r = reduce_turns(x, S(4));
+        return even_zero(orient(turns_core<Tier>(r.f), r.q + I(1), V(S(1))));
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE sincos_result<V> sincos_turns(const V &x) noexcept
+    {
+        using S = scalar_t<V>;
+        using I = integer_t<V>;
+        const auto r = reduce_turns(x, S(4));
+        const auto p = turns_core<Tier>(r.f);
+        return {odd_zero(x, orient(p, r.q, V(S(1)))), even_zero(orient(p, r.q + I(1), V(S(1))))};
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V tan_turns(const V &x) noexcept
+    {
+        using S = scalar_t<V>;
+        using K = constants<S>;
+        using I = integer_t<V>;
+        const auto r = reduce_turns(x, S(2));
+        const V f = r.f;
+        V v;
+        V c;
+        if constexpr (full<Tier>)
+        {
+            using C = typename table<Tier, S>::tan_turns;
+            const V t = f * f;
+            const auto p = two_product(f, V(K::pi_hi));
+            const V low = fma(f, V(K::pi_lo), p.lo) + (f * t) * numerics::rational<C>(t);
+            v = p.hi + low;
+            const V e = (p.hi - v) + low;
+            const V q = V(S(-1)) / v;
+            c = fma(q, fma(q, e, fma(q, v, V(S(1)))), q);
+            v = select(abs(f) < V(tiny_turn<S>), f * V(K::pi_hi), v);
+        } else
+        {
+            using C = typename table<Tier, S>::tan;
+            const V theta = f * V(K::pi_hi);
+            const V t = theta * theta;
+            v = fma(theta * t, numerics::rational<C>(t), theta);
+            c = V(S(-1)) / v;
+        }
+        const auto quarter = abs(f) == V(S(0.25));
+        v = select(quarter, copysign_from(V(S(1)), f), v);
+        c = select(quarter, -copysign_from(V(S(1)), f), select(v == V(S(0)), copysign_from(inf<V>(), x), c));
+        return odd_zero(x, select(nonzero(r.q & I(1)), c, v));
     }
 
     template<class Tier, class V>

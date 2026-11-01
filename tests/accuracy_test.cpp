@@ -107,6 +107,28 @@ namespace
         return std::exp2(hi) * (1.0 + lo * 0.6931471805599453);
     }
 
+    double sin_turns_ref(double x)
+    {
+        const double w = x - std::nearbyint(x);
+        const double a = std::fabs(w) > 0.25 ? 0.5 - std::fabs(w) : std::fabs(w);
+        return std::copysign(std::sin(6.283185307179586 * a), w);
+    }
+
+    double cos_turns_ref(double x)
+    {
+        return std::sin(6.283185307179586 * (0.25 - std::fabs(x - std::nearbyint(x))));
+    }
+
+    double tan_turns_ref(double x)
+    {
+        const double w = x - std::nearbyint(x);
+        if (std::fabs(w) == 0.5)
+            return std::copysign(std::numeric_limits<double>::infinity(), x);
+        if (std::fabs(w) > 0.25)
+            return -1.0 / std::tan(3.141592653589793 * (w - std::copysign(0.5, w)));
+        return std::tan(3.141592653589793 * w);
+    }
+
     double uniform(std::mt19937_64& g, double lo, double hi) { return std::uniform_real_distribution<double>(lo, hi)(g); }
 
     double bit_uniform(std::mt19937_64& g, double lo, double hi)
@@ -127,6 +149,12 @@ namespace
         constexpr double trig32 = 0x1.921fb6p+12;
         constexpr double trig64 = 0x1.921fb54442d18p+22;
         return {
+            {"tan_turns", tan_turns_ref, all, batch32([](auto v) { return wray::tan_turns(v); }), batch32([](auto v) { return wray::fast::tan_turns(v); }), all,
+             batch64([](auto v) { return wray::tan_turns(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -1.0, 1.0) : signed_bits(g, 1e-300, 1e300); }, 1.2, 0x1p-16, 2.0},
+            {"cos_turns", cos_turns_ref, all, batch32([](auto v) { return wray::cos_turns(v); }), batch32([](auto v) { return wray::fast::cos_turns(v); }), all,
+             batch64([](auto v) { return wray::cos_turns(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -1.0, 1.0) : signed_bits(g, 1e-300, 1e300); }, 0.8, 0x1p-16, 0.8},
+            {"sin_turns", sin_turns_ref, all, batch32([](auto v) { return wray::sin_turns(v); }), batch32([](auto v) { return wray::fast::sin_turns(v); }), all,
+             batch64([](auto v) { return wray::sin_turns(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -1.0, 1.0) : signed_bits(g, 1e-300, 1e300); }, 1.0, 0x1p-16, 0.85},
             {"log10", [](double x) { return std::log10(x); }, all, batch32([](auto v) { return wray::log10(v); }), {}, all,
              batch64([](auto v) { return wray::log10(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, 0.5, 20.0) : bit_uniform(g, 0x1p-1074, 0x1.fffffffffffffp+1023); }, 1.4, 0.0, 1.0},
             {"log1p", [](double x) { return std::log1p(x); }, all, batch32([](auto v) { return wray::log1p(v); }), {}, all,
@@ -436,6 +464,8 @@ namespace
 
     expectation below(double x, double limit) { return std::isnan(x) ? any : x < limit ? bounded : defined; }
 
+    expectation finite_only(double x, bool) { return std::isfinite(x) ? bounded : any; }
+
     expectation logarithmic(double x, bool) { return x > 0.0 && x < inf ? bounded : x >= 0.0 ? defined : any; }
 
     expectation periodic(double x, bool wide)
@@ -477,6 +507,9 @@ namespace
              joined(multiples(ln2, 0.5, 60), {86.0, 707.0, 88.72, 709.78, 745.1, 708.39, 103.97, 87.0})},
             {"log1p", parity::none, {{-1.0, inf, 1}}, -inf, inf, [](double x, bool) { return x > -1.0 && x < inf ? bounded : x >= -1.0 ? defined : any; }, 2.0, {-0.5, 0x1p-25, 0x1p-54, 1.0, 0.4142135623730951, -0.2928932188134524, 1e300}},
             {"log10", parity::none, {{0.0, inf, 1}}, -inf, inf, logarithmic, 4.0, logs},
+            {"sin_turns", parity::odd, {{-0.25, 0.25, 1}}, -1.0, 1.0, finite_only, 1.0, joined(multiples(0.125, 0.0, 16), {1e6 + 0.25, 4194303.75, 0x1p-30})},
+            {"cos_turns", parity::even, {{-0.5, 0.0, 1}, {0.0, 0.5, -1}}, -1.0, 1.0, finite_only, 1.0, joined(multiples(0.125, 0.0, 16), {1e6 + 0.25, 4194303.75, 0x1p-30})},
+            {"tan_turns", parity::odd, {{-0.49999999999999994, 0.49999999999999994, 1}}, -inf, inf, [](double x, bool) { return std::isnan(x) || std::isinf(x) ? any : std::fabs(x - std::nearbyint(x)) == 0.5 ? defined : bounded; }, 1.0, joined(multiples(0.125, 0.0, 16), {0.25, 0.5, 1e6 + 0.25, 4194303.75, 0x1p-30})},
             {"expm1", parity::none, {{-inf, inf, 1}}, -1.0, inf, [](double x, bool w) { return below(x, w ? 709.78 : 88.72); }, 2.0,
              joined(multiples(ln2, 0.5, 60), {86.0, 707.0, 88.72, 709.78, 0x1p-25, 0x1p-54, 17.3, 37.5})},
             {"exp2", parity::none, {{-inf, inf, 1}}, 0.0, inf, [](double x, bool w) { return below(x, w ? 1024.0 : 128.0); }, 20.0,

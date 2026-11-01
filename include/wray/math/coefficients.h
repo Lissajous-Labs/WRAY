@@ -46,6 +46,20 @@ namespace wray::math::coeff
         static constexpr std::array<float, 1> q{ 0x1p+0f };
     };
 
+    struct cos_turns_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 3> p{ 0x1.03c1fp+6f, -0x1.55d014p+6f, 0x1.dd058cp+5f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct cos_turns_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 6> p{ 0x1.03c1f081b5ac4p+6, -0x1.55d3c7e3cbd7p+6, 0x1.e1f506882f221p+5, -0x1.a6d1f0aa04a5ap+4, 0x1.f9cfbecdf0482p+2, -0x1.b38296efe1282p+0 };
+        static constexpr std::array<double, 1> q{ 0x1p+0 };
+    };
+
     struct exp_f32
     {
         using value_type = float;
@@ -109,6 +123,20 @@ namespace wray::math::coeff
         static constexpr std::array<float, 1> q{ 0x1p+0f };
     };
 
+    struct sin_turns_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 4> p{ -0x1.4abbcep+5f, 0x1.466bc2p+6f, -0x1.32ce1ap+6f, 0x1.4cb5c6p+5f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct sin_turns_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 7> p{ -0x1.4abbce625be53p+5, 0x1.466bc6775aae1p+6, -0x1.32d2cce62b868p+6, 0x1.50783486f970fp+5, -0x1.e3074d237aa4fp+3, 0x1.e8f0346d3ac48p+1, -0x1.6cc4b2c7ad5dp-1 };
+        static constexpr std::array<double, 1> q{ 0x1p+0 };
+    };
+
     struct tan_f32
     {
         using value_type = float;
@@ -128,6 +156,20 @@ namespace wray::math::coeff
         using value_type = float;
         static constexpr std::array<float, 5> p{ 0x1.5555b6p-2f, 0x1.10d556p-3f, 0x1.c59822p-5f, 0x1.0692dcp-6f, 0x1.283c82p-6f };
         static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct tan_turns_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 7> p{ 0x1.4abbcep+3f, 0x1.466b22p+5f, 0x1.46288cp+7f, 0x1.42401ap+9f, 0x1.6e626cp+11f, 0x1.adea66p+11f, 0x1.ae468p+16f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct tan_turns_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 4> p{ 0x1.4abbce625be53p+3, -0x1.a3ee448b39e6bp+2, 0x1.7a92e09cf4531p-1, -0x1.17307d5e521bcp-11 };
+        static constexpr std::array<double, 4> q{ 0x1p+0, -0x1.254ac7571b21cp+2, 0x1.32361c9105e3bp+1, -0x1.f7f875e4624fap-3 };
     };
 
     struct tanh_f32
@@ -200,6 +242,8 @@ namespace wray::math
         static constexpr float log10_per_log2_lo = -0x1.95ec1p-19f;
         static constexpr float log10_per_ln_hi = 0x1.bcb7b2p-2f;
         static constexpr float log10_per_ln_lo = -0x1.5b235ep-27f;
+        static constexpr float two_pi_sq_hi = 0x1.3bd3ccp+4f;
+        static constexpr float two_pi_sq_lo = 0x1.37c8bcp-21f;
     };
 
     template <>
@@ -244,5 +288,7 @@ namespace wray::math
         static constexpr double log10_per_log2_lo = 0x1.fef311f12b358p-46;
         static constexpr double log10_per_ln_hi = 0x1.bcb7b1526e50ep-2;
         static constexpr double log10_per_ln_lo = 0x1.95355baaafad3p-57;
+        static constexpr double two_pi_sq_hi = 0x1.3bd3cc9be45dep+4;
+        static constexpr double two_pi_sq_lo = 0x1.692b71366cc04p-50;
     };
 }

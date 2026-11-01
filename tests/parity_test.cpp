@@ -76,6 +76,9 @@ namespace
         unary(x, [](auto v) { return wray::exp(v); });
         unary(x, [](auto v) { return wray::log1p(v); });
         unary(x, [](auto v) { return wray::log10(v); });
+        unary(x, [](auto v) { return wray::sin_turns(v); });
+        unary(x, [](auto v) { return wray::cos_turns(v); });
+        unary(x, [](auto v) { return wray::tan_turns(v); });
         unary(x, [](auto v) { return wray::expm1(v); });
         unary(x, [](auto v) { return wray::exp2(v); });
         unary(x, [](auto v) { return wray::log(v); });
@@ -97,6 +100,9 @@ namespace
         const auto x = inputs<float>(g);
         auto y = inputs<float>(g);
         shuffle(y, g);
+        unary(x, [](auto v) { return wray::fast::sin_turns(v); });
+        unary(x, [](auto v) { return wray::fast::cos_turns(v); });
+        unary(x, [](auto v) { return wray::fast::tan_turns(v); });
         unary(x, [](auto v) { return wray::fast::exp(v); });
         unary(x, [](auto v) { return wray::fast::exp2(v); });
         unary(x, [](auto v) { return wray::fast::log(v); });

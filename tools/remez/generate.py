@@ -25,6 +25,9 @@ PLAN = {
     "atan_rest": {"f32": (8, 0), "f64": (5, 6)},
     "tanh": {"f32": (4, 0), "f64": (3, 3)},
     "tanh_range": {"fast": (3, 2)},
+    "sin_turns": {"f32": (3, 0), "f64": (6, 0)},
+    "cos_turns": {"f32": (2, 0), "f64": (5, 0)},
+    "tan_turns": {"f32": (6, 0), "f64": (3, 3)},
 }
 
 PARETO = {"exp": "f64", "log": "f64", "tan": "f64", "atan_rest": "f64", "tanh": "f64", "tanh_range": "f32"}
@@ -138,6 +141,8 @@ def constants(ctype):
             "log10_per_log2_lo": split(mp.log10(2), 16 if ctype == "float" else 42, total)[1],
             "log10_per_ln_hi": split(1 / mp.log(10), total, total)[0],
             "log10_per_ln_lo": split(1 / mp.log(10), total, total)[1],
+            "two_pi_sq_hi": split(2 * mp.pi ** 2, total, total)[0],
+            "two_pi_sq_lo": split(2 * mp.pi ** 2, total, total)[1],
         }
 
 

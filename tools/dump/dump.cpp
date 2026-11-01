@@ -95,8 +95,11 @@ namespace
                 add("exp2", [](auto v) { return wray::fast::exp2(v); });
                 add("log", [](auto v) { return wray::fast::log(v); });
                 add("log2", [](auto v) { return wray::fast::log2(v); });
+                add("sin_turns", [](auto v) { return wray::fast::sin_turns(v); });
                 add("sin", [](auto v) { return wray::fast::sin(v); });
+                add("cos_turns", [](auto v) { return wray::fast::cos_turns(v); });
                 add("cos", [](auto v) { return wray::fast::cos(v); });
+                add("tan_turns", [](auto v) { return wray::fast::tan_turns(v); });
                 add("tan", [](auto v) { return wray::fast::tan(v); });
                 add("atan", [](auto v) { return wray::fast::atan(v); });
                 add("tanh", [](auto v) { return wray::fast::tanh(v); });
@@ -115,8 +118,11 @@ namespace
                 add("log1p", [](auto v) { return wray::log1p(v); });
                 add("log10", [](auto v) { return wray::log10(v); });
                 add("log2", [](auto v) { return wray::log2(v); });
+                add("sin_turns", [](auto v) { return wray::sin_turns(v); });
                 add("sin", [](auto v) { return wray::sin(v); });
+                add("cos_turns", [](auto v) { return wray::cos_turns(v); });
                 add("cos", [](auto v) { return wray::cos(v); });
+                add("tan_turns", [](auto v) { return wray::tan_turns(v); });
                 add("tan", [](auto v) { return wray::tan(v); });
                 add("atan", [](auto v) { return wray::atan(v); });
                 add("tanh", [](auto v) { return wray::tanh(v); });
