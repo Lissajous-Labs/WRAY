@@ -193,7 +193,13 @@ namespace wray::math::detail
     {
         const V m(format<scalar_t<V> >::magic);
         const V y = integral + m;
-        return as_bits(y) - as_bits(m);
+        if constexpr (std::is_arithmetic_v<V>)
+        {
+            using I = integer_t<V>;
+            using U = std::make_unsigned_t<I>;
+            return static_cast<I>(static_cast<U>(as_bits(y)) - static_cast<U>(as_bits(m)));
+        } else
+            return as_bits(y) - as_bits(m);
     }
 
     template<class V>

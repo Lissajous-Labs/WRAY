@@ -244,13 +244,23 @@ namespace wray::simd
     template<class T, int N>
     WRAY_INLINE vec<T, N> operator+(const vec<T, N> &a, const vec<T, N> &b) noexcept
     {
-        return zip(a, b, [](T x, T y) { return T(x + y); });
+        if constexpr (std::is_integral_v<T>)
+        {
+            using U = std::make_unsigned_t<T>;
+            return zip(a, b, [](T x, T y) { return static_cast<T>(static_cast<U>(x) + static_cast<U>(y)); });
+        } else
+            return zip(a, b, [](T x, T y) { return T(x + y); });
     }
 
     template<class T, int N>
     WRAY_INLINE vec<T, N> operator-(const vec<T, N> &a, const vec<T, N> &b) noexcept
     {
-        return zip(a, b, [](T x, T y) { return T(x - y); });
+        if constexpr (std::is_integral_v<T>)
+        {
+            using U = std::make_unsigned_t<T>;
+            return zip(a, b, [](T x, T y) { return static_cast<T>(static_cast<U>(x) - static_cast<U>(y)); });
+        } else
+            return zip(a, b, [](T x, T y) { return T(x - y); });
     }
 
     template<class T, int N>

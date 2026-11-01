@@ -112,6 +112,8 @@ namespace
         const double d = x - 69.0;
         const double bb = d - x;
         const double dl = (x - (d - bb)) + (-69.0 - bb);
+        if (std::isnan(d))
+            return d;
         if (std::fabs(d) > 24000.0)
             return d > 0.0 ? std::numeric_limits<double>::infinity() : 0.0;
         const double q = std::nearbyint(d / 12.0);

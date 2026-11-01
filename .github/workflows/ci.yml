@@ -39,6 +39,7 @@ jobs:
           - { name: macos-arm64-appleclang-neon-cxx20, os: macos-15, cxx: clang++, simd: auto, std: 20 }
           - { name: linux-x64-gcc14-sse2-cxx20, os: ubuntu-24.04, cxx: g++-14, simd: sse2, std: 20 }
           - { name: linux-arm64-gcc14-neon-cxx20, os: ubuntu-24.04-arm, cxx: g++-14, simd: auto, std: 20 }
+          - { name: linux-x64-clang18-scalar-ubsan, os: ubuntu-24.04, cxx: clang++-18, simd: scalar, flags: -fsanitize=undefined -fno-sanitize-recover=all }
           - { name: windows-x64-msvc-sse2, os: windows-2022, cxx: cl, simd: sse2 }
           - { name: windows-x64-msvc-avx2, os: windows-2022, cxx: cl, simd: avx2 }
     env:
@@ -58,7 +59,7 @@ jobs:
       - if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
-      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=${{ matrix.std || 23 }} -DWRAY_SIMD=${{ matrix.simd }} -DWRAY_PYTHON="${{ steps.python.outputs.python-path }}"
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=${{ matrix.std || 23 }} -DCMAKE_CXX_FLAGS="${{ matrix.flags }}" -DWRAY_SIMD=${{ matrix.simd }} -DWRAY_PYTHON="${{ steps.python.outputs.python-path }}"
 
       - run: cmake --build build
 
