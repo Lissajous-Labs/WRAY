@@ -1,3 +1,4 @@
+#include <wray/denormals.h>
 #include <wray/simd/vec.h>
 
 #include <bit>
@@ -206,6 +207,40 @@ namespace
         reductions<I, n>();
     }
 
+    void denormal_guard()
+    {
+        using guard = wray::scoped_flush_denormals;
+        volatile float tiny = 0x1p-140f;
+        volatile float one = 1.0f;
+        const guard::state before = guard::read();
+        const auto flushing = [before] {
+            const guard::state now = guard::read();
+            return (now & ~guard::flags) == (before & ~guard::flags) && (guard::flags == 0 || (now & guard::flags) != 0);
+        };
+        {
+            const guard outer;
+            CHECK(flushing());
+            {
+                const guard inner;
+                CHECK(flushing());
+            }
+            CHECK(flushing());
+            const float r = tiny * one;
+            CHECK(guard::flags == 0 ? r == 0x1p-140f : r == 0.0f);
+        }
+        CHECK(guard::read() == before);
+        CHECK(tiny * one == 0x1p-140f);
+        guard::write(before | guard::flags);
+        const guard::state set = guard::read();
+        {
+            const guard again;
+            CHECK(flushing());
+        }
+        CHECK(guard::read() == set);
+        guard::write(before);
+        CHECK(guard::read() == before);
+    }
+
     void masks()
     {
         const f32x4 a(1.0f);
@@ -267,6 +302,7 @@ int main()
     width<double, 8>(g);
     width<double, 16>(g);
     masks();
+    denormal_guard();
     rounding_modes<float, 4>();
     rounding_modes<float, 8>();
     rounding_modes<double, 2>();
