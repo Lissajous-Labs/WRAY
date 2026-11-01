@@ -37,6 +37,7 @@ namespace wray::math
         using sinh = coeff::sinh_f32;
         using cosh = coeff::cosh_f32;
         using asinh = coeff::asinh_f32;
+        using cbrt = coeff::cbrt_f32;
     };
 
     template<>
@@ -55,6 +56,7 @@ namespace wray::math
         using sinh = coeff::sinh_f64;
         using cosh = coeff::cosh_f64;
         using asinh = coeff::asinh_f64;
+        using cbrt = coeff::cbrt_f64;
     };
 
     template<>
@@ -1207,6 +1209,38 @@ namespace wray::math::detail
         const V large = select(a < inf<V>(), log_combine(p), a);
         const V v = select(a < V(S(0.5)), small, select(a < big, medium, large));
         return select(isnan(x), x, copysign_from(v, x));
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V cbrt(const V &x) noexcept
+    {
+        using S = scalar_t<V>;
+        using F = format<S>;
+        using I = integer_t<V>;
+        using C = typename table<Tier, S>::cbrt;
+        const V one(S(1));
+        const V third(S(1) / S(3));
+        const V a = abs(x);
+        const auto sub = a < V(F::min_normal);
+        const V as = select(sub, a * V(F::subnormal_scale), a);
+        const I bits = as_bits(as);
+        const V e = from_bits<V>(shift_right_logical(bits, F::mantissa) | as_bits(V(F::two_mantissa))) - V(F::exponent_offset);
+        const V m = from_bits<V>((bits & I(F::mantissa_mask)) | I(F::one_bits));
+        const V q = round_nearest((e - one) * third);
+        const V y = m * pow2(e - V(S(3)) * q);
+        V g = numerics::rational<C>(y);
+        constexpr int steps = std::is_same_v<S, float> ? 2 : 3;
+        for (int i = 0; i < steps; ++i)
+            g = (g * third) * fma(-y, (g * g) * g, V(S(4)));
+        const V gg = g * g;
+        const V c = y * gg;
+        const auto c2 = two_product(c, c);
+        const auto c3 = two_product(c2.hi, c);
+        const V rest = ((y - c3.hi) - c3.lo) - c2.lo * c;
+        const V root = fma(rest, gg * third, c);
+        const V k = q - select(sub, V(F::subnormal_exponent / S(3)), V(S(0)));
+        const V v = copysign_from(root * pow2(k), x);
+        return select(either(either(a == V(S(0)), a == inf<V>()), isnan(x)), x, v);
     }
 
     template<class V>

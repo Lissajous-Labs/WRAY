@@ -39,6 +39,20 @@ namespace wray::math::coeff
         static constexpr std::array<double, 7> q{ 0x1p+0, 0x1.8a76b6166a678p+1, 0x1.d32d4476596aep+1, 0x1.0a49d3b9442e5p+1, 0x1.2a746f5ea88dbp-1, 0x1.2895b039e09cep-4, 0x1.768b68be7db37p-9 };
     };
 
+    struct cbrt_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 4> p{ 0x1.3cad5ep+0f, -0x1.30576cp-2f, 0x1.77f88ep-5f, -0x1.4e1784p-9f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct cbrt_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 4> p{ 0x1.3cad5d6368fbfp+0, -0x1.30576cda42be4p-2, 0x1.77f88e6b0c34p-5, -0x1.4e178315a8facp-9 };
+        static constexpr std::array<double, 1> q{ 0x1p+0 };
+    };
+
     struct cos_f32
     {
         using value_type = float;

@@ -172,6 +172,9 @@ namespace wray
     WRAY_INLINE V asinh(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::asinh<math::precise>(v); }); }
 
     template<simd::real V>
+    WRAY_INLINE V cbrt(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::cbrt<math::precise>(v); }); }
+
+    template<simd::real V>
     WRAY_INLINE V tanh(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::tanh<math::precise>(v); }); }
 
     template<simd::real V>
@@ -239,6 +242,9 @@ namespace wray
 
     template<math::real_range In, class Out>
     void asinh(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::asinh(v); }); }
+
+    template<math::real_range In, class Out>
+    void cbrt(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::cbrt(v); }); }
 
     template<math::real_range In, class Out>
     void tanh(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::tanh(v); }); }

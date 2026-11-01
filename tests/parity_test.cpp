@@ -82,6 +82,7 @@ namespace
         unary(x, [](auto v) { return wray::sinh(v); });
         unary(x, [](auto v) { return wray::cosh(v); });
         unary(x, [](auto v) { return wray::asinh(v); });
+        unary(x, [](auto v) { return wray::cbrt(v); });
         unary(x, [](auto v) { return wray::expm1(v); });
         unary(x, [](auto v) { return wray::exp2(v); });
         unary(x, [](auto v) { return wray::log(v); });

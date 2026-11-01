@@ -139,6 +139,7 @@ CORES = {
     "sinh": dict(g=_limit(precise(sinh_tail), lambda: mp.mpf(1) / 6), interval=lambda tier: (0, 1)),
     "cosh": dict(g=_limit(precise(cosh_tail), lambda: mp.mpf(1) / 24), interval=lambda tier: (0, 1)),
     "asinh": dict(g=_limit(precise(asinh_tail), lambda: mp.mpf(-1) / 6), interval=lambda tier: (0, mp.mpf(1) / 4)),
+    "cbrt": dict(g=lambda y: mp.mpf(y) ** (-mp.mpf(1) / 3), interval=lambda tier: (1, 8)),
     "sin_turns": dict(g=_limit(precise(sin_turns), lambda: -(2 * mp.pi) ** 3 / 6), interval=lambda tier: (0, mp.mpf(1) / 64)),
     "cos_turns": dict(g=_limit(precise(cos_turns), lambda: (2 * mp.pi) ** 4 / 24), interval=lambda tier: (0, mp.mpf(1) / 64)),
     "tan_turns": dict(g=_limit(precise(tan_turns), lambda: mp.pi ** 3 / 3), interval=lambda tier: (0, mp.mpf(1) / 16)),
