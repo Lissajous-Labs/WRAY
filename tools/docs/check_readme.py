@@ -54,6 +54,15 @@ class Dump:
         return np.fromfile(self.dir / "out.bin", dtype=dt)
 
 
+def correctly_rounded(value, dt):
+    import mpmath as mp
+    f = dt(float(value))
+    if dt is np.float64:
+        return f
+    candidates = [np.nextafter(f, dt(-np.inf)), f, np.nextafter(f, dt(np.inf))]
+    return min(candidates, key=lambda c: abs(mp.mpf(float(c)) - value))
+
+
 def threshold(dump, fn, tier, lo, hi, keep):
     dt = np.float64 if tier == "f64" else np.float32
     lo, hi = dt(lo), dt(hi)
@@ -140,8 +149,25 @@ def main():
     fp = dump("pow", "fast", [2, 2], [-1e3, 1e3])
     check(bool(np.all(np.isfinite(fp)) and np.all(fp >= np.finfo(np.float32).tiny)), "fast pow stays finite and normal")
 
-    claims("sin_turns(2^40 + 0.25)")
+    claims("in double, `sin_turns(2^40 + 0.25)` is exactly 1", "not representable in float")
     check(dump("sin_turns", "f64", 2.0 ** 40 + 0.25)[0] == 1.0, "sin_turns exact for huge turns")
+    check(float(np.float32(2.0 ** 40 + 0.25)) != 2.0 ** 40 + 0.25, "the turns example is not a float")
+    for tier, dt in (("f32", np.float32), ("f64", np.float64)):
+        import mpmath as mp
+        eighths = np.arange(-16, 17, dtype=np.float64) / 8
+        for fn, ref in (("sin_turns", mp.sinpi), ("cos_turns", mp.cospi)):
+            got = dump(fn, tier, eighths)
+            with mp.workdps(50):
+                want = [correctly_rounded(ref(2 * mp.mpf(e)), dt) for e in eighths]
+            check(all(g == w for g, w in zip(got, want)), f"{fn} {tier} correctly rounded at eighths")
+    claims("fast `log` of 0 returns -88.03", "fast `sigmoid` can return subnormals")
+    check(f"{dump('log', 'fast', 0.0)[0]:.2f}" == "-88.03", "fast log of 0")
+    check(0 < dump("sigmoid", "fast", -1e9)[0] < np.finfo(np.float32).tiny, "fast sigmoid subnormal")
+    fx = dump("db_to_gain", "fast", [-1e9, 1e9])
+    check(bool(np.all(np.isfinite(fx)) and np.all(fx >= np.finfo(np.float32).tiny)), "fast db_to_gain stays finite and normal")
+    claims("The fast tier exists for `float` only")
+    fast_api = (ROOT / "include/wray/math.h").read_text().split("namespace wray::fast")[1]
+    check("concept single = std::is_same_v<simd::scalar_t<V>, float>;" in fast_api and "template<simd::real V>" not in fast_api, "fast tier is float only")
 
     filters = section(text, "Filters")
     for number in ("[1e-6, 0.4999]", "[1e-3, 1e3]", "±120 dB", "48 kHz", "2^-80", "2^-200"):

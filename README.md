@@ -79,7 +79,7 @@ Measured maximum error in ulp. These are measured bounds, not proofs: one-argume
 
 `pow` meets its bound while |y·log₂|x|| ≤ 4; past that the bound scales with the product, to contract × |y·log₂|x|| / 4 ulp, because the error of log₂|x| is multiplied by y. Negative bases follow C: integer exponents give the signed power and other exponents give NaN. The fast tier's 2^-16 bound for `pow` is likewise relative to 1 + |y·log₂|x||.
 
-Beyond the error bound, the precise tier keeps shape: every function is checked for monotonicity on its monotone intervals, exact odd or even symmetry, range bounds, and finite outputs for finite inputs, over every `float` and a dense `double` sample. The few documented exceptions are listed in `tests/accuracy_test.cpp`. `midi_to_hz(69 + 12k)` is exactly `440 * 2^k`, and the turns functions are exact at multiples of 1/8 turn.
+Beyond the error bound, the precise tier keeps shape: every function is checked for monotonicity on its monotone intervals, exact odd or even symmetry, range bounds, and finite outputs for finite inputs, over every `float` and a dense `double` sample. The few documented exceptions are listed in `tests/accuracy_test.cpp`. `midi_to_hz(69 + 12k)` is exactly `440 * 2^k`, and at multiples of 1/8 turn the turns functions return the correctly rounded value.
 
 ![accuracy](docs/charts/accuracy_summary.png)
 
@@ -134,11 +134,11 @@ cmake -S . -B build -G Ninja && cmake --build build && ctest --test-dir build
 
 - Builds without FMA (SSE2, scalar) add 0.5 ulp to every precise contract.
 - `sin`, `cos`, `sincos` and `tan` reduce exactly for |x| ≤ 6434 (float) or 6.59e6 (double) and return NaN beyond. The fast tier has no check and returns unreduced garbage past that range.
-- `exp` overflows to infinity above 88.72 (float) or 709.78 (double) and returns 0 below -103.97 or -745.13. `exp2` overflows at 128 or 1024 and returns 0 from -150 or -1075 down. `pow` overflows when y·log2|x| reaches 128 or 1024. `db_to_gain` overflows above 770.64 dB (float) or 6165.09 dB (double) and returns 0 below -903.09 dB or -6472.14 dB.
-- The fast tier clamps instead: `exp` to [-87, 88], `exp2` and `pow` to [-126, 127], and `tanh` is exactly ±1 from 5.9. It never returns infinities, zeros from underflow, or subnormals.
-- The turns functions are exact everywhere: the reduction drops whole turns without rounding, so `sin_turns(2^40 + 0.25)` is exactly 1.
+- `exp` overflows to infinity above 88.72 (float) or 709.78 (double) and returns 0 below -103.97 (float) or -745.13 (double). `exp2` overflows at 128 (float) or 1024 (double) and returns 0 from -150 (float) or -1075 (double) down. `pow` overflows when y·log₂|x| reaches 128 (float) or 1024 (double). `db_to_gain` overflows above 770.64 dB (float) or 6165.09 dB (double) and returns 0 below -903.09 dB (float) or -6472.14 dB (double).
+- The fast tier exists for `float` only, so there are no double fast clamps. It clamps where the precise tier overflows: `exp` clamps its argument to [-87, 88], `exp2`, `pow` and `db_to_gain` clamp the base-2 exponent to [-126, 127], so these four never return infinities, zeros from underflow, or subnormals. Fast `tanh` is exactly ±1 from 5.9. The other fast functions do not clamp: fast `log` of 0 returns -88.03 rather than -infinity, and fast `sigmoid` can return subnormals for large negative inputs.
+- The turns functions' reduction is exact for all inputs: whole turns are removed without rounding, and the result carries only the polynomial's error. For example, in double, `sin_turns(2^40 + 0.25)` is exactly 1; that input is not representable in float.
 - Filters clamp their parameters as described above and recover from NaN input after `reset()`.
-- Under flush-to-zero the contracts hold for normal inputs and outputs; subnormals read and write as zero. In directed rounding modes the error grows by at most 1 ulp.
+- Under flush-to-zero the measured errors stay within contract for normal inputs and outputs; subnormals read and write as zero. In the directed rounding modes the measured error grows by at most 1 ulp.
 - `-ffast-math` is rejected with `#error`, since compensated arithmetic needs IEEE rounding. Define `WRAY_ALLOW_FAST_MATH` to build anyway, at your own risk.
 
 ## Rational minimax cores
