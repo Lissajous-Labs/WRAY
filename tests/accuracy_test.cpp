@@ -148,7 +148,7 @@ namespace
              [](std::mt19937_64& g) { return signed_bits(g, 0x1p-1074, 0x1.fffffffffffffp+1023); }, 1.0, 0x1p-16, 1.1},
             {"tanh", [](double x) { return std::tanh(x); }, all, batch32([](auto v) { return wray::tanh(v); }), batch32([](auto v) { return wray::fast::tanh(v); }),
              finite, batch64([](auto v) { return wray::tanh(v); }),
-             [](std::mt19937_64& g) { return signed_bits(g, 0x1p-1074, 40.0); }, 1.5, 0x1p-16, 2.5},
+             [](std::mt19937_64& g) { return signed_bits(g, 0x1p-1074, 40.0); }, 1.35, 0x1p-16, 1.3},
             {"sigmoid", [](double x) { return x < 0.0 ? std::exp(x) / (1.0 + std::exp(x)) : 1.0 / (1.0 + std::exp(-x)); }, all, batch32([](auto v) { return wray::sigmoid(v); }),
              batch32([](auto v) { return wray::fast::sigmoid(v); }), [](float x) { return std::fabs(x) <= 87.0f; }, batch64([](auto v) { return wray::sigmoid(v); }),
              [](std::mt19937_64& g) { return uniform(g, -745.0, 745.0); }, 1.85, 0x1p-16, 1.75},
@@ -540,9 +540,8 @@ namespace
     };
 
     constexpr exemption exemptions[] = {
-        {"atan", "f64", "monotonic", "the hi/lo carry rounds independently of the leading term"},
-        {"tanh", "fast", "monotonic", "a * R(t) rounds R before the product"},
-        {"tanh", "f64", "monotonic", "the small-argument quotient rounds numerator and denominator separately"},
+        {"atan", "f64", "monotonic", "near |x| = 1 one input step moves atan by half an ulp, the same size as the rounding of the x^5 tail"},
+        {"tanh", "fast", "monotonic", "a monotone saturation needs the exp form of wray::tanh, which costs as much as the precise tier"},
         {"atan", "f32", "monotonic", "without FMA the core's fused steps round twice", true},
         {"atan", "fast", "monotonic", "without FMA the core's fused steps round twice", true},
         {"atan2", "f32", "monotonic", "without FMA the quotient residual is not exact", true},

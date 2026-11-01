@@ -760,13 +760,11 @@ namespace wray::math::detail
             const V t = a * a;
             const V at = a * t;
             const auto parts = numerics::rational_parts<C>(t);
-            const V ad = a * parts.den;
-            const V ns = fma(at, parts.num, ad);
             const V ac = select(a < c, a, c);
             const V e = exp_regular<Tier>(ac + ac);
             const V dl = e + V(S(1));
-            const V q = select(small, ns, V(S(2))) / select(small, parts.den, dl);
-            const V v = select(small, q, V(S(1)) - q);
+            const V q = select(small, parts.num, V(S(2))) / select(small, parts.den, dl);
+            const V v = select(small, fma(at, q, a), V(S(1)) - q);
             return select(isnan(x), x, copysign_from(v, x));
         } else
         {
