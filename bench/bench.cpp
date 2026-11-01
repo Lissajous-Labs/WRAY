@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <limits>
 #include <numbers>
 #include <random>
 #include <string>
@@ -98,6 +99,51 @@ namespace
         {
             w.a = log_uniform<T>(rng, 1e-3, 1e3);
             w.b = uniform<T>(rng, -4, 4);
+        }
+        return w;
+    }
+
+    template <class T>
+    std::vector<T> mirrored(std::mt19937_64& rng, double lo, double hi)
+    {
+        std::vector<T> v = uniform<T>(rng, lo, hi);
+        for (auto& x : v)
+            x = (rng() & 1) ? -x : x;
+        return v;
+    }
+
+    template <class T>
+    workload<T> edge(const std::string& name, std::mt19937_64& rng)
+    {
+        constexpr bool wide = std::is_same_v<T, double>;
+        const double tiny = double(std::numeric_limits<T>::denorm_min());
+        const double normal = double(std::numeric_limits<T>::min());
+        workload<T> w;
+        if (name == "exp")
+            w.a = mirrored<T>(rng, wide ? 708.0 : 87.0, wide ? 760.0 : 110.0);
+        else if (name == "sigmoid")
+            w.a = mirrored<T>(rng, wide ? 708.0 : 87.0, wide ? 760.0 : 110.0);
+        else if (name == "exp2")
+            w.a = mirrored<T>(rng, wide ? 1021.0 : 125.0, wide ? 1100.0 : 160.0);
+        else if (name == "log" || name == "log2" || name == "gain_to_db")
+            w.a = log_uniform<T>(rng, tiny, normal);
+        else if (name == "sin" || name == "cos" || name == "tan" || name == "sincos")
+            w.a = mirrored<T>(rng, wide ? 1e6 : 4e3, wide ? 6.5e6 : 6.4e3);
+        else if (name == "atan")
+            w.a = mirrored<T>(rng, 1e20, 1e30);
+        else if (name == "tanh")
+            w.a = mirrored<T>(rng, 20.0, 40.0);
+        else if (name == "db_to_gain")
+            w.a = mirrored<T>(rng, wide ? 6200.0 : 760.0, wide ? 6500.0 : 900.0);
+        else if (name == "atan2")
+        {
+            w.a = log_uniform<T>(rng, normal, normal * 1e3);
+            w.b = log_uniform<T>(rng, 1.0, 1e3);
+        }
+        else if (name == "pow")
+        {
+            w.a = log_uniform<T>(rng, tiny, normal);
+            w.b = uniform<T>(rng, 0.01, 0.5);
         }
         return w;
     }
@@ -246,16 +292,19 @@ namespace
         const char* names[] = {"exp", "exp2", "log", "log2", "sin", "cos", "sincos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain",
                                "gain_to_db"};
         std::mt19937_64 rng(7);
+        std::mt19937_64 edge_rng(11);
         volatile T sink = 0;
         volatile T zero = 0;
         for (const char* n : names)
         {
             auto w = make<T>(n, rng);
+            const auto e = edge<T>(n, edge_rng);
             if (!only.empty() && std::find(only.begin(), only.end(), n) == only.end())
                 continue;
             auto s = variants<T>(n);
             std::vector<double> best(s.throughput_rows.size(), 1e30);
             std::vector<double> best_chain(s.latency_rows.size(), 1e30);
+            std::vector<double> best_edge(s.throughput_rows.size(), 1e30);
             std::vector<T> out(kSize);
             for (int round = 0; round < kRounds; ++round)
             {
@@ -268,6 +317,15 @@ namespace
                     sink = sink + out[static_cast<std::size_t>(round) % kSize];
                     const double ns = std::chrono::duration<double, std::nano>(t1 - t0).count() / (double(kRepeats) * double(kSize));
                     best[k] = std::min(best[k], ns);
+                    if (s.throughput_rows[k].name.starts_with("wray"))
+                    {
+                        const auto e0 = std::chrono::steady_clock::now();
+                        for (int r = 0; r < kRepeats; ++r)
+                            s.throughput_rows[k].run(e, out);
+                        const auto e1 = std::chrono::steady_clock::now();
+                        sink = sink + out[static_cast<std::size_t>(round) % kSize];
+                        best_edge[k] = std::min(best_edge[k], std::chrono::duration<double, std::nano>(e1 - e0).count() / (double(kRepeats) * double(kSize)));
+                    }
                 }
                 for (std::size_t k = 0; k < s.latency_rows.size(); ++k)
                 {
@@ -282,6 +340,9 @@ namespace
             }
             for (std::size_t k = 0; k < s.throughput_rows.size(); ++k)
                 emit(json, first, type, n, s.throughput_rows[k].name.c_str(), "throughput", best[k]);
+            for (std::size_t k = 0; k < s.throughput_rows.size(); ++k)
+                if (best_edge[k] < 1e30)
+                    emit(json, first, type, n, s.throughput_rows[k].name.c_str(), "edge", best_edge[k]);
             for (std::size_t k = 0; k < s.latency_rows.size(); ++k)
                 emit(json, first, type, n, s.latency_rows[k].name.c_str(), "latency", best_chain[k]);
         }
