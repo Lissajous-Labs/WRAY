@@ -51,7 +51,7 @@ Maximum error in ulp against 40-digit references, over the full domain.
 | db_to_gain | 1.5 | 1.5 | asinh | 0.9 | 0.85 |
 | gain_to_db | 1.5 | 1.5 | omega | 1.65 | 1.3 |
 | midi_to_hz | 1.4 | 0.75 | product_log | 2.05 | 1.45 |
-| hz_to_midi | 1.25 | 1.0 | smoothing_coefficient | 2.0 | 2.0 |
+| hz_to_midi | 1.25 | 1.1 | smoothing_coefficient | 2.0 | 2.0 |
 | ratio_from_cents | 0.85 | 0.75 | pole_from_cutoff | 2.0 | 2.0 |
 | prewarp | 2.0 | 2.0 | tan_turns | 1.2 | 1.2 |
 
