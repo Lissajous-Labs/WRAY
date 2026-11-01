@@ -254,6 +254,46 @@ def speedup_chart(bench, machine, out):
     save(fig, out, "speedup.png")
 
 
+def spectral_charts(spec, out):
+    fig, ax = plt.subplots(figsize=(8, 3.4))
+    for row, color in zip(spec["oscillators"], ["#0969da", "#1a7f37", "#8250df", "#8c959f"]):
+        y = np.array(row["spectrum"])
+        x = np.linspace(0, 0.5, len(y))
+        ax.plot(x, y, color=color, linewidth=0.7, label=f"{row['name']}  SFDR {row['sfdr']:.0f} dB")
+    ax.set_xlabel("frequency / sample rate")
+    ax.set_ylabel("dB relative to the carrier")
+    ax.set_title(f"sin_turns oscillator spectra, {spec['size']}-point FFT, worst of four tones")
+    ax.set_ylim(-340, 10)
+    ax.legend(loc="lower right", fontsize=8)
+    save(fig, out, "oscillator_sfdr.png")
+
+    rows = spec["aliasing"]
+    fig, axes = grid(len(rows), 3)
+    for ax, row in zip(axes, rows):
+        naive = np.array(row["naive"])
+        adaa = np.array(row["adaa"])
+        x = np.linspace(0, 0.5, len(naive))
+        ax.plot(x, naive, color=COLORS["std"], linewidth=0.6, label="pointwise")
+        ax.plot(x, adaa, color=COLORS["wray"], linewidth=0.6, label="first-order ADAA")
+        ax.set_title(f"{row['name']}: aliasing -{row['reduction']:.1f} dB")
+        ax.set_ylim(-160, 10)
+        ax.set_xlabel("frequency / sample rate")
+    axes[0].legend(fontsize=7)
+    fig.suptitle("Aliasing of a 4x overdriven sine at 0.092 fs")
+    fig.subplots_adjust(hspace=0.5)
+    save(fig, out, "adaa_aliasing.png")
+
+    sm = spec["smoothing"]
+    fig, ax = plt.subplots(figsize=(7, 3.2))
+    ax.loglog(sm["samples"], np.maximum(sm["naive"], 1e-3), color=COLORS["std"], linewidth=0.9, label="1 - exp(-1 / (t fs)) in float")
+    ax.loglog(sm["samples"], np.maximum(sm["wray"], 1e-3), color=COLORS["wray"], linewidth=0.9, label="wray::smoothing_coefficient")
+    ax.set_xlabel("time constant in samples (t fs)")
+    ax.set_ylabel("error in ulp")
+    ax.set_title("Smoothing coefficient precision, float")
+    ax.legend(fontsize=8)
+    save(fig, out, "smoothing_precision.png")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", default="docs/data")
@@ -276,6 +316,9 @@ def main():
     throughput_chart(bench, args.machine, out)
     latency_chart(bench, args.machine, out)
     speedup_chart(bench, args.machine, out)
+    spectral = data / "spectral.json"
+    if spectral.exists():
+        spectral_charts(json.loads(spectral.read_text()), out)
 
 
 if __name__ == "__main__":
