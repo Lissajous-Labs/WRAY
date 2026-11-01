@@ -63,7 +63,7 @@ namespace wray::math::coeff
     struct exp_fast
     {
         using value_type = float;
-        static constexpr std::array<float, 4> p{ 0x1.fffdfcp-2f, 0x1.5557aep-3f, 0x1.5729fp-5f, 0x1.106284p-7f };
+        static constexpr std::array<float, 3> p{ 0x1.0007bap-1f, 0x1.57639ep-3f, 0x1.52ae5ep-5f };
         static constexpr std::array<float, 1> q{ 0x1p+0f };
     };
 

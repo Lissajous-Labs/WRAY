@@ -90,7 +90,8 @@ def fast_pi4(tier):
 
 
 CORES = {
-    "exp": dict(g=_limit(exp_tail, lambda: mp.mpf(1) / 2), interval=lambda tier: (-ln2_half(), ln2_half()), weight=exp_weight),
+    "exp": dict(g=_limit(exp_tail, lambda: mp.mpf(1) / 2), interval=lambda tier: (-ln2_half(), ln2_half()), weight=exp_weight,
+                pin=lambda tier: [-ln2_half(), ln2_half()] if tier == "fast" else []),
     "log": dict(g=_limit(log_tail, lambda: mp.mpf(2) / 3), interval=lambda tier: (0, log_t())),
     "sin": dict(g=_limit(sin_core, lambda: mp.mpf(-1) / 6), interval=lambda tier: (0, pi4_sq()), pin=fast_pi4),
     "cos": dict(g=_limit(cos_core, lambda: mp.mpf(1) / 24), interval=lambda tier: (0, pi4_sq()), pin=fast_pi4),
