@@ -97,7 +97,7 @@ Beyond the error bound, the precise tier keeps shape: every function is checked 
 
 ## Parameter maps
 
-`smoothing_coefficient`, `pole_from_cutoff` and `prewarp` stay within 2 ulp for every time constant and cutoff down to 1e-9 of the sample rate, where the textbook formulas lose every digit.
+`smoothing_coefficient`, `pole_from_cutoff` and `prewarp` stay within 2 ulp for every time constant and cutoff down to 1e-9 of the sample rate, where the textbook formulas lose every digit. Outside their domain they return safe values: a time constant or cutoff at or below 0 gives a coefficient of 1, a pole of 1 and a prewarp of 0; a sample rate at or below 0 acts as a vanishing sample rate (coefficient 1, pole 0, largest prewarp); `prewarp` clamps cutoffs at or above Nyquist to the ratio just below 0.5 (1.07e7 in float, 5.73e15 in double); NaN arguments give NaN. No input gives a pole above 1 or a coefficient outside [0, 1].
 
 ![smoothing](docs/charts/smoothing_precision.png)
 

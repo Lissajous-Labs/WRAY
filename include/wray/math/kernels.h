@@ -1537,6 +1537,12 @@ namespace wray::inline WRAY_ABI::math::detail
         return {h, residual(h, d, n) / d};
     }
 
+    template<class V>
+    WRAY_INLINE V either_nan(const V &a, const V &b, const V &r) noexcept
+    {
+        return select(either(isnan(a), isnan(b)), nan<V>(), r);
+    }
+
     template<class Tier, class V>
     WRAY_INLINE V smoothing_coefficient(const V &seconds, const V &fs) noexcept
     {
@@ -1549,7 +1555,26 @@ namespace wray::inline WRAY_ABI::math::detail
         const V correction = fma(-x.hi, p.lo / p.hi, x.lo);
         const V xl = select(both(abs(correction) < inf<V>(), both(abs(x.hi) < inf<V>(), !overflow)), correction, V(S(0)));
         const V e = expm1<Tier>(-u);
-        return fma(xl, one + e, -e);
+        const V r = fma(xl, one + e, -e);
+        return either_nan(seconds, fs, select(either(seconds <= V(S(0)), fs <= V(S(0))), one, r));
+    }
+
+    template<class V>
+    struct cutoff_ratio
+    {
+        V hi;
+        V lo;
+    };
+
+    template<class V>
+    WRAY_INLINE cutoff_ratio<V> ratio_of(const V &hz, const V &fs) noexcept
+    {
+        using S = scalar_t<V>;
+        const auto x = quotient(hz, fs);
+        V hi = select(hz <= V(S(0)), V(S(0)), x.hi);
+        hi = select(fs <= V(S(0)), inf<V>(), hi);
+        const V lo = select(both(hi == x.hi, abs(x.lo) < inf<V>()), x.lo, V(S(0)));
+        return {hi, lo};
     }
 
     template<class Tier, class V>
@@ -1557,19 +1582,25 @@ namespace wray::inline WRAY_ABI::math::detail
     {
         using S = scalar_t<V>;
         using K = constants<S>;
-        const auto x = quotient(hz, fs);
+        const auto x = ratio_of(hz, fs);
+        const auto finite = x.hi < V(S(0x1p32));
+        const V xh = select(finite, x.hi, V(S(0x1p32)));
+        const V xl = select(finite, x.lo, V(S(0)));
         const V two_pi(S(2) * K::pi_hi);
-        const auto t = two_product(x.hi, two_pi);
-        const V tl = fma(x.lo, two_pi, fma(x.hi, V(S(2) * K::pi_lo), t.lo));
+        const auto t = two_product(xh, two_pi);
+        const V tl = fma(xl, two_pi, fma(xh, V(S(2) * K::pi_lo), t.lo));
         const V e = exp<Tier>(-t.hi);
-        return fma(-tl, e, e);
+        return either_nan(hz, fs, fma(-tl, e, e));
     }
 
     template<class Tier, class V>
     WRAY_INLINE V prewarp(const V &hz, const V &fs) noexcept
     {
-        const auto x = quotient(hz, fs);
-        return tanpi<Tier>(x.hi, x.lo);
+        using S = scalar_t<V>;
+        const auto x = ratio_of(hz, fs);
+        const auto inside = x.hi < V(S(0.5));
+        const V edge(S(0.5) - std::numeric_limits<S>::epsilon() / S(4));
+        return either_nan(hz, fs, tanpi<Tier>(select(inside, x.hi, edge), select(inside, x.lo, V(S(0)))));
     }
 
     template<class Tier, class V>

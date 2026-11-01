@@ -488,6 +488,73 @@ namespace
     }
 
 #undef WRAY_FAST_ROW
+
+    template <class T>
+    void parameter_domains()
+    {
+        using V = wray::simd::native<T>;
+        const T inf = std::numeric_limits<T>::infinity();
+        const T nan = std::numeric_limits<T>::quiet_NaN();
+        const T tiny = std::numeric_limits<T>::denorm_min();
+        const T huge = std::numeric_limits<T>::max();
+        const T edge = wray::prewarp(T(1), T(2));
+        CHECK(std::isfinite(edge) && edge > T(1e6));
+        const T rates[] = {T(48000), T(1), tiny, huge, inf, T(0), -T(0), T(-48000), -inf, nan};
+        const T values[] = {T(1000), T(1), tiny, huge, inf, T(0), -T(0), T(-1000), -inf, nan};
+        for (const T fs: rates)
+        {
+            for (const T v: values)
+            {
+                const T pole = wray::pole_from_cutoff(v, fs);
+                const T warp = wray::prewarp(v, fs);
+                const T coeff = wray::smoothing_coefficient(v, fs);
+                CHECK(same(wray::pole_from_cutoff(V(v), V(fs))[V::size - 1], pole));
+                CHECK(same(wray::prewarp(V(v), V(fs))[V::size - 1], warp));
+                CHECK(same(wray::smoothing_coefficient(V(v), V(fs))[V::size - 1], coeff));
+                if (std::isnan(v) || std::isnan(fs))
+                {
+                    CHECK(std::isnan(pole) && std::isnan(warp) && std::isnan(coeff));
+                    continue;
+                }
+                CHECK(pole >= T(0) && pole <= T(1));
+                CHECK(warp >= T(0) && warp <= edge);
+                CHECK(coeff >= T(0) && coeff <= T(1));
+                if (!(fs > T(0)))
+                {
+                    CHECK(same(pole, T(0)));
+                    CHECK(same(warp, edge));
+                    CHECK(same(coeff, T(1)));
+                } else if (!(v > T(0)))
+                {
+                    CHECK(same(pole, T(1)));
+                    CHECK(same(warp, T(0)));
+                    CHECK(same(coeff, T(1)));
+                } else if (v == inf && fs < inf)
+                {
+                    CHECK(same(pole, T(0)));
+                    CHECK(same(warp, edge));
+                    CHECK(same(coeff, T(0)));
+                }
+            }
+        }
+        for (const T fs: {T(44100), T(48000), T(192000)})
+        {
+            T last_pole = T(1);
+            T last_warp = T(0);
+            for (T ratio = T(1e-9); ratio < T(0.5); ratio *= T(1.5))
+            {
+                const T pole = wray::pole_from_cutoff(ratio * fs, fs);
+                const T warp = wray::prewarp(ratio * fs, fs);
+                CHECK(pole <= last_pole && pole > T(0));
+                CHECK(warp >= last_warp && std::isfinite(warp));
+                last_pole = pole;
+                last_warp = warp;
+            }
+            CHECK(same(wray::prewarp(fs / T(2), fs), edge));
+            CHECK(same(wray::prewarp(fs, fs), edge));
+            CHECK(std::abs(wray::pole_from_cutoff(fs / T(2), fs) - T(0.04321391826377226)) <= T(2) * std::numeric_limits<T>::epsilon() * T(0.05));
+        }
+    }
 }
 
 int main()
@@ -501,6 +568,8 @@ int main()
     ranges();
     huge_trig<float, wray::f32x4>();
     huge_trig<double, wray::f64x2>();
+    parameter_domains<float>();
+    parameter_domains<double>();
     fast_specials();
     return wray::test::finish("special");
 }
