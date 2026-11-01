@@ -105,6 +105,8 @@ Beyond the error bound, the precise tier keeps shape: every function is checked 
 
 `wray::filters` has `tpt_one_pole`, `svf` and `biquad` (lowpass, highpass, bandpass, notch, peak, shelves, allpass, and tilt for the SVF), designed with half-angle formulas in double and run in `float`, `double` or any SIMD width. Parameters are clamped rather than trusted: cutoff to [1e-6, 0.4999] of the sample rate, Q to [1e-3, 1e3], gain to ±120 dB with NaN read as 0 dB, and a non-finite or non-positive sample rate falls back to 48 kHz. Realised coefficients are kept strictly stable in the processing precision, and state is flushed to exact zero once it falls below 2^-80 (float) or 2^-200 (double), so silence never produces subnormals.
 
+`biquad<float>` rounds its coefficients to float, which moves the poles of very low cutoffs: it holds DC and cutoff gain within 0.5% only for cutoffs of at least fs/1000, and at 768 kHz a 20 Hz lowpass has a DC gain of 0.22. For lower cutoffs use `biquad<float, double>`, which keeps double coefficients and state for float audio, or `svf<float>`; both stay within 1e-5 down to 1e-6 of the sample rate.
+
 A deep sweep checks random and edge parameters from 8 kHz to 768 kHz against the exact bilinear prototype, scaled by the condition of each response.
 
 ## Backends and determinism

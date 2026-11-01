@@ -185,6 +185,10 @@ def main():
     check("concept single = std::is_same_v<simd::scalar_t<V>, float>;" in fast_api and "template<simd::real V>" not in fast_api, "fast tier is float only")
 
     filters = section(text, "Filters")
+    for text in ("at least fs/1000", "DC gain of 0.22", "`biquad<float, double>`", "within 1e-5 down to 1e-6 of the sample rate"):
+        check(text in filters, f"filters section states {text}")
+    tests_text = (ROOT / "tests/filters_test.cpp").read_text()
+    check("if (ratio >= 1.0e-3)" in tests_text and "passband_ok(narrow, f0, 5e-3)" in tests_text and "passband_ok(mixed, f0, 1e-5)" in tests_text, "filter limits match the tests")
     for number in ("[1e-6, 0.4999]", "[1e-3, 1e3]", "±120 dB", "48 kHz", "2^-80", "2^-200"):
         check(number in filters, f"filters section states {number}")
     for name, value in (("lowest_frequency", 1.0e-6), ("highest_frequency", 0.4999), ("lowest_q", 1.0e-3), ("highest_q", 1.0e3),

@@ -1363,6 +1363,65 @@ namespace
     }
 }
 
+namespace
+{
+    template<class F>
+    bool passband_ok(F &f, double f0, double tolerance)
+    {
+        const double dc = std::abs(f.response(0.0));
+        const double cut = std::abs(f.response(f0));
+        return std::abs(dc - 1.0) <= tolerance && std::abs(cut - std::numbers::sqrt2 / 2) <= tolerance;
+    }
+
+    template<class F>
+    double settled_step(F &f, std::size_t samples)
+    {
+        double y = 0;
+        for (std::size_t n = 0; n < samples; ++n)
+            y = static_cast<double>(f.tick(1));
+        return y;
+    }
+
+    void low_cutoff()
+    {
+        constexpr double q = 0.7071067811865476;
+        for (const double fs: {44100.0, 48000.0, 96000.0, 192000.0, 768000.0})
+            for (const double ratio: {1.0e-6, 3.0e-6, 1.0e-5, 2.6e-5, 1.0e-4, 1.0e-3, 1.0e-2, 0.1, 0.25})
+            {
+                const double f0 = ratio * fs;
+                wf::biquad<float, double> mixed;
+                mixed.prepare(fs);
+                mixed.set(wf::biquad_type::lowpass, f0, q, 0.0);
+                wf::biquad<double> wide;
+                wide.prepare(fs);
+                wide.set(wf::biquad_type::lowpass, f0, q, 0.0);
+                wf::svf<float> state;
+                state.prepare(fs);
+                state.set(wf::svf_type::lowpass, f0, q, 0.0);
+                CHECK(passband_ok(mixed, f0, 1e-5));
+                CHECK(passband_ok(wide, f0, 1e-5));
+                CHECK(passband_ok(state, f0, 1e-5));
+                wf::biquad<float> narrow;
+                narrow.prepare(fs);
+                narrow.set(wf::biquad_type::lowpass, f0, q, 0.0);
+                if (ratio >= 1.0e-3)
+                    CHECK(passband_ok(narrow, f0, 5e-3));
+            }
+        wf::biquad<float, double> mixed;
+        mixed.prepare(768000.0);
+        mixed.set(wf::biquad_type::lowpass, 20.0, q, 0.0);
+        const double step = settled_step(mixed, 1000000);
+        CHECK(std::abs(step - 1.0) <= 1e-4);
+        wf::biquad<float> narrow;
+        narrow.prepare(768000.0);
+        narrow.set(wf::biquad_type::lowpass, 20.0, q, 0.0);
+        const double dc = std::abs(narrow.response(0.0));
+        std::printf("low cutoff: biquad<float, double> at 768 kHz, 20 Hz settles to %.8f; biquad<float> has DC gain %.6f (documented limitation below fs/1000)\n",
+                    step, dc);
+        CHECK(std::abs(dc - 1.0) > 0.1);
+    }
+}
+
 int main(int argc, char **argv)
 {
     const char *json = nullptr;
@@ -1387,6 +1446,7 @@ int main(int argc, char **argv)
             deep_seconds = requested;
         }
 
+    low_cutoff();
     run_deep(deep_seconds);
     silence_family<one_pole_kind>(0.035, 0.09);
     silence_family<svf_kind>(0.035, 0.09);
