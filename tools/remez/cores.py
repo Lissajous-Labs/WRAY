@@ -8,8 +8,13 @@ def _limit(fn, at_zero):
     return g
 
 
-def exp_core(r):
-    return mp.expm1(r) / r
+def exp_tail(r):
+    with mp.workprec(mp.mp.prec + 2 * max(0, -int(mp.floor(mp.log(abs(r), 2)))) + 16):
+        return (mp.expm1(r) - r) / (r * r)
+
+
+def exp_weight(tier):
+    return (lambda r: r * r / mp.exp(r)) if tier == "fast" else "rel"
 
 
 def log_core(t):
@@ -80,7 +85,7 @@ def pi4_sq():
 TANH_CLAMP = {"f32": "9.25", "f64": "19.25", "fast": "5.9"}
 
 CORES = {
-    "exp": dict(g=_limit(exp_core, lambda: mp.mpf(1)), interval=lambda tier: (-ln2_half(), ln2_half())),
+    "exp": dict(g=_limit(exp_tail, lambda: mp.mpf(1) / 2), interval=lambda tier: (-ln2_half(), ln2_half()), weight=exp_weight),
     "log": dict(g=_limit(log_tail, lambda: mp.mpf(2) / 3), interval=lambda tier: (0, log_t())),
     "sin": dict(g=_limit(sin_core, lambda: mp.mpf(-1) / 6), interval=lambda tier: (0, pi4_sq())),
     "cos": dict(g=_limit(cos_core, lambda: mp.mpf(1) / 24), interval=lambda tier: (0, pi4_sq())),

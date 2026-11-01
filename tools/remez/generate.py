@@ -16,7 +16,7 @@ DPS = 60
 TIERS = {"f32": ("float", 24), "f64": ("double", 53), "fast": ("float", 24)}
 
 PLAN = {
-    "exp": {"f32": (5, 0), "f64": (10, 0), "fast": (3, 0)},
+    "exp": {"f32": (4, 0), "f64": (9, 0), "fast": (3, 0)},
     "log": {"f32": (2, 0), "f64": (6, 0), "fast": (1, 0)},
     "sin": {"f32": (2, 0), "f64": (5, 0), "fast": (1, 0)},
     "cos": {"f32": (2, 0), "f64": (5, 0), "fast": (1, 0)},
@@ -59,11 +59,12 @@ def fit(job):
     with mp.workdps(DPS):
         a, b = interval(name, tier)
         g = cores.CORES[name]["g"]
+        weight = cores.CORES[name].get("weight", lambda tier: "rel")(tier)
         try:
-            r, err = remez.remez(g, a, b, m, n, dps=DPS)
+            r, err = remez.remez(g, a, b, m, n, weight=weight, dps=DPS)
         except remez.RemezFailure:
             return job, None
-        curve = remez.weighted_error_curve(g, r, a, b, samples=1200, dps=DPS)
+        curve = remez.weighted_error_curve(g, r, a, b, weight=weight, samples=1200, dps=DPS)
         return job, dict(p=[str(c) for c in r.p], q=[str(c) for c in r.q], error=float(err),
                          interval=[float(a), float(b)], curve=curve)
 

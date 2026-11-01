@@ -49,21 +49,21 @@ namespace wray::math::coeff
     struct exp_f32
     {
         using value_type = float;
-        static constexpr std::array<float, 6> p{ 0x1p+0f, 0x1.fffffep-2f, 0x1.55547ep-3f, 0x1.555652p-5f, 0x1.123cd6p-7f, 0x1.6c16a6p-10f };
+        static constexpr std::array<float, 5> p{ 0x1p-1f, 0x1.5554dep-3f, 0x1.5555bap-5f, 0x1.120b1cp-7f, 0x1.6c69f2p-10f };
         static constexpr std::array<float, 1> q{ 0x1p+0f };
     };
 
     struct exp_f64
     {
         using value_type = double;
-        static constexpr std::array<double, 11> p{ 0x1p+0, 0x1.0000000000005p-1, 0x1.555555555553p-3, 0x1.555555555211dp-5, 0x1.111111111a24ep-7, 0x1.6c16c17f29c8dp-10, 0x1.a01a0171064a5p-13, 0x1.a019a6b2464c5p-16, 0x1.71de8e6486d6bp-19, 0x1.28a27e30f5561p-22, 0x1.ae6449c0686b1p-26 };
+        static constexpr std::array<double, 10> p{ 0x1.0000000000001p-1, 0x1.555555555554dp-3, 0x1.5555555553d82p-5, 0x1.1111111114483p-7, 0x1.6c16c1788176p-10, 0x1.a01a018c3310ep-13, 0x1.a019b930d47c7p-16, 0x1.71de5a3b96f46p-19, 0x1.28915f2743aa3p-22, 0x1.aeaaf677a4269p-26 };
         static constexpr std::array<double, 1> q{ 0x1p+0 };
     };
 
     struct exp_fast
     {
         using value_type = float;
-        static constexpr std::array<float, 4> p{ 0x1.fffe0cp-1f, 0x1.0001a4p-1f, 0x1.5761dep-3f, 0x1.55552ap-5f };
+        static constexpr std::array<float, 4> p{ 0x1.fffdfcp-2f, 0x1.5557aep-3f, 0x1.5729fp-5f, 0x1.106284p-7f };
         static constexpr std::array<float, 1> q{ 0x1p+0f };
     };
 

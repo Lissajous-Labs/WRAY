@@ -540,16 +540,6 @@ namespace
     };
 
     constexpr exemption exemptions[] = {
-        {"exp", "f32", "monotonic", "the core rounds q(r) before 1 + r*q, so a plateau of equal results can step back one ulp"},
-        {"exp", "fast", "monotonic", "the core rounds q(r) before 1 + r*q, so a plateau of equal results can step back one ulp"},
-        {"exp", "f64", "monotonic", "the core rounds q(r) before 1 + r*q, so a plateau of equal results can step back one ulp"},
-        {"exp2", "f32", "monotonic", "shares the exp core"},
-        {"exp2", "fast", "monotonic", "shares the exp core"},
-        {"exp2", "f64", "monotonic", "shares the exp core"},
-        {"db_to_gain", "f32", "monotonic", "shares the exp core"},
-        {"db_to_gain", "fast", "monotonic", "shares the exp core"},
-        {"db_to_gain", "f64", "monotonic", "shares the exp core"},
-        {"pow", "f32", "monotonic", "shares the exp core"},
         {"sigmoid", "f32", "monotonic", "e / (1 + e) rounds the denominator before the quotient"},
         {"sigmoid", "fast", "monotonic", "e / (1 + e) rounds the denominator before the quotient"},
         {"sigmoid", "f64", "monotonic", "e / (1 + e) rounds the denominator before the quotient"},
@@ -561,7 +551,6 @@ namespace
         {"atan", "f64", "monotonic", "the hi/lo carry rounds independently of the leading term"},
         {"tanh", "fast", "monotonic", "a * R(t) rounds R before the product"},
         {"tanh", "f64", "monotonic", "the small-argument quotient rounds numerator and denominator separately"},
-        {"pow", "f64", "monotonic", "shares the exp core"},
         {"atan", "f32", "monotonic", "without FMA the core's fused steps round twice", true},
         {"atan", "fast", "monotonic", "without FMA the core's fused steps round twice", true},
         {"atan2", "f32", "monotonic", "without FMA the quotient residual is not exact", true},

@@ -240,8 +240,12 @@ namespace wray::math::detail
     {
         using S = scalar_t<V>;
         using C = typename table<Tier, S>::exp;
-        const V q = numerics::rational<C>(r);
-        return fma(r, q, V(S(1)));
+        const V h = numerics::rational<C>(r);
+        const V r2 = r * r;
+        const V one(S(1));
+        const V hi = one + r;
+        const V lo = r - (hi - one);
+        return hi + fma(r2, h, lo);
     }
 
     template<class V>

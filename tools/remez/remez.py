@@ -123,12 +123,18 @@ def _remez(f, a, b, m, n, weight, dps, maxiter, tol, grid):
     with mp.workdps(dps):
         a = mp.mpf(a() if callable(a) else a)
         b = mp.mpf(b() if callable(b) else b)
-        if weight == "rel":
+        if callable(weight):
+            w = weight
+        elif weight == "rel":
             w = lambda x: 1 / abs(f(x))
         else:
             w = lambda x: mp.mpf(1)
         count = m + n + 2
         nodes = chebyshev_nodes(a, b, count)
+        if callable(weight):
+            spare = chebyshev_nodes(a, b, count + 1)
+            spare.remove(min(spare, key=lambda x: abs(w(x))))
+            nodes = spare
         q = [mp.mpf(1)] + [mp.mpf(0)] * n
         best = None
         for _ in range(maxiter):
@@ -158,5 +164,6 @@ def weighted_error_curve(f, r, a, b, weight="rel", samples=2000, dps=60):
         for x in xs:
             fx = f(x)
             e = r(x) - fx
-            out.append((float(x), float(e / abs(fx)) if weight == "rel" else float(e)))
+            scale = weight(x) if callable(weight) else 1 / abs(fx) if weight == "rel" else 1
+            out.append((float(x), float(e * scale)))
         return out
