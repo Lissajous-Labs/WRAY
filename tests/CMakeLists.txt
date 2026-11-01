@@ -14,3 +14,8 @@ if(EXISTS "${WRAY_PYTHON}" AND WRAY_BUILD_TOOLS)
              --dump $<TARGET_FILE:wray_dump> --out "${CMAKE_CURRENT_BINARY_DIR}/accuracy.json" --check)
     set_tests_properties(oracle PROPERTIES LABELS "oracle")
 endif()
+
+if(WRAY_BUILD_TOOLS)
+    add_test(NAME digest COMMAND "${CMAKE_COMMAND}" -DDUMP=$<TARGET_FILE:wray_dump> -DGOLDEN=${CMAKE_CURRENT_SOURCE_DIR}/golden
+             -P "${CMAKE_CURRENT_SOURCE_DIR}/digest.cmake")
+endif()

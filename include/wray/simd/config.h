@@ -1,5 +1,9 @@
 #pragma once
 
+#if defined(__FAST_MATH__) && !defined(WRAY_ALLOW_FAST_MATH)
+#error "wray relies on IEEE rounding for compensated arithmetic; -ffast-math breaks it. Define WRAY_ALLOW_FAST_MATH to build anyway."
+#endif
+
 #if defined(WRAY_SIMD_SCALAR)
 #elif defined(__ARM_NEON) && defined(__aarch64__)
 #define WRAY_SIMD_NEON 1

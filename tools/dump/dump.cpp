@@ -1,11 +1,16 @@
 #include <wray/wray.h>
 
+#include <bit>
+#include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <functional>
 #include <map>
+#include <random>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 namespace
@@ -146,6 +151,53 @@ namespace
         std::fprintf(stderr, "unknown function %s\n", fn.c_str());
         return 2;
     }
+
+    template <class T>
+    std::vector<T> digest_inputs(std::uint64_t seed, std::size_t n)
+    {
+        using U = std::conditional_t<sizeof(T) == 4, std::uint32_t, std::uint64_t>;
+        std::mt19937_64 g(seed);
+        std::vector<T> v(n);
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            const std::uint64_t r = g();
+            v[i] = i % 2 == 0 ? std::bit_cast<T>(static_cast<U>(r)) : static_cast<T>((static_cast<double>(r >> 11) * 0x1p-53 - 0.5) * 64.0);
+        }
+        return v;
+    }
+
+    template <class T>
+    std::uint64_t hash(const std::vector<T>& v)
+    {
+        using U = std::conditional_t<sizeof(T) == 4, std::uint32_t, std::uint64_t>;
+        std::uint64_t h = 0xcbf29ce484222325ull;
+        for (T x : v)
+        {
+            const U bits = std::isnan(x) ? U(1) : std::bit_cast<U>(x);
+            h = (h ^ std::uint64_t(bits)) * 0x100000001b3ull;
+        }
+        return h;
+    }
+
+    template <class T, bool Fast>
+    void digest(const char* tier)
+    {
+        static const catalogue<T, Fast> table;
+        constexpr std::size_t n = 1 << 16;
+        const auto a = digest_inputs<T>(1, n);
+        const auto b = digest_inputs<T>(2, n);
+        std::vector<T> out(n);
+        for (const auto& [name, f] : table.one)
+        {
+            f.second(a, out);
+            std::printf("%s %s %016llx\n", tier, name.c_str(), static_cast<unsigned long long>(hash(out)));
+        }
+        for (const auto& [name, f] : table.two)
+        {
+            f.second(a, b, out);
+            std::printf("%s %s %016llx\n", tier, name.c_str(), static_cast<unsigned long long>(hash(out)));
+        }
+    }
 }
 
 int main(int argc, char** argv)
@@ -153,6 +205,13 @@ int main(int argc, char** argv)
     if (argc == 2 && std::strcmp(argv[1], "info") == 0)
     {
         std::printf("{\"fma\": %s}\n", WRAY_HAS_FMA ? "true" : "false");
+        return 0;
+    }
+    if (argc == 2 && std::strcmp(argv[1], "digest") == 0)
+    {
+        digest<float, false>("f32");
+        digest<double, false>("f64");
+        digest<float, true>("fast");
         return 0;
     }
     if (argc != 6)
