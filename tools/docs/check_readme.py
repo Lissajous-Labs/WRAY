@@ -84,6 +84,8 @@ def threshold(dump, fn, tier, lo, hi, keep):
 
 
 def main():
+    import mpmath as mp
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--dump", required=True)
     parser.add_argument("--readme", default=str(ROOT / "README.md"))
@@ -108,19 +110,23 @@ def main():
         for n in numbers:
             check(n in limits, f"README states {n}")
 
-    claims("add 0.5 ulp")
+    claims("add 0.5 ulp", "arm64 always has FMA")
+    check("bit-identical apart from the sign and payload of NaN results" in text, "README qualifies bit-identity for NaN")
+    check("__aarch64__" in (ROOT / "include/wray/simd/config.h").read_text(encoding="utf-8").split("#define WRAY_HAS_FMA 1")[0].split("\n")[-2], "arm64 builds have FMA")
     contracts = section(text, "Accuracy contracts")
     check(f"|y·log₂|x|| ≤ {oracle.POW_SCALE:g}" in contracts and f"|y·log₂|x|| / {oracle.POW_SCALE:g} ulp" in contracts, "pow scaling threshold")
     neg = dump("pow", "f64", [-2.0, -2.0, -2.0], [3.0, 2.0, 0.5])
     check(neg[0] == -8.0 and neg[1] == 4.0 and np.isnan(neg[2]), "pow negative bases follow C")
     check(oracle.NO_FMA_MARGIN == 0.5, "no-FMA margin")
 
-    for tier, kind, shown in (("f32", "float", "6434"), ("f64", "double", "6.59e6")):
+    for tier, kind, shown in (("f32", "float", "6433.98"), ("f64", "double", "6588397.3")):
         limit = hex_constant(coeff, "trig_arg_max", kind)
         claims(shown)
-        check(float(shown) == float(f"{limit:.3g}") if tier == "f64" else round(limit) == int(shown), f"trig limit {tier}")
+        with mp.workdps(50):
+            exact = mp.pi * (2048 if tier == "f32" else 2 ** 21)
         dt = np.float64 if tier == "f64" else np.float32
-        import mpmath as mp
+        check(float(dt(float(exact))) == limit and f"{limit:.{len(shown.split('.')[1])}f}" == shown, f"trig limit {tier} is {shown}")
+        dt = np.float64 if tier == "f64" else np.float32
         probes = [float(limit), float(np.nextafter(dt(limit), dt(np.inf))), -2.0e7, float(np.finfo(dt).max), -float(np.finfo(dt).max)]
         for fn, ref in (("sin", mp.sin), ("cos", mp.cos), ("tan", mp.tan)):
             for t in ((tier, "fast") if tier == "f32" else (tier,)):
@@ -137,14 +143,20 @@ def main():
     def edge(fn, tier, lo, hi, kind):
         return threshold(dump, fn, tier, lo, hi, np.isfinite if kind == "over" else (lambda v: v == 0))
 
-    for fn, tier, kind, lo, hi, shown in (("exp", "f32", "over", 1, 100, "88.72"), ("exp", "f64", "over", 1, 800, "709.78"),
-                                          ("exp", "f32", "under", -110, 0, "-103.97"), ("exp", "f64", "under", -800, 0, "-745.13"),
-                                          ("db_to_gain", "f32", "over", 1, 900, "770.64"), ("db_to_gain", "f64", "over", 1, 7000, "6165.09"),
-                                          ("db_to_gain", "f32", "under", -1000, 0, "-903.09"), ("db_to_gain", "f64", "under", -7000, 0, "-6472.14")):
-        a, b = edge(fn, tier, lo, hi, kind)
-        claims(shown)
-        edge_value = a if kind == "over" else b
-        check(f"{edge_value:.2f}" == shown, f"{fn} {tier} {kind}flow at {edge_value}")
+    for fn, tier, kind, inside, outside in (("exp", "f32", "over", "88.72", "88.73"), ("exp", "f64", "over", "709.78", "709.79"),
+                                            ("exp", "f32", "under", "-103.97", "-103.98"), ("exp", "f64", "under", "-745.13", "-745.14"),
+                                            ("db_to_gain", "f32", "over", "770.63", "770.64"), ("db_to_gain", "f64", "over", "6165.09", "6165.10"),
+                                            ("db_to_gain", "f32", "under", "-903.08", "-903.09"), ("db_to_gain", "f64", "under", "-6472.14", "-6472.15")):
+        claims(inside, outside)
+        dt = np.float64 if tier == "f64" else np.float32
+        lo, hi = (inside, outside) if kind == "over" else (outside, inside)
+        a, b = edge(fn, tier, float(lo), float(hi), "under" if kind == "under" else "over")
+        values = dump(fn, tier, [float(dt(float(inside))), float(dt(float(outside)))])
+        if kind == "over":
+            ok = np.isfinite(values[0]) and np.isinf(values[1]) and dt(float(inside)) <= dt(a) and dt(b) <= dt(float(outside))
+        else:
+            ok = values[0] > 0 and values[1] == 0 and dt(float(outside)) <= dt(a) and dt(b) <= dt(float(inside))
+        check(bool(ok), f"{fn} {tier} {kind}flows between {inside} and {outside}")
     for tier, top, bottom in (("f32", 128.0, -150.0), ("f64", 1024.0, -1075.0)):
         dt = np.float64 if tier == "f64" else np.float32
         claims(f"{top:g}", f"{bottom:g}")
@@ -185,7 +197,6 @@ def main():
     check("concept single = std::is_same_v<simd::scalar_t<V>, float>;" in fast_api and "template<simd::real V>" not in fast_api, "fast tier is float only")
 
     filters = section(text, "Filters")
-    import mpmath as mp
     for dt, stated in ((np.float32, 1.07e7), (np.float64, 5.73e15)):
         with mp.workdps(60):
             edge = mp.tan(mp.pi * mp.mpf(float(np.nextafter(dt(0.5), dt(0)))))
