@@ -188,7 +188,7 @@ def trig_chart(acc, out):
 
 def bench_table(bench, mode="throughput"):
     table = {}
-    for row in bench:
+    for row in bench["rows"] if isinstance(bench, dict) else bench:
         if row.get("mode", "throughput") == mode:
             table.setdefault(row["type"], {}).setdefault(row["function"], {})[row["variant"]] = row["ns"]
     return table

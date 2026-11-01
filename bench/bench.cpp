@@ -13,6 +13,10 @@
 #include <type_traits>
 #include <vector>
 
+#if defined(__APPLE__)
+#include <sys/sysctl.h>
+#endif
+
 namespace
 {
     constexpr std::size_t kSize = 4096;
@@ -397,11 +401,26 @@ namespace
         return s;
     }
 
-    void emit(std::FILE* json, bool& first, const char* type, const char* fn, const char* variant, const char* mode, double ns)
+    struct timing
     {
-        std::printf("%-4s %-10s %-12s %-11s %8.3f ns\n", type, mode, fn, variant, ns);
-        std::fprintf(json, "%s\n  {\"type\": \"%s\", \"function\": \"%s\", \"variant\": \"%s\", \"mode\": \"%s\", \"ns\": %.5f}", first ? "" : ",", type, fn,
-                     variant, mode, ns);
+        std::vector<double> samples;
+
+        void add(double ns) { samples.push_back(ns); }
+
+        double quantile(double q) const
+        {
+            std::vector<double> v = samples;
+            std::sort(v.begin(), v.end());
+            return v[static_cast<std::size_t>(q * static_cast<double>(v.size() - 1) + 0.5)];
+        }
+    };
+
+    void emit(std::FILE* json, bool& first, const char* type, const char* fn, const char* variant, const char* mode, const timing& t)
+    {
+        const double best = t.quantile(0.0);
+        std::printf("%-4s %-10s %-22s %-11s %8.3f ns  median %8.3f  p90 %8.3f\n", type, mode, fn, variant, best, t.quantile(0.5), t.quantile(0.9));
+        std::fprintf(json, "%s\n  {\"type\": \"%s\", \"function\": \"%s\", \"variant\": \"%s\", \"mode\": \"%s\", \"ns\": %.5f, \"median\": %.5f, \"p90\": %.5f, \"rounds\": %zu}",
+                     first ? "" : ",", type, fn, variant, mode, best, t.quantile(0.5), t.quantile(0.9), t.samples.size());
         first = false;
     }
 
@@ -423,9 +442,9 @@ namespace
             if (!only.empty() && std::find(only.begin(), only.end(), n) == only.end())
                 continue;
             auto s = variants<T>(n);
-            std::vector<double> best(s.throughput_rows.size(), 1e30);
-            std::vector<double> best_chain(s.latency_rows.size(), 1e30);
-            std::vector<double> best_edge(s.throughput_rows.size(), 1e30);
+            std::vector<timing> best(s.throughput_rows.size());
+            std::vector<timing> best_chain(s.latency_rows.size());
+            std::vector<timing> best_edge(s.throughput_rows.size());
             std::vector<T> out(kSize);
             for (int round = 0; round < kRounds; ++round)
             {
@@ -437,7 +456,7 @@ namespace
                     const auto t1 = std::chrono::steady_clock::now();
                     sink = sink + out[static_cast<std::size_t>(round) % kSize];
                     const double ns = std::chrono::duration<double, std::nano>(t1 - t0).count() / (double(kRepeats) * double(kSize));
-                    best[k] = std::min(best[k], ns);
+                    best[k].add(ns);
                     if (s.throughput_rows[k].name.starts_with("wray"))
                     {
                         const auto e0 = std::chrono::steady_clock::now();
@@ -445,7 +464,7 @@ namespace
                             s.throughput_rows[k].run(e, out);
                         const auto e1 = std::chrono::steady_clock::now();
                         sink = sink + out[static_cast<std::size_t>(round) % kSize];
-                        best_edge[k] = std::min(best_edge[k], std::chrono::duration<double, std::nano>(e1 - e0).count() / (double(kRepeats) * double(kSize)));
+                        best_edge[k].add(std::chrono::duration<double, std::nano>(e1 - e0).count() / (double(kRepeats) * double(kSize)));
                     }
                 }
                 for (std::size_t k = 0; k < s.latency_rows.size(); ++k)
@@ -456,17 +475,175 @@ namespace
                         sink = sink + s.latency_rows[k].run(w, tiny);
                     const auto t1 = std::chrono::steady_clock::now();
                     const double ns = std::chrono::duration<double, std::nano>(t1 - t0).count() / (double(kChainRepeats) * double(kSize - 1));
-                    best_chain[k] = std::min(best_chain[k], ns);
+                    best_chain[k].add(ns);
                 }
             }
             for (std::size_t k = 0; k < s.throughput_rows.size(); ++k)
                 emit(json, first, type, n, s.throughput_rows[k].name.c_str(), "throughput", best[k]);
             for (std::size_t k = 0; k < s.throughput_rows.size(); ++k)
-                if (best_edge[k] < 1e30)
+                if (!best_edge[k].samples.empty())
                     emit(json, first, type, n, s.throughput_rows[k].name.c_str(), "edge", best_edge[k]);
             for (std::size_t k = 0; k < s.latency_rows.size(); ++k)
                 emit(json, first, type, n, s.latency_rows[k].name.c_str(), "latency", best_chain[k]);
         }
+    }
+
+    template <class F>
+    timing time_block(F f, std::size_t items)
+    {
+        timing t;
+        for (int round = 0; round < kRounds; ++round)
+        {
+            const auto t0 = std::chrono::steady_clock::now();
+            for (int r = 0; r < kRepeats; ++r)
+                f();
+            const auto t1 = std::chrono::steady_clock::now();
+            t.add(std::chrono::duration<double, std::nano>(t1 - t0).count() / (double(kRepeats) * double(items)));
+        }
+        return t;
+    }
+
+    template <class Shape, class T>
+    void adaa_rows(const char* type, const char* name, std::FILE* json, bool& first, const std::vector<T>& drive)
+    {
+        std::vector<T> out(drive.size());
+        volatile T sink = 0;
+        const auto pointwise = time_block([&] {
+            for (std::size_t i = 0; i < drive.size(); ++i)
+                out[i] = Shape::f(drive[i]);
+            sink = sink + out[drive.size() / 2];
+        }, drive.size());
+        wray::adaa::first_order<Shape, T> stage;
+        const auto first_order = time_block([&] {
+            for (std::size_t i = 0; i < drive.size(); ++i)
+                out[i] = stage(drive[i]);
+            sink = sink + out[drive.size() / 2];
+        }, drive.size());
+        const std::string fn = std::string("adaa_") + name;
+        emit(json, first, type, fn.c_str(), "pointwise", "block", pointwise);
+        emit(json, first, type, fn.c_str(), "first_order", "block", first_order);
+    }
+
+    template <class T>
+    void dsp(const char* type, std::FILE* json, bool& first)
+    {
+        constexpr std::size_t block = 512;
+        std::vector<T> drive(block);
+        for (std::size_t i = 0; i < block; ++i)
+            drive[i] = T(4) * std::sin(T(2) * std::numbers::pi_v<T> * T(1000) * T(i) / T(48000));
+        adaa_rows<wray::adaa::hard_clip, T>(type, "hard_clip", json, first, drive);
+        adaa_rows<wray::adaa::soft_clip, T>(type, "soft_clip", json, first, drive);
+        adaa_rows<wray::adaa::tanh, T>(type, "tanh", json, first, drive);
+        adaa_rows<wray::adaa::atan, T>(type, "atan", json, first, drive);
+        adaa_rows<wray::adaa::algebraic, T>(type, "algebraic", json, first, drive);
+        adaa_rows<wray::adaa::radical, T>(type, "radical", json, first, drive);
+
+        std::vector<T> io = drive;
+        wray::filters::biquad<T> bq;
+        bq.prepare(48000.0);
+        bq.set(wray::filters::biquad_type::peak, 1000.0, 0.7, 6.0);
+        emit(json, first, type, "biquad", "wray", "block", time_block([&] { bq.process(std::span<T>(io)); }, block));
+        wray::filters::svf<T> sv;
+        sv.prepare(48000.0);
+        sv.set(wray::filters::svf_type::peak, 1000.0, 0.7, 6.0);
+        emit(json, first, type, "svf", "wray", "block", time_block([&] { sv.process(std::span<T>(io)); }, block));
+        wray::filters::tpt_one_pole<T> op;
+        op.prepare(48000.0);
+        op.set(wray::filters::one_pole_type::lowpass, 1000.0);
+        emit(json, first, type, "one_pole", "wray", "block", time_block([&] { op.process(std::span<T>(io)); }, block));
+
+        std::vector<double> hz(block), q(block), gain(block);
+        std::mt19937_64 rng(3);
+        std::uniform_real_distribution<double> u(0.0, 1.0);
+        for (std::size_t i = 0; i < block; ++i)
+        {
+            hz[i] = 20.0 * std::pow(1000.0, u(rng));
+            q[i] = 0.3 + 5.0 * u(rng);
+            gain[i] = -24.0 + 48.0 * u(rng);
+        }
+        volatile double sink = 0;
+        emit(json, first, type, "design_biquad", "wray", "update", time_block([&] {
+            double acc = 0;
+            for (std::size_t i = 0; i < block; ++i)
+                acc += wray::filters::design_biquad(wray::filters::biquad_type::peak, 48000.0, hz[i], q[i], gain[i]).b0;
+            sink = sink + acc;
+        }, block));
+        emit(json, first, type, "design_svf", "wray", "update", time_block([&] {
+            double acc = 0;
+            for (std::size_t i = 0; i < block; ++i)
+                acc += wray::filters::design_svf(wray::filters::svf_type::peak, 48000.0, hz[i], q[i], gain[i]).a2;
+            sink = sink + acc;
+        }, block));
+        emit(json, first, type, "biquad_set", "wray", "update", time_block([&] {
+            for (std::size_t i = 0; i < block; ++i)
+                bq.set(wray::filters::biquad_type::peak, hz[i], q[i], gain[i]);
+            sink = sink + bq.coefficients().b0;
+        }, block));
+    }
+
+    std::string cpu_name()
+    {
+#if defined(__APPLE__)
+        char buf[256] = {};
+        std::size_t len = sizeof buf;
+        if (sysctlbyname("machdep.cpu.brand_string", buf, &len, nullptr, 0) == 0)
+            return buf;
+#elif defined(__linux__)
+        if (std::FILE* f = std::fopen("/proc/cpuinfo", "r"))
+        {
+            char line[512];
+            while (std::fgets(line, sizeof line, f))
+                if (std::strncmp(line, "model name", 10) == 0 || std::strncmp(line, "CPU part", 8) == 0)
+                {
+                    std::fclose(f);
+                    std::string s = std::strchr(line, ':') ? std::strchr(line, ':') + 2 : line;
+                    s.erase(s.find_last_not_of(" \n") + 1);
+                    return s;
+                }
+            std::fclose(f);
+        }
+#endif
+        return "unknown";
+    }
+
+    std::string compiler()
+    {
+#if defined(__clang__)
+        return std::string("clang ") + __clang_version__;
+#elif defined(__GNUC__)
+        return std::string("gcc ") + __VERSION__;
+#elif defined(_MSC_VER)
+        return "msvc " + std::to_string(_MSC_VER);
+#else
+        return "unknown";
+#endif
+    }
+
+    const char* backend()
+    {
+#if defined(WRAY_SIMD_AVX512)
+        return "avx512";
+#elif defined(WRAY_SIMD_AVX2)
+        return "avx2";
+#elif defined(WRAY_SIMD_NEON)
+        return "neon";
+#elif defined(WRAY_SIMD_SSE2)
+        return "sse2";
+#else
+        return "scalar";
+#endif
+    }
+
+    std::string escaped(std::string s)
+    {
+        std::string out;
+        for (char c : s)
+        {
+            if (c == '"' || c == '\\')
+                out += '\\';
+            out += c;
+        }
+        return out;
     }
 }
 
@@ -477,11 +654,17 @@ int main(int argc, char** argv)
     for (int i = 2; i < argc; ++i)
         only.emplace_back(argv[i]);
     std::FILE* json = std::fopen(path, "w");
-    std::fprintf(json, "[");
+    std::fprintf(json, "{\n\"meta\": {\"cpu\": \"%s\", \"compiler\": \"%s\", \"flags\": \"%s\", \"backend\": \"%s\", \"fma\": %s, \"rounds\": %d, \"repeats\": %d, \"statistic\": \"ns is the fastest round; median and p90 are over rounds\"},\n\"rows\": [",
+                 escaped(cpu_name()).c_str(), escaped(compiler()).c_str(), escaped(WRAY_BENCH_FLAGS).c_str(), backend(), WRAY_HAS_FMA ? "true" : "false", kRounds, kRepeats);
     bool first = true;
     run<float>("f32", json, first, only);
     run<double>("f64", json, first, only);
-    std::fprintf(json, "\n]\n");
+    if (only.empty())
+    {
+        dsp<float>("f32", json, first);
+        dsp<double>("f64", json, first);
+    }
+    std::fprintf(json, "\n]\n}\n");
     std::fclose(json);
     return 0;
 }
