@@ -31,6 +31,28 @@ Every function takes a scalar, a SIMD vector, or a contiguous range:
 
 ![speedup](docs/charts/speedup.png)
 
+## Use it
+
+Header-only, C++20. Either vendor it:
+
+```cmake
+add_subdirectory(WRAY)
+target_link_libraries(your_target PRIVATE wray::wray)
+```
+
+or install it and use the CMake package:
+
+```sh
+cmake -S WRAY -B build -DCMAKE_INSTALL_PREFIX=/your/prefix && cmake --install build
+```
+
+```cmake
+find_package(wray 0.1 REQUIRED)
+target_link_libraries(your_target PRIVATE wray::wray)
+```
+
+`WRAY_SIMD` (`auto`, `scalar`, `sse2`, `avx2`, `avx512`) picks the x86 instruction set and travels with the `wray::wray` target.
+
 ## Accuracy contracts
 
 Measured maximum error in ulp. These are measured bounds, not proofs: one-argument `float` functions are checked on every input against a double-precision reference, and every function is sampled against 40-digit mpmath (50,000 points per function and tier in the published data). `double` and two-argument functions are only sampled.
@@ -90,6 +112,8 @@ A deep sweep checks random and edge parameters from 8 kHz to 768 kHz against the
 NEON, SSE2, AVX2 (FMA), AVX-512 and a scalar backend. Scalar and SIMD results are bit-identical. Results depend only on whether the build has FMA: golden digests in `tests/golden` pin every function's output for the FMA class (NEON, AVX2, AVX-512) and the no-FMA class (SSE2, scalar), across compilers. `WRAY_STRICT_FP` (on by default) stops consumers' compilers from contracting the library's arithmetic.
 
 ![latency](docs/charts/latency.png)
+
+Over buffers the SIMD loops are several times faster than the standard library. For a single value inside a dependency chain, such as a feedback loop, the precise tier is often slower than the platform libm: its compensated steps and special-value handling lengthen the chain, and evaluating scalars without the SIMD carrier made no consistent difference. `docs/data/bench.json` records the machine, compiler, flags and backend, the fastest, median and 90th-percentile round for every row, and block timings for the filters, coefficient updates and each ADAA shape against its pointwise version.
 
 ## How it is verified
 

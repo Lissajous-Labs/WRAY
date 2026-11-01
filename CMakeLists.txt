@@ -10,6 +10,7 @@ if(PROJECT_IS_TOP_LEVEL AND NOT DEFINED CMAKE_CXX_STANDARD)
 endif()
 
 option(WRAY_BUILD_TESTS "Build tests" ${PROJECT_IS_TOP_LEVEL})
+option(WRAY_INSTALL "Generate install rules and a CMake package" ${PROJECT_IS_TOP_LEVEL})
 option(WRAY_BUILD_BENCH "Build benchmarks" ${PROJECT_IS_TOP_LEVEL})
 option(WRAY_BUILD_TOOLS "Build tools" ${PROJECT_IS_TOP_LEVEL})
 option(WRAY_STRICT_FP "Forbid the compiler from fusing or reassociating floating-point operations in consumers" ON)
@@ -71,4 +72,17 @@ endif()
 
 if(WRAY_BUILD_BENCH)
     add_subdirectory(bench)
+endif()
+
+if(WRAY_INSTALL)
+    include(GNUInstallDirs)
+    include(CMakePackageConfigHelpers)
+    install(TARGETS wray EXPORT wrayTargets)
+    install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    install(EXPORT wrayTargets NAMESPACE wray:: DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/wray)
+    configure_package_config_file(cmake/wrayConfig.cmake.in "${CMAKE_CURRENT_BINARY_DIR}/wrayConfig.cmake"
+                                  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/wray)
+    write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/wrayConfigVersion.cmake" COMPATIBILITY SameMinorVersion ARCH_INDEPENDENT)
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wrayConfig.cmake" "${CMAKE_CURRENT_BINARY_DIR}/wrayConfigVersion.cmake"
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/wray)
 endif()
