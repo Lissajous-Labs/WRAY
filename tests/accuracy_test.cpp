@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <limits>
@@ -15,10 +16,6 @@
 #include <vector>
 
 #include "check.h"
-
-#if defined(__SSE2__) || defined(_M_X64)
-#include <xmmintrin.h>
-#endif
 
 namespace
 {
@@ -301,23 +298,33 @@ namespace
 
     void set_flush(bool on)
     {
-#if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
-        std::uint64_t fpcr = 0;
-        asm volatile("mrs %0, fpcr" : "=r"(fpcr));
-        fpcr = on ? (fpcr | (std::uint64_t(1) << 24)) : (fpcr & ~(std::uint64_t(1) << 24));
-        asm volatile("msr fpcr, %0" : : "r"(fpcr));
-#elif defined(__SSE2__) || defined(_M_X64)
-        _mm_setcsr(on ? (_mm_getcsr() | 0x8040u) : (_mm_getcsr() & ~0x8040u));
-#else
-        (void)on;
-#endif
+        using guard = wray::scoped_flush_denormals;
+        guard::write(on ? (guard::read() | guard::flags) : (guard::read() & ~guard::flags));
     }
 
     void enter(host h)
     {
+        using guard = wray::scoped_flush_denormals;
         const int modes[] = {FE_TONEAREST, FE_UPWARD, FE_DOWNWARD, FE_TOWARDZERO, FE_TONEAREST};
-        std::fesetround(modes[static_cast<int>(h)]);
+        const int mode = modes[static_cast<int>(h)];
+        std::fesetround(mode);
         set_flush(h == host::flush);
+        const bool flushing = (guard::read() & guard::flags) != 0;
+        if (std::fegetround() != mode || flushing != (h == host::flush && guard::flags != 0))
+        {
+            std::printf("host mode %s did not take effect: rounding %d, flushing %d\n", host_names[static_cast<int>(h)], std::fegetround(), int(flushing));
+            std::exit(1);
+        }
+        if (h == host::flush && guard::flags != 0)
+        {
+            volatile float tiny = 0x1p-140f;
+            volatile float one = 1.0f;
+            if (tiny * one != 0.0f)
+            {
+                std::printf("host mode flush did not flush 0x1p-140f\n");
+                std::exit(1);
+            }
+        }
     }
 
     template <class T>

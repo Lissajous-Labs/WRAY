@@ -112,6 +112,14 @@ def main():
 
     claims("add 0.5 ulp", "arm64 always has FMA")
     check("bit-identical apart from the sign and payload of NaN results" in text, "README qualifies bit-identity for NaN")
+    ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    hostile = (ROOT / "tools/ci/hostile_flags.sh").read_text(encoding="utf-8")
+    for flag in re.findall(r'"[a-z/]+\|(-[a-z0-9=+-]+)', hostile):
+        check(f"`{flag}`" in text, f"README states the outcome of {flag}")
+    check("tools/ci/hostile_flags.sh" in ci and "tools/ci/header_only.sh" in ci and "tools/ci/mixed_link.sh" in ci, "hostility scripts run in CI")
+    check("windows-11-arm" in ci and "MSVC (Windows on ARM)" in text, "Windows on ARM is claimed and tested")
+    strict = "-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wdouble-promotion -Wold-style-cast -Wshadow"
+    check(strict in text and strict in ci and '"/W4", "/WX"' in ci, "strict warning set is claimed and tested")
     check("__aarch64__" in (ROOT / "include/wray/simd/config.h").read_text(encoding="utf-8").split("#define WRAY_HAS_FMA 1")[0].split("\n")[-2], "arm64 builds have FMA")
     contracts = section(text, "Accuracy contracts")
     check(f"|y·log₂|x|| ≤ {oracle.POW_SCALE:g}" in contracts and f"|y·log₂|x|| / {oracle.POW_SCALE:g} ulp" in contracts, "pow scaling threshold")

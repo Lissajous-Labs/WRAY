@@ -212,6 +212,36 @@ namespace wray::inline WRAY_ABI::filters
         }
 
     private:
+        static bool at_or_above_cap(double a2, double d, double a3) noexcept
+        {
+            const double square = a2 * a2;
+            const double product = d * a3;
+            const double sum = d + a3;
+            const double carry = sum - d;
+            const double sum_low = (d - (sum - carry)) + (a3 - carry);
+            const double terms[6] = {2.0 * square, 2.0 * std::fma(a2, a2, -square), -sum, -sum_low, 2.0 * product, 2.0 * std::fma(d, a3, -product)};
+            double e[6] = {};
+            int m = 0;
+            for (const double b: terms)
+            {
+                double q = b;
+                for (int k = 0; k < m; ++k)
+                {
+                    const double hi = q + e[k];
+                    const double v = hi - q;
+                    e[k] = (q - (hi - v)) + (e[k] - v);
+                    q = hi;
+                }
+                e[m++] = q;
+            }
+            for (int i = m - 1; i >= 0; --i)
+            {
+                if (e[i] != 0.0)
+                    return e[i] > 0.0;
+            }
+            return true;
+        }
+
         void update() noexcept
         {
             const svf_coefficients d = design_svf(type_, fs_, hz_, q_, gain_db_);
@@ -219,16 +249,11 @@ namespace wray::inline WRAY_ABI::filters
             c_.a2 = detail::realise<V>(d.a2);
             c_.a3 = detail::open_unit<V>(d.a3);
             using S = simd::scalar_t<V>;
-            const long double rd = c_.d;
-            const long double r3 = c_.a3;
-            const long double cap = (rd + r3) * 0.5L - rd * r3;
-            if (static_cast<long double>(c_.a2) * c_.a2 >= cap)
+            if (at_or_above_cap(c_.a2, c_.d, c_.a3))
             {
-                S a2 = static_cast<S>(std::sqrt(cap));
-                do
-                {
+                S a2 = static_cast<S>(std::sqrt((c_.d + c_.a3) * 0.5 - c_.d * c_.a3));
+                while (at_or_above_cap(static_cast<double>(a2), c_.d, c_.a3))
                     a2 = std::nextafter(a2, S(0));
-                } while (static_cast<long double>(a2) * a2 >= cap);
                 c_.a2 = static_cast<double>(a2);
             }
             c_.m0 = detail::realise<V>(d.m0);

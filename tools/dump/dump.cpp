@@ -211,7 +211,10 @@ namespace
         std::uint64_t h = 0xcbf29ce484222325ull;
         for (T x : v)
         {
-            const U bits = std::isnan(x) ? U(1) : std::bit_cast<U>(x);
+            const U raw = std::bit_cast<U>(x);
+            const U magnitude = raw & (~U(0) >> 1);
+            const U exponent = sizeof(T) == 4 ? U(0x7f800000u) : U(0x7ff0000000000000ull);
+            const U bits = magnitude > exponent ? U(1) : raw;
             h = (h ^ std::uint64_t(bits)) * 0x100000001b3ull;
         }
         return h;

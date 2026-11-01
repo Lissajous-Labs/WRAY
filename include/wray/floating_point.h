@@ -28,9 +28,13 @@ namespace wray::inline WRAY_ABI
             bool ok = s == T(1) && e == tiny;
             ok = ok && (big + one) - big == T(0);
             ok = ok && (sizeof(T) == 4 ? three / T(7) == T(3.0 / 7.0) : three / T(10) == T(0.3));
-            ok = ok && a * b - one == T(0);
+            const T c = one + (step + step);
+            const T d = one - (step + step);
+            ok = ok && a * b - one == T(0) && c * d - T(1) == T(0);
             const T n = quiet;
             ok = ok && n != n;
+            volatile T top = std::numeric_limits<T>::max();
+            ok = ok && top * T(2) == std::numeric_limits<T>::infinity();
             ok = ok && T(1) / -T(zero) < T(0);
             const auto sum = math::detail::two_sum(T(one), T(tiny));
             ok = ok && sum.hi == T(1) && sum.lo == tiny;

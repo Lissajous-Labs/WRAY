@@ -213,7 +213,7 @@ namespace
         using guard = wray::scoped_flush_denormals;
         volatile float tiny = 0x1p-140f;
         volatile float one = 1.0f;
-#if defined(__aarch64__) || defined(__x86_64__) || defined(_M_X64)
+#if defined(__aarch64__) || defined(_M_ARM64) || defined(__x86_64__) || defined(_M_X64)
         CHECK(guard::flags != 0);
 #endif
         const guard::state before = guard::read();

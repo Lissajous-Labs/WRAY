@@ -40,8 +40,11 @@ jobs:
           - { name: linux-x64-gcc14-sse2-cxx20, os: ubuntu-24.04, cxx: g++-14, simd: sse2, std: 20 }
           - { name: linux-arm64-gcc14-neon-cxx20, os: ubuntu-24.04-arm, cxx: g++-14, simd: auto, std: 20 }
           - { name: linux-x64-clang18-scalar-ubsan, os: ubuntu-24.04, cxx: clang++-18, simd: scalar, flags: -fsanitize=undefined -fno-sanitize-recover=all }
+          - { name: linux-x64-clang18-avx2-ubsan-asan, os: ubuntu-24.04, cxx: clang++-18, simd: avx2, flags: -fsanitize=undefined,address -fno-sanitize-recover=all }
+          - { name: linux-arm64-clang18-neon-ubsan, os: ubuntu-24.04-arm, cxx: clang++-18, simd: auto, flags: -fsanitize=undefined -fno-sanitize-recover=all }
           - { name: windows-x64-msvc-sse2, os: windows-2022, cxx: cl, simd: sse2 }
           - { name: windows-x64-msvc-avx2, os: windows-2022, cxx: cl, simd: avx2 }
+          - { name: windows-arm64-msvc-neon, os: windows-11-arm, cxx: cl, simd: auto, arch: arm64, pyarch: x64 }
     env:
       CXX: ${{ matrix.cxx }}
     steps:
@@ -51,6 +54,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          architecture: ${{ matrix.pyarch }}
           cache: pip
           cache-dependency-path: tools/requirements.txt
 
@@ -58,6 +62,8 @@ jobs:
 
       - if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch || 'x64' }}
 
       - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=${{ matrix.std || 23 }} -DCMAKE_CXX_FLAGS="${{ matrix.flags }}" -DWRAY_SIMD=${{ matrix.simd }} -DWRAY_PYTHON="${{ steps.python.outputs.python-path }}"
 
@@ -85,6 +91,137 @@ jobs:
           name: accuracy-${{ matrix.name }}
           path: build/accuracy.json
           if-no-files-found: ignore
+
+  strict-warnings:
+    name: strict-warnings-${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-x64, os: ubuntu-24.04 }
+          - { name: linux-arm64, os: ubuntu-24.04-arm }
+          - { name: windows-x64, os: windows-2022, arch: x64 }
+          - { name: windows-arm64, os: windows-11-arm, arch: arm64 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          flags="-std=c++20 -O1 -ffp-contract=off -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wdouble-promotion -Wold-style-cast -Wshadow -Werror -I include"
+          if [ "$(uname -m)" = x86_64 ]; then simd=("-msse2 -mno-avx" "-mavx2 -mfma" "-mavx512f -mavx2 -mfma" "-DWRAY_SIMD_SCALAR=1"); else simd=("" "-DWRAY_SIMD_SCALAR=1"); fi
+          for cxx in g++-14 clang++-18; do
+            for s in "${simd[@]}"; do
+              echo "$cxx $s"
+              $cxx $flags $s -c tests/consumer/strict.cpp -o strict.o
+            done
+          done
+
+      - if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $variants = if ("${{ matrix.arch }}" -eq "x64") { @("", "/arch:AVX2", "/arch:AVX512", "/DWRAY_SIMD_SCALAR=1") } else { @("", "/DWRAY_SIMD_SCALAR=1") }
+          foreach ($v in $variants) {
+            Write-Output "cl $v"
+            $cl = @("/nologo", "/std:c++20", "/O1", "/fp:precise", "/EHsc", "/W4", "/WX", "/Iinclude", "/c", "tests/consumer/strict.cpp", "/Fostrict.obj")
+            if ($v -ne "") { $cl += $v }
+            & cl @cl
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+  hostility:
+    name: hostility-${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-x64, os: ubuntu-24.04 }
+          - { name: linux-arm64, os: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: sudo apt-get install -y ninja-build
+
+      - name: unsafe floating-point flags
+        run: |
+          tools/ci/hostile_flags.sh g++-14
+          tools/ci/hostile_flags.sh clang++-18
+
+      - name: consumers without the CMake target
+        run: |
+          extra=""
+          if [ "$(uname -m)" = x86_64 ]; then extra="-mavx2 -mfma"; fi
+          for std in -std=gnu++20 -std=c++20; do
+            tools/ci/header_only.sh g++-14 $std
+            tools/ci/header_only.sh clang++-18 $std
+            tools/ci/header_only.sh g++-14 $std $extra
+            tools/ci/header_only.sh clang++-18 $std $extra
+          done
+
+      - name: translation units with different SIMD flags in one program
+        if: runner.arch == 'X64'
+        run: |
+          tools/ci/mixed_link.sh g++-14
+          tools/ci/mixed_link.sh clang++-18
+
+      - name: installed package consumer
+        run: |
+          cmake -S . -B install-build -G Ninja -DWRAY_INSTALL=ON -DWRAY_BUILD_TESTS=OFF -DWRAY_BUILD_TOOLS=OFF -DWRAY_BUILD_BENCH=OFF -DCMAKE_INSTALL_PREFIX="$PWD/prefix"
+          cmake --install install-build
+          cmake -S tests/consumer/find_package -B consumer -G Ninja -DCMAKE_PREFIX_PATH="$PWD/prefix"
+          cmake --build consumer
+          ./consumer/wray_consumer
+
+  hostility-windows:
+    name: hostility-windows-${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, os: windows-2022 }
+          - { arch: arm64, os: windows-11-arm }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+
+      - shell: pwsh
+        run: |
+          $out = & cl /nologo /std:c++20 /O2 /fp:fast /EHsc /Iinclude /c tests/consumer/strict.cpp /Fostrict.obj 2>&1 | Out-String
+          if ($LASTEXITCODE -eq 0 -or $out -notmatch "wray relies") { Write-Output $out; Write-Output "/fp:fast was not rejected"; exit 1 }
+          & cl /nologo /std:c++20 /O2 /fp:precise /fp:contract /EHsc /Iinclude tests/consumer/strict.cpp /Fe:strict.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $result = & ./strict.exe
+          Write-Output "/fp:contract: $result"
+          if (-not $result.StartsWith("1 ")) { Write-Output "/fp:contract changed the floating-point model inside wray"; exit 1 }
+
+  debug:
+    name: debug-O0
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: sudo apt-get install -y ninja-build
+
+      - run: CXX=g++-14 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWRAY_BUILD_BENCH=OFF
+
+      - run: cmake --build build
+
+      - run: ctest --test-dir build -j 4 -LE "exhaustive|oracle|accuracy" -E "filters|spectral" --output-on-failure
 
   exhaustive:
     name: exhaustive-${{ matrix.name }}

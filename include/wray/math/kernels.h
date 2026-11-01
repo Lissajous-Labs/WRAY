@@ -709,8 +709,9 @@ namespace wray::inline WRAY_ABI::math::detail
         using I = typename lane_of<integer_t<V> >::type;
         using K = constants<S>;
         constexpr int n = simd::traits<V>::width;
-        S xa[n], ha[n], la[n];
-        I qa[n];
+        constexpr auto lanes = static_cast<std::size_t>(n);
+        S xa[lanes], ha[lanes], la[lanes];
+        I qa[lanes];
         if constexpr (n == 1)
         {
             xa[0] = x;
@@ -914,7 +915,10 @@ namespace wray::inline WRAY_ABI::math::detail
     template<class V>
     WRAY_INLINE V even_zero(const V &v) noexcept
     {
-        return select(v == V(scalar_t<V>(0)), V(scalar_t<V>(0)), v);
+        using S = scalar_t<V>;
+        using I = integer_t<V>;
+        const auto zero = (as_bits(v) & I(~format<S>::sign_bit)) == I(0);
+        return select(zero, V(S(0)), v);
     }
 
     template<class S>
@@ -1656,7 +1660,7 @@ namespace wray::inline WRAY_ABI::math::detail
     {
         using S = scalar_t<V>;
         constexpr int degree = std::numeric_limits<S>::digits == 24 ? 8 : 15;
-        S c[degree + 1] = {};
+        S c[static_cast<std::size_t>(degree + 1)] = {};
         S fact = S(2);
         for (int j = 0; j <= degree; ++j)
         {

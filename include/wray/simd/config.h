@@ -17,7 +17,7 @@
 #endif
 
 #if defined(WRAY_SIMD_SCALAR)
-#elif defined(__ARM_NEON) && defined(__aarch64__)
+#elif (defined(__ARM_NEON) && defined(__aarch64__)) || defined(_M_ARM64)
 #define WRAY_SIMD_NEON 1
 #include <arm_neon.h>
 #elif defined(__SSE2__) || defined(_M_X64)
@@ -65,7 +65,7 @@
 #endif
 
 #if defined(__clang__)
-#define WRAY_FP_BEGIN _Pragma("float_control(push)") _Pragma("clang fp contract(off) reassociate(off)")
+#define WRAY_FP_BEGIN _Pragma("float_control(push)") _Pragma("float_control(precise, on)") _Pragma("clang fp contract(off) reassociate(off)")
 #define WRAY_FP_END _Pragma("float_control(pop)")
 #elif defined(_MSC_VER) && defined(_M_FP_CONTRACT)
 #define WRAY_FP_BEGIN __pragma(fp_contract(off))
@@ -77,6 +77,8 @@
 
 #if defined(__GNUC__) || defined(__clang__)
 #define WRAY_INLINE inline __attribute__((always_inline))
+#define WRAY_VOP(intrinsic, op, a, b) ((a) op (b))
 #else
 #define WRAY_INLINE inline __forceinline
+#define WRAY_VOP(intrinsic, op, a, b) intrinsic(a, b)
 #endif

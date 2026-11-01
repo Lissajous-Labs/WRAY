@@ -6,6 +6,9 @@
 
 #if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
 #define WRAY_FLUSH_AARCH64 1
+#elif defined(_M_ARM64) && defined(_MSC_VER)
+#define WRAY_FLUSH_AARCH64_MSVC 1
+#include <intrin.h>
 #elif defined(__x86_64__) || defined(_M_X64) || defined(__SSE__) || (defined(_M_IX86_FP) && _M_IX86_FP >= 1)
 #define WRAY_FLUSH_X86 1
 #include <xmmintrin.h>
@@ -30,6 +33,14 @@ namespace wray::inline WRAY_ABI
         }
 
         static void write(state v) noexcept { asm volatile("msr fpcr, %0" : : "r"(v)); }
+#elif defined(WRAY_FLUSH_AARCH64_MSVC)
+        using state = std::uint64_t;
+        static constexpr state flags = state(1) << 24;
+        static constexpr int fpcr = (1 << 14) | (3 << 11) | (4 << 7) | (4 << 3);
+
+        static state read() noexcept { return static_cast<state>(_ReadStatusReg(fpcr)); }
+
+        static void write(state v) noexcept { _WriteStatusReg(fpcr, static_cast<__int64>(v)); }
 #elif defined(WRAY_FLUSH_X86)
         using state = unsigned int;
         static constexpr state flags = 0x8040u;

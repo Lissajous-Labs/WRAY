@@ -118,8 +118,8 @@ namespace wray::inline WRAY_ABI::filters::detail
         {
             static_assert(simd::traits<To>::width == simd::traits<From>::width);
             constexpr int n = simd::traits<From>::width;
-            simd::scalar_t<From> a[n];
-            simd::scalar_t<To> b[n];
+            simd::scalar_t<From> a[static_cast<std::size_t>(n)];
+            simd::scalar_t<To> b[static_cast<std::size_t>(n)];
             x.store(a);
             for (int i = 0; i < n; ++i)
                 b[i] = static_cast<simd::scalar_t<To> >(a[i]);
