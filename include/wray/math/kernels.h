@@ -783,11 +783,19 @@ namespace wray::math::detail
     WRAY_INLINE V sigmoid(const V &x) noexcept
     {
         using S = scalar_t<V>;
-        const V a = abs(x);
-        const V e = exp<Tier>(-a);
-        const V num = select(x < V(S(0)), e, V(S(1)));
-        const V d = V(S(1)) + e;
-        return num / d;
+        const V one(S(1));
+        if constexpr (full<Tier>)
+        {
+            const V e = exp<Tier>(-abs(x));
+            const V num = select(x < V(S(0)), e, one);
+            const V d = one + e;
+            const V dl = e - (d - one);
+            const V inv = one / d;
+            const V q = num * inv;
+            const V rest = fma(-q, d, num);
+            return fma(fma(-q, dl, rest), inv, q);
+        } else
+            return one / (one + exp<Tier>(-x));
     }
 
     template<class V>

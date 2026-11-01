@@ -151,7 +151,7 @@ namespace
              [](std::mt19937_64& g) { return signed_bits(g, 0x1p-1074, 40.0); }, 1.5, 0x1p-16, 2.5},
             {"sigmoid", [](double x) { return x < 0.0 ? std::exp(x) / (1.0 + std::exp(x)) : 1.0 / (1.0 + std::exp(-x)); }, all, batch32([](auto v) { return wray::sigmoid(v); }),
              batch32([](auto v) { return wray::fast::sigmoid(v); }), [](float x) { return std::fabs(x) <= 87.0f; }, batch64([](auto v) { return wray::sigmoid(v); }),
-             [](std::mt19937_64& g) { return uniform(g, -745.0, 745.0); }, 2.5, 0x1p-16, 2.0},
+             [](std::mt19937_64& g) { return uniform(g, -745.0, 745.0); }, 1.85, 0x1p-16, 1.75},
             {"db_to_gain", decibels, all, batch32([](auto v) { return wray::db_to_gain(v); }),
              batch32([](auto v) { return wray::fast::db_to_gain(v); }), [](float x) { return std::fabs(x) <= 750.0f; }, batch64([](auto v) { return wray::db_to_gain(v); }),
              [](std::mt19937_64& g) { return uniform(g, -6400.0, 6100.0); }, 1.5, 0x1p-16, 1.5},
@@ -540,9 +540,6 @@ namespace
     };
 
     constexpr exemption exemptions[] = {
-        {"sigmoid", "f32", "monotonic", "e / (1 + e) rounds the denominator before the quotient"},
-        {"sigmoid", "fast", "monotonic", "e / (1 + e) rounds the denominator before the quotient"},
-        {"sigmoid", "f64", "monotonic", "e / (1 + e) rounds the denominator before the quotient"},
         {"atan", "f64", "monotonic", "the hi/lo carry rounds independently of the leading term"},
         {"tanh", "fast", "monotonic", "a * R(t) rounds R before the product"},
         {"tanh", "f64", "monotonic", "the small-argument quotient rounds numerator and denominator separately"},
@@ -550,6 +547,8 @@ namespace
         {"atan", "fast", "monotonic", "without FMA the core's fused steps round twice", true},
         {"atan2", "f32", "monotonic", "without FMA the quotient residual is not exact", true},
         {"atan2", "f64", "monotonic", "without FMA the quotient residual is not exact", true},
+        {"sigmoid", "f32", "monotonic", "without FMA the quotient residual is not exact", true},
+        {"sigmoid", "f64", "monotonic", "without FMA the quotient residual is not exact", true},
     };
 
     bool shape_report(const char* name, const char* tier, const tally& t, bool report)
