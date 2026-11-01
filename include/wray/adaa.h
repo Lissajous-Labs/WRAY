@@ -7,7 +7,9 @@
 
 #include "math.h"
 
-namespace wray::adaa::detail
+WRAY_FP_BEGIN
+
+namespace wray::inline WRAY_ABI::adaa::detail
 {
     using namespace wray::math::detail;
 
@@ -328,7 +330,7 @@ namespace wray::adaa::detail
     }
 }
 
-namespace wray::adaa
+namespace wray::inline WRAY_ABI::adaa
 {
     struct hard_clip
     {
@@ -460,3 +462,5 @@ namespace wray::adaa
         V previous_;
     };
 }
+
+WRAY_FP_END

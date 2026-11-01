@@ -9,7 +9,9 @@
 
 #include "config.h"
 
-namespace wray::simd
+WRAY_FP_BEGIN
+
+namespace wray::inline WRAY_ABI::simd
 {
     template<class T>
     struct bits_of;
@@ -1794,9 +1796,11 @@ namespace wray::simd
     using native = vec<T, native_width<T> >;
 }
 
-namespace wray
+namespace wray::inline WRAY_ABI
 {
     using simd::vec;
     using simd::f32x4;
     using simd::f64x2;
 }
+
+WRAY_FP_END

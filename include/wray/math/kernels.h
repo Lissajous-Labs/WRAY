@@ -9,7 +9,9 @@
 #include "../simd/vec.h"
 #include "coefficients.h"
 
-namespace wray::math
+WRAY_FP_BEGIN
+
+namespace wray::inline WRAY_ABI::math
 {
     struct precise
     {
@@ -91,7 +93,7 @@ namespace wray::math
     };
 }
 
-namespace wray::math::detail
+namespace wray::inline WRAY_ABI::math::detail
 {
     using simd::abs;
     using simd::as_bits;
@@ -1691,3 +1693,5 @@ namespace wray::math::detail
         return log10_combine(log_reduce<Tier, false>(x));
     }
 }
+
+WRAY_FP_END

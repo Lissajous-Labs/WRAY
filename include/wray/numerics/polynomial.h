@@ -5,7 +5,9 @@
 
 #include "../simd/vec.h"
 
-namespace wray::numerics
+WRAY_FP_BEGIN
+
+namespace wray::inline WRAY_ABI::numerics
 {
     template<class V, class T, std::size_t M>
     WRAY_INLINE V horner(const std::array<T, M> &c, const V &x) noexcept
@@ -100,3 +102,5 @@ namespace wray::numerics
             return {polynomial(C::p, x), polynomial(C::q, x)};
     }
 }
+
+WRAY_FP_END

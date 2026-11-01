@@ -13,7 +13,9 @@
 
 #include "../math.h"
 
-namespace wray::filters::detail
+WRAY_FP_BEGIN
+
+namespace wray::inline WRAY_ABI::filters::detail
 {
     inline constexpr double default_sample_rate = 48000.0;
     inline constexpr double lowest_frequency = 1.0e-6;
@@ -130,3 +132,5 @@ namespace wray::filters::detail
         return wray::sincos_turns(0.5 * (hz / fs));
     }
 }
+
+WRAY_FP_END

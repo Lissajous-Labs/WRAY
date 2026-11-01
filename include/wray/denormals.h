@@ -11,7 +11,9 @@
 #include <xmmintrin.h>
 #endif
 
-namespace wray
+WRAY_FP_BEGIN
+
+namespace wray::inline WRAY_ABI
 {
     class scoped_flush_denormals
     {
@@ -55,3 +57,5 @@ namespace wray
         state saved_;
     };
 }
+
+WRAY_FP_END

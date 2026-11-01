@@ -2,7 +2,9 @@
 
 #include "common.h"
 
-namespace wray::filters
+WRAY_FP_BEGIN
+
+namespace wray::inline WRAY_ABI::filters
 {
     enum class svf_type
     {
@@ -263,3 +265,5 @@ namespace wray::filters
         V hold_ = V(simd::scalar_t<V>(1));
     };
 }
+
+WRAY_FP_END

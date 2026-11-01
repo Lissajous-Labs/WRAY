@@ -181,7 +181,7 @@ def main():
     fx = dump("db_to_gain", "fast", [-1e9, 1e9])
     check(bool(np.all(np.isfinite(fx)) and np.all(fx >= np.finfo(np.float32).tiny)), "fast db_to_gain stays finite and normal")
     claims("The fast tier exists for `float` only")
-    fast_api = (ROOT / "include/wray/math.h").read_text(encoding="utf-8").split("namespace wray::fast")[1]
+    fast_api = (ROOT / "include/wray/math.h").read_text(encoding="utf-8").split("namespace wray::inline WRAY_ABI::fast")[1]
     check("concept single = std::is_same_v<simd::scalar_t<V>, float>;" in fast_api and "template<simd::real V>" not in fast_api, "fast tier is float only")
 
     filters = section(text, "Filters")

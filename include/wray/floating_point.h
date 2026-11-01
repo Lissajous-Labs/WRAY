@@ -4,7 +4,9 @@
 
 #include "math/kernels.h"
 
-namespace wray
+WRAY_FP_BEGIN
+
+namespace wray::inline WRAY_ABI
 {
     namespace detail
     {
@@ -40,3 +42,5 @@ namespace wray
 
     inline bool floating_point_ok() noexcept { return detail::floating_point_ok<float>() && detail::floating_point_ok<double>(); }
 }
+
+WRAY_FP_END

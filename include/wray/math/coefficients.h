@@ -3,7 +3,9 @@
 #include <array>
 #include <cstdint>
 
-namespace wray::math::coeff
+#include "../simd/config.h"
+
+namespace wray::inline WRAY_ABI::math::coeff
 {
     struct asinh_f32
     {
@@ -332,7 +334,7 @@ namespace wray::math::coeff
     };
 }
 
-namespace wray::math
+namespace wray::inline WRAY_ABI::math
 {
     template <class T>
     struct constants;

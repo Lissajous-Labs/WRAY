@@ -2,7 +2,9 @@
 
 #include "common.h"
 
-namespace wray::filters
+WRAY_FP_BEGIN
+
+namespace wray::inline WRAY_ABI::filters
 {
     enum class biquad_type
     {
@@ -282,3 +284,5 @@ namespace wray::filters
         P recent_ = P(simd::scalar_t<P>(1));
     };
 }
+
+WRAY_FP_END

@@ -177,7 +177,7 @@ TWO_OVER_PI_WORDS = 40
 
 
 def emit_header(results, out):
-    lines = ["#pragma once", "", "#include <array>", "#include <cstdint>", "", "namespace wray::math::coeff", "{"]
+    lines = ["#pragma once", "", "#include <array>", "#include <cstdint>", "", "#include \"../simd/config.h\"", "", "namespace wray::inline WRAY_ABI::math::coeff", "{"]
     for (name, tier), data in sorted(results.items()):
         ctype = TIERS[tier][0]
         p = ", ".join(literal(mp.mpf(c), ctype) for c in data["p"])
@@ -197,7 +197,7 @@ def emit_header(results, out):
     lines += [f"    inline constexpr std::array<std::uint32_t, {TWO_OVER_PI_WORDS}> two_over_pi_words{{",
               "        " + ", ".join(f"0x{w:08x}u" for w in words), "    };", ""]
     lines[-1:] = ["}", ""]
-    lines += ["namespace wray::math", "{", "    template <class T>", "    struct constants;", ""]
+    lines += ["namespace wray::inline WRAY_ABI::math", "{", "    template <class T>", "    struct constants;", ""]
     for ctype in ("float", "double"):
         lines += ["    template <>", f"    struct constants<{ctype}>", "    {"]
         for key, value in constants(ctype).items():

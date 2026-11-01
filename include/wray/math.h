@@ -8,7 +8,9 @@
 
 #include "math/kernels.h"
 
-namespace wray::math
+WRAY_FP_BEGIN
+
+namespace wray::inline WRAY_ABI::math
 {
     template<class R>
     concept real_range = std::ranges::contiguous_range<R> && std::is_floating_point_v<std::ranges::range_value_t<R>>;
@@ -106,7 +108,7 @@ namespace wray::math
     }
 }
 
-namespace wray
+namespace wray::inline WRAY_ABI
 {
     template<simd::real V>
     WRAY_INLINE V exp(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::exp<math::precise>(v); }); }
@@ -346,7 +348,7 @@ namespace wray
     }
 }
 
-namespace wray::fast
+namespace wray::inline WRAY_ABI::fast
 {
     template<class V>
     concept single = std::is_same_v<simd::scalar_t<V>, float>;
@@ -489,3 +491,5 @@ namespace wray::fast
         math::apply(x, y, out, [](auto a, auto b) { return fast::pow(a, b); });
     }
 }
+
+WRAY_FP_END
