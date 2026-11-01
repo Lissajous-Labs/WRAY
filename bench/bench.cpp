@@ -279,9 +279,12 @@ namespace
     template <class T, class R, class P, class Q>
     void unary(suite<T>& s, R reference, P precise, Q fast)
     {
-        s.throughput_rows.push_back(scalar_loop<T>("std", reference));
+        if constexpr (!std::is_same_v<R, none>)
+        {
+            s.throughput_rows.push_back(scalar_loop<T>("std", reference));
+            s.latency_rows.push_back(chain<T>("std", reference));
+        }
         s.throughput_rows.push_back(simd_loop<T>("wray", precise));
-        s.latency_rows.push_back(chain<T>("std", reference));
         s.latency_rows.push_back(chain<T>("wray", [precise](T x) { return precise(x); }));
         if constexpr (std::is_same_v<T, float> && !std::is_same_v<Q, none>)
         {
@@ -345,9 +348,9 @@ namespace
         if (n == "prewarp")
             binary(s, [](T hz, T fs) { return std::tan(std::numbers::pi_v<T> * hz / fs); }, [](auto hz, auto fs) { return wray::prewarp(hz, fs); }, none{});
         if (n == "omega")
-            unary(s, [](T x) { return std::log1p(std::exp(x)); }, [](auto x) { return wray::omega(x); }, [](auto x) { return wray::fast::omega(x); });
+            unary(s, none{}, [](auto x) { return wray::omega(x); }, [](auto x) { return wray::fast::omega(x); });
         if (n == "product_log")
-            unary(s, [](T x) { return std::log1p(x); }, [](auto x) { return wray::product_log(x); }, [](auto x) { return wray::fast::product_log(x); });
+            unary(s, none{}, [](auto x) { return wray::product_log(x); }, [](auto x) { return wray::fast::product_log(x); });
         if (n == "expm1")
             unary(s, [](T x) { return std::expm1(x); }, [](auto x) { return wray::expm1(x); }, none{});
         if (n == "exp2")
