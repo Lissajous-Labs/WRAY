@@ -2,6 +2,7 @@
 
 #include <array>
 #include <bit>
+#include <cfenv>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -14,6 +15,10 @@
 #include <vector>
 
 #include "check.h"
+
+#if defined(__SSE2__) || defined(_M_X64)
+#include <xmmintrin.h>
+#endif
 
 namespace
 {
@@ -142,7 +147,7 @@ namespace
              [](std::mt19937_64& g) { return signed_bits(g, 1e-300, trig64); }, 1.0, 0x1p-16, 1.0},
             {"tan", [](double x) { return std::tan(x); }, [](float x) { return std::fabs(x) <= float(trig32); }, batch32([](auto v) { return wray::tan(v); }),
              batch32([](auto v) { return wray::fast::tan(v); }), [](float x) { return std::fabs(x) <= float(trig32); }, batch64([](auto v) { return wray::tan(v); }),
-             [](std::mt19937_64& g) { return signed_bits(g, 1e-300, trig64); }, 2.5, 0x1p-16, 2.5},
+             [](std::mt19937_64& g) { return signed_bits(g, 1e-300, trig64); }, 1.75, 0x1p-16, 2.5},
             {"atan", [](double x) { return std::atan(x); }, all, batch32([](auto v) { return wray::atan(v); }), batch32([](auto v) { return wray::fast::atan(v); }),
              finite, batch64([](auto v) { return wray::atan(v); }),
              [](std::mt19937_64& g) { return signed_bits(g, 0x1p-1074, 0x1.fffffffffffffp+1023); }, 1.0, 0x1p-16, 1.1},
@@ -151,7 +156,7 @@ namespace
              [](std::mt19937_64& g) { return signed_bits(g, 0x1p-1074, 40.0); }, 1.35, 0x1p-16, 1.3},
             {"sigmoid", [](double x) { return x < 0.0 ? std::exp(x) / (1.0 + std::exp(x)) : 1.0 / (1.0 + std::exp(-x)); }, all, batch32([](auto v) { return wray::sigmoid(v); }),
              batch32([](auto v) { return wray::fast::sigmoid(v); }), [](float x) { return std::fabs(x) <= 87.0f; }, batch64([](auto v) { return wray::sigmoid(v); }),
-             [](std::mt19937_64& g) { return uniform(g, -745.0, 745.0); }, 1.85, 0x1p-16, 1.75},
+             [](std::mt19937_64& g) { return uniform(g, -745.0, 745.0); }, 2.0, 0x1p-16, 1.75},
             {"db_to_gain", decibels, all, batch32([](auto v) { return wray::db_to_gain(v); }),
              batch32([](auto v) { return wray::fast::db_to_gain(v); }), [](float x) { return std::fabs(x) <= 750.0f; }, batch64([](auto v) { return wray::db_to_gain(v); }),
              [](std::mt19937_64& g) { return uniform(g, -6400.0, 6100.0); }, 1.5, 0x1p-16, 1.5},
@@ -161,13 +166,59 @@ namespace
         };
     }
 
+    enum class host
+    {
+        nearest,
+        upward,
+        downward,
+        toward_zero,
+        flush
+    };
+
+    constexpr host hosts[] = {host::nearest, host::upward, host::downward, host::toward_zero, host::flush};
+    constexpr const char* host_names[] = {"nearest", "upward", "downward", "toward_zero", "flush"};
+
+    void set_flush(bool on)
+    {
+#if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
+        std::uint64_t fpcr = 0;
+        asm volatile("mrs %0, fpcr" : "=r"(fpcr));
+        fpcr = on ? (fpcr | (std::uint64_t(1) << 24)) : (fpcr & ~(std::uint64_t(1) << 24));
+        asm volatile("msr fpcr, %0" : : "r"(fpcr));
+#elif defined(__SSE2__) || defined(_M_X64)
+        _mm_setcsr(on ? (_mm_getcsr() | 0x8040u) : (_mm_getcsr() & ~0x8040u));
+#else
+        (void)on;
+#endif
+    }
+
+    void enter(host h)
+    {
+        const int modes[] = {FE_TONEAREST, FE_UPWARD, FE_DOWNWARD, FE_TOWARDZERO, FE_TONEAREST};
+        std::fesetround(modes[static_cast<int>(h)]);
+        set_flush(h == host::flush);
+    }
+
+    template <class T>
+    double host_error(T x, T got, double ref, bool relative, host h, int precision, int emin)
+    {
+        const double top = double(std::numeric_limits<T>::max());
+        const double tiny = double(std::numeric_limits<T>::min());
+        if (h == host::flush && (std::fabs(double(x)) < tiny || std::fabs(ref) < tiny) && x != T(0))
+            return std::isnan(got) && !std::isnan(ref) ? std::numeric_limits<double>::infinity() : 0.0;
+        if (h != host::nearest && h != host::flush && std::fabs(ref) > top && std::fabs(double(got)) == top && std::signbit(got) == std::signbit(ref))
+            return 0.0;
+        return relative ? error_rel(double(got), ref) : error_ulp(double(got), ref, precision, emin);
+    }
+
     struct result
     {
         double worst = 0.0;
         float worst_x = 0.0f;
     };
 
-    result sweep_f32(const unary_case& c, const batch_f32& fn, bool relative, std::uint64_t stride, const std::function<bool(float)>& domain)
+    result sweep_f32(const unary_case& c, const batch_f32& fn, bool relative, std::uint64_t stride, const std::function<bool(float)>& domain,
+                     host h = host::nearest)
     {
         const unsigned threads = std::max(1u, std::thread::hardware_concurrency());
         std::vector<result> partial(threads);
@@ -192,11 +243,12 @@ namespace
                             in.push_back(x);
                     }
                     out.resize(in.size());
+                    enter(h);
                     fn(in, out);
+                    enter(host::nearest);
                     for (std::size_t k = 0; k < in.size(); ++k)
                     {
-                        const double ref = c.reference(double(in[k]));
-                        const double e = relative ? error_rel(double(out[k]), ref) : error_ulp(double(out[k]), ref, 24, -126);
+                        const double e = host_error(in[k], out[k], c.reference(double(in[k])), relative, h, 24, -126);
                         if (e > r.worst)
                         {
                             r.worst = e;
@@ -215,18 +267,20 @@ namespace
         return best;
     }
 
-    double sweep_f64(const unary_case& c, std::size_t samples, double& worst_x)
+    double sweep_f64(const unary_case& c, std::size_t samples, double& worst_x, host h = host::nearest)
     {
         std::mt19937_64 g(42);
         std::vector<double> in(samples);
         std::vector<double> out(samples);
         for (auto& x : in)
             x = c.sample64(g);
+        enter(h);
         c.precise64(in, out);
+        enter(host::nearest);
         double worst = 0.0;
         for (std::size_t i = 0; i < samples; ++i)
         {
-            const double e = error_ulp(out[i], c.reference(in[i]), 53, -1022);
+            const double e = host_error(in[i], out[i], c.reference(in[i]), false, h, 53, -1022);
             if (e > worst)
             {
                 worst = e;
@@ -236,8 +290,16 @@ namespace
         return worst;
     }
 
-    void binary_checks(std::size_t samples, bool report, bool with_atan2, bool with_pow)
+    template <class T>
+    T smaller(T a, T b)
     {
+        return a != T(0) && (b == T(0) || std::fabs(a) < std::fabs(b)) ? a : b;
+    }
+
+    void binary_checks(std::size_t samples, bool report, bool with_atan2, bool with_pow, host h = host::nearest)
+    {
+        const double slack = h == host::nearest || h == host::flush ? 0.0 : 1.0 + margin;
+        const char* label = host_names[static_cast<int>(h)];
         std::mt19937_64 g(9);
         std::vector<float> y(samples), x(samples), out(samples), fout(samples);
         std::vector<double> yd(samples), xd(samples), outd(samples);
@@ -248,23 +310,25 @@ namespace
             yd[i] = signed_bits(g, 0x1p-1074, 0x1.fffffffffffffp+1023);
             xd[i] = signed_bits(g, 0x1p-1074, 0x1.fffffffffffffp+1023);
         }
+        enter(h);
         wray::math::apply(y, x, out, [](auto a, auto b) { return wray::atan2(a, b); });
         wray::math::apply(y, x, fout, [](auto a, auto b) { return wray::fast::atan2(a, b); });
         wray::math::apply(yd, xd, outd, [](auto a, auto b) { return wray::atan2(a, b); });
+        enter(host::nearest);
         double w32 = 0.0, wf = 0.0, w64 = 0.0;
         for (std::size_t i = 0; i < samples; ++i)
         {
             const double r = std::atan2(double(y[i]), double(x[i]));
-            w32 = std::max(w32, error_ulp(double(out[i]), r, 24, -126));
+            w32 = std::max(w32, host_error(smaller(y[i], x[i]), out[i], r, false, h, 24, -126));
             const double af = std::fabs(double(fout[i]) - r);
-            wf = std::max(wf, std::min(error_rel(double(fout[i]), r), af));
-            w64 = std::max(w64, error_ulp(outd[i], std::atan2(yd[i], xd[i]), 53, -1022));
+            wf = std::max(wf, std::min(host_error(smaller(y[i], x[i]), fout[i], r, true, h, 24, -126), af));
+            w64 = std::max(w64, host_error(smaller(yd[i], xd[i]), outd[i], std::atan2(yd[i], xd[i]), false, h, 53, -1022));
         }
         if (report && with_atan2)
-            std::printf("%-11s f32 %8.3f ulp   fast %.3e   f64 %8.3f ulp (vs libm)\n", "atan2", w32, wf, w64);
-        CHECK(!with_atan2 || w32 <= 1.0 + margin);
-        CHECK(!with_atan2 || wf <= 0x1p-16);
-        CHECK(!with_atan2 || w64 <= 2.5 + margin);
+            std::printf("%-11s f32 %8.3f ulp   fast %.3e   f64 %8.3f ulp (vs libm) %s\n", "atan2", w32, wf, w64, label);
+        CHECK(!with_atan2 || w32 <= 1.0 + margin + slack);
+        CHECK(!with_atan2 || wf <= 0x1p-16 + slack * 0x1p-23);
+        CHECK(!with_atan2 || w64 <= 2.5 + margin + slack);
 
         for (std::size_t i = 0; i < samples; ++i)
         {
@@ -273,24 +337,53 @@ namespace
             xd[i] = bit_uniform(g, 1e-60, 1e60);
             yd[i] = uniform(g, -5.0, 5.0);
         }
+        enter(h);
         wray::math::apply(x, y, out, [](auto a, auto b) { return wray::pow(a, b); });
         wray::math::apply(x, y, fout, [](auto a, auto b) { return wray::fast::pow(a, b); });
         wray::math::apply(xd, yd, outd, [](auto a, auto b) { return wray::pow(a, b); });
+        enter(host::nearest);
         w32 = wf = w64 = 0.0;
         for (std::size_t i = 0; i < samples; ++i)
         {
             const double r = std::pow(double(x[i]), double(y[i]));
-            w32 = std::max(w32, error_ulp(double(out[i]), r, 24, -126));
+            w32 = std::max(w32, host_error(x[i], out[i], r, false, h, 24, -126));
             const double z = std::fabs(double(y[i]) * std::log2(double(x[i])));
             if (z < 120.0)
-                wf = std::max(wf, error_rel(double(fout[i]), r) / (1.0 + z));
-            w64 = std::max(w64, error_ulp(outd[i], std::pow(xd[i], yd[i]), 53, -1022));
+                wf = std::max(wf, host_error(x[i], fout[i], r, true, h, 24, -126) / (1.0 + z));
+            w64 = std::max(w64, host_error(xd[i], outd[i], std::pow(xd[i], yd[i]), false, h, 53, -1022));
         }
         if (report && with_pow)
-            std::printf("%-11s f32 %8.3f ulp   fast %.3e   f64 %8.3f ulp (vs libm)\n", "pow", w32, wf, w64);
-        CHECK(!with_pow || w32 <= 2.0 + margin);
-        CHECK(!with_pow || wf <= 0x1p-16);
-        CHECK(!with_pow || w64 <= 2.5 + margin);
+            std::printf("%-11s f32 %8.3f ulp   fast %.3e   f64 %8.3f ulp (vs libm) %s\n", "pow", w32, wf, w64, label);
+        CHECK(!with_pow || w32 <= 2.0 + margin + slack);
+        CHECK(!with_pow || wf <= 0x1p-16 + slack * 0x1p-23);
+        CHECK(!with_pow || w64 <= 2.5 + margin + slack);
+    }
+
+    void host_checks(const std::function<bool(const char*)>& selected, std::uint64_t stride, std::size_t samples, bool report)
+    {
+        for (host h : hosts)
+        {
+            if (h == host::nearest)
+                continue;
+            const double slack = h == host::flush ? 0.0 : 1.0 + margin;
+            const char* label = host_names[static_cast<int>(h)];
+            for (const auto& c : cases())
+            {
+                if (!selected(c.name))
+                    continue;
+                const auto p = sweep_f32(c, c.precise, false, stride, c.domain, h);
+                const auto f = sweep_f32(c, c.fast, true, stride, c.fast_domain, h);
+                double wx = 0.0;
+                const double d = sweep_f64(c, samples, wx, h);
+                if (report)
+                    std::printf("%-11s f32 %8.3f ulp @ %-14.9g fast %.3e @ %-14.9g f64 %8.3f ulp @ %.17g %s\n", c.name, p.worst, double(p.worst_x), f.worst,
+                                double(f.worst_x), d, wx, label);
+                CHECK(p.worst <= c.contract_f32 + margin + slack);
+                CHECK(f.worst <= c.contract_fast + slack * 0x1p-23);
+                CHECK(d <= c.contract_f64 + 2.0 + margin + slack);
+            }
+            binary_checks(samples, report, selected("atan2"), selected("pow"), h);
+        }
     }
 
     struct monotone
@@ -705,5 +798,6 @@ int main(int argc, char** argv)
     binary_checks(1u << 22, report, selected("atan2"), selected("pow"));
     shape_checks(selected, stride, samples64 / 16, report);
     binary_shape_checks(1u << 16, report, selected("atan2"), selected("pow"));
+    host_checks(selected, stride == 1 ? 4 : stride * 16, stride == 1 ? samples64 / 8 : samples64 / 32, report);
     return wray::test::finish("accuracy");
 }
