@@ -19,6 +19,27 @@ namespace wray::numerics
         return acc;
     }
 
+    namespace detail
+    {
+        template<std::size_t N, class V, std::size_t L>
+        WRAY_INLINE V pair_reduce(std::array<V, L> &level, const V &power) noexcept
+        {
+            if constexpr (N == 1)
+                return level[0];
+            else
+            {
+                for (std::size_t i = 0; i < N / 2; ++i)
+                    level[i] = simd::fma(level[2 * i + 1], power, level[2 * i]);
+                if constexpr (N % 2 == 1)
+                    level[N / 2] = level[N - 1];
+                if constexpr (N == 2)
+                    return level[0];
+                else
+                    return pair_reduce<(N + 1) / 2>(level, power * power);
+            }
+        }
+    }
+
     template<std::size_t O, class V, class T, std::size_t M>
     WRAY_INLINE V estrin_from(const std::array<T, M> &c, const V &x) noexcept
     {
@@ -32,23 +53,7 @@ namespace wray::numerics
                 level[i] = simd::fma(V(c[O + 2 * i + 1]), x, V(c[O + 2 * i]));
             if constexpr (n % 2 == 1)
                 level[n / 2] = V(c[M - 1]);
-            const auto reduce = [&level]<std::size_t N>(this auto &&self, const V &power) -> V
-            {
-                if constexpr (N == 1)
-                    return level[0];
-                else
-                {
-                    for (std::size_t i = 0; i < N / 2; ++i)
-                        level[i] = simd::fma(level[2 * i + 1], power, level[2 * i]);
-                    if constexpr (N % 2 == 1)
-                        level[N / 2] = level[N - 1];
-                    if constexpr (N == 2)
-                        return level[0];
-                    else
-                        return self.template operator()<(N + 1) / 2>(power * power);
-                }
-            };
-            return reduce.template operator()<(n + 1) / 2>(x * x);
+            return detail::pair_reduce<(n + 1) / 2>(level, x * x);
         }
     }
 

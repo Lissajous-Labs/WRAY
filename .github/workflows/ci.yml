@@ -36,6 +36,9 @@ jobs:
           - { name: linux-x64-gcc14-avx512, os: ubuntu-24.04, cxx: g++-14, simd: avx512 }
           - { name: linux-x64-gcc14-scalar, os: ubuntu-24.04, cxx: g++-14, simd: scalar }
           - { name: linux-arm64-gcc14-neon, os: ubuntu-24.04-arm, cxx: g++-14, simd: auto }
+          - { name: macos-arm64-appleclang-neon-cxx20, os: macos-15, cxx: clang++, simd: auto, std: 20 }
+          - { name: linux-x64-gcc14-sse2-cxx20, os: ubuntu-24.04, cxx: g++-14, simd: sse2, std: 20 }
+          - { name: linux-arm64-gcc14-neon-cxx20, os: ubuntu-24.04-arm, cxx: g++-14, simd: auto, std: 20 }
     env:
       CXX: ${{ matrix.cxx }}
     steps:
@@ -50,7 +53,7 @@ jobs:
 
       - run: python -m pip install -r tools/requirements.txt ninja
 
-      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWRAY_SIMD=${{ matrix.simd }} -DWRAY_PYTHON="${{ steps.python.outputs.python-path }}"
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=${{ matrix.std || 23 }} -DWRAY_SIMD=${{ matrix.simd }} -DWRAY_PYTHON="${{ steps.python.outputs.python-path }}"
 
       - run: cmake --build build
 
