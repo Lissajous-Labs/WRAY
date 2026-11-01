@@ -1015,7 +1015,7 @@ namespace wray::math::detail
             const auto inside = a < c;
             const V ac = select(inside, a, c);
             const V t = ac * ac;
-            const V vs = ac * numerics::rational<C>(t);
+            const V vs = select(ac < V(S(0x1p-9)), ac, ac * numerics::rational<C>(t));
             return copysign_from(select(inside, vs, V(S(1))), x);
         }
     }

@@ -104,6 +104,6 @@ fast sin 2f5beb8f759f3ab7
 fast sin_turns 6984b869ededc0a4
 fast tan 96c746e2044c02a9
 fast tan_turns 9eae4f156c9a2598
-fast tanh f7987a75b6eb8cc5
+fast tanh 8fefb3a2086016de
 fast atan2 a7971d3efc1ae9a1
 fast pow 2e69727971c3e5d1
