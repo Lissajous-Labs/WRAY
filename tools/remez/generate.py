@@ -134,6 +134,10 @@ def constants(ctype):
             "db_per_log2_lo": split(20 * mp.log10(2), 16 if ctype == "float" else 42, total)[1],
             "db_per_ln_hi": split(20 / mp.log(10), total, total)[0],
             "db_per_ln_lo": split(20 / mp.log(10), total, total)[1],
+            "log10_per_log2_hi": split(mp.log10(2), 16 if ctype == "float" else 42, total)[0],
+            "log10_per_log2_lo": split(mp.log10(2), 16 if ctype == "float" else 42, total)[1],
+            "log10_per_ln_hi": split(1 / mp.log(10), total, total)[0],
+            "log10_per_ln_lo": split(1 / mp.log(10), total, total)[1],
         }
 
 

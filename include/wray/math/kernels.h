@@ -979,4 +979,28 @@ namespace wray::math::detail
             return l * V(K::db_per_log2);
         }
     }
+
+    template<class V>
+    WRAY_INLINE V log10_combine(const log_parts<V> &p) noexcept
+    {
+        using K = constants<scalar_t<V> >;
+        const V inner = fma(p.hi, V(K::log10_per_ln_lo), p.lo * V(K::log10_per_ln_hi));
+        const V v = fma(p.hi, V(K::log10_per_ln_hi), inner);
+        const V small = fma(p.e, V(K::log10_per_log2_lo), v);
+        return fma(p.e, V(K::log10_per_log2_hi), small);
+    }
+
+    template<class Tier, class V>
+    V log10_edge(const V &x) noexcept
+    {
+        return log_specials(x, log10_combine(log_reduce<Tier, true>(x)));
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V log10(const V &x) noexcept
+    {
+        if (simd::any(!log_regular_mask(x)))
+            return log10_edge<Tier>(x);
+        return log10_combine(log_reduce<Tier, false>(x));
+    }
 }

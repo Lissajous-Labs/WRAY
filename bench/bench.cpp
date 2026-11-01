@@ -76,7 +76,9 @@ namespace
     workload<T> make(const std::string& name, std::mt19937_64& rng)
     {
         workload<T> w;
-        if (name == "log1p")
+        if (name == "log10")
+            w.a = log_uniform<T>(rng, 1e-30, 1e30);
+        else if (name == "log1p")
             w.a = uniform<T>(rng, -0.9, 10);
         else if (name == "exp" || name == "sigmoid")
             w.a = uniform<T>(rng, -80, 80);
@@ -123,7 +125,9 @@ namespace
         const double tiny = double(std::numeric_limits<T>::denorm_min());
         const double normal = double(std::numeric_limits<T>::min());
         workload<T> w;
-        if (name == "log1p")
+        if (name == "log10")
+            w.a = log_uniform<T>(rng, double(std::numeric_limits<T>::denorm_min()), double(std::numeric_limits<T>::min()));
+        else if (name == "log1p")
             w.a = uniform<T>(rng, -3, -1.5);
         else if (name == "exp" || name == "expm1")
             w.a = mirrored<T>(rng, wide ? 708.0 : 87.0, wide ? 760.0 : 110.0);
@@ -242,6 +246,8 @@ namespace
             unary(s, [](T x) { return std::exp(x); }, [](auto x) { return wray::exp(x); }, [](auto x) { return wray::fast::exp(x); });
         if (n == "log1p")
             unary(s, [](T x) { return std::log1p(x); }, [](auto x) { return wray::log1p(x); }, none{});
+        if (n == "log10")
+            unary(s, [](T x) { return std::log10(x); }, [](auto x) { return wray::log10(x); }, none{});
         if (n == "expm1")
             unary(s, [](T x) { return std::expm1(x); }, [](auto x) { return wray::expm1(x); }, none{});
         if (n == "exp2")
@@ -299,7 +305,7 @@ namespace
     template <class T>
     void run(const char* type, std::FILE* json, bool& first, const std::vector<std::string>& only)
     {
-        const char* names[] = {"log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "sincos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain",
+        const char* names[] = {"log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "sincos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain",
                                "gain_to_db"};
         std::mt19937_64 rng(7);
         std::mt19937_64 edge_rng(11);

@@ -127,6 +127,8 @@ namespace
         constexpr double trig32 = 0x1.921fb6p+12;
         constexpr double trig64 = 0x1.921fb54442d18p+22;
         return {
+            {"log10", [](double x) { return std::log10(x); }, all, batch32([](auto v) { return wray::log10(v); }), {}, all,
+             batch64([](auto v) { return wray::log10(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, 0.5, 20.0) : bit_uniform(g, 0x1p-1074, 0x1.fffffffffffffp+1023); }, 1.4, 0.0, 1.0},
             {"log1p", [](double x) { return std::log1p(x); }, all, batch32([](auto v) { return wray::log1p(v); }), {}, all,
              batch64([](auto v) { return wray::log1p(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -1.0, 4.0) : bit_uniform(g, 0x1p-1074, 0x1.fffffffffffffp+1023); }, 1.0, 0.0, 0.95},
             {"expm1", [](double x) { return std::expm1(x); }, all, batch32([](auto v) { return wray::expm1(v); }), {}, all,
@@ -474,6 +476,7 @@ namespace
             {"exp", parity::none, {{-inf, inf, 1}}, 0.0, inf, [](double x, bool w) { return below(x, w ? 709.78 : 88.72); }, 20.0,
              joined(multiples(ln2, 0.5, 60), {86.0, 707.0, 88.72, 709.78, 745.1, 708.39, 103.97, 87.0})},
             {"log1p", parity::none, {{-1.0, inf, 1}}, -inf, inf, [](double x, bool) { return x > -1.0 && x < inf ? bounded : x >= -1.0 ? defined : any; }, 2.0, {-0.5, 0x1p-25, 0x1p-54, 1.0, 0.4142135623730951, -0.2928932188134524, 1e300}},
+            {"log10", parity::none, {{0.0, inf, 1}}, -inf, inf, logarithmic, 4.0, logs},
             {"expm1", parity::none, {{-inf, inf, 1}}, -1.0, inf, [](double x, bool w) { return below(x, w ? 709.78 : 88.72); }, 2.0,
              joined(multiples(ln2, 0.5, 60), {86.0, 707.0, 88.72, 709.78, 0x1p-25, 0x1p-54, 17.3, 37.5})},
             {"exp2", parity::none, {{-inf, inf, 1}}, 0.0, inf, [](double x, bool w) { return below(x, w ? 1024.0 : 128.0); }, 20.0,

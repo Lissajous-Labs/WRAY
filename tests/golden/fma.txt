@@ -6,6 +6,7 @@ f32 exp2 1feb925ac26451b7
 f32 expm1 a82a8a32fbc4ecaa
 f32 gain_to_db ebffe46ca95e69e4
 f32 log de73e2bca256844d
+f32 log10 fe5df6006f99019d
 f32 log1p b1998fc8c02e94f0
 f32 log2 6e233a342d6272f6
 f32 sigmoid a0b5b7809ec6a8a4
@@ -22,6 +23,7 @@ f64 exp2 dde3fbd7cec7b2a1
 f64 expm1 8446807fd1d20e63
 f64 gain_to_db c9ccb049c85a2d94
 f64 log fca62ed02f97a1a2
+f64 log10 d8fbd72d58813c06
 f64 log1p e32c657f3d65e8e2
 f64 log2 9d9de4c383640dcf
 f64 sigmoid 915495d4bddc4539
