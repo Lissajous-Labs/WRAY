@@ -29,6 +29,10 @@ PLAN = {
     "cosh": {"f32": (2, 0), "f64": (5, 0)},
     "asinh": {"f32": (4, 0), "f64": (11, 0)},
     "cbrt": {"f32": (3, 0), "f64": (3, 0)},
+    "erf": {"f32": (4, 0), "f64": (8, 0)},
+    "erf_mid": {"f32": (6, 0), "f64": (14, 0)},
+    "erf_mid2": {"f32": (6, 0), "f64": (14, 0)},
+    "erfc": {"f32": (3, 3), "f64": (7, 7)},
     "sin_turns": {"f32": (3, 0), "f64": (6, 0)},
     "cos_turns": {"f32": (2, 0), "f64": (5, 0)},
     "tan_turns": {"f32": (6, 0), "f64": (3, 3)},
@@ -147,6 +151,12 @@ def constants(ctype):
             "log10_per_ln_lo": split(1 / mp.log(10), total, total)[1],
             "two_pi_sq_hi": split(2 * mp.pi ** 2, total, total)[0],
             "two_pi_sq_lo": split(2 * mp.pi ** 2, total, total)[1],
+            "two_over_sqrt_pi_hi": split(2 / mp.sqrt(mp.pi), total, total)[0],
+            "two_over_sqrt_pi_lo": split(2 / mp.sqrt(mp.pi), total, total)[1],
+            "erf_mid_hi": split(mp.erf(mp.mpf(3) / 4), total, total)[0],
+            "erf_mid_lo": split(mp.erf(mp.mpf(3) / 4), total, total)[1],
+            "erf_mid2_hi": split(mp.erf(mp.mpf(5) / 4), total, total)[0],
+            "erf_mid2_lo": split(mp.erf(mp.mpf(5) / 4), total, total)[1],
         }
 
 

@@ -5,6 +5,7 @@ f32 cos 8dd1c45768cf4f29
 f32 cos_turns aed3e4b695f14a0c
 f32 cosh ba21ce4e4e3c892f
 f32 db_to_gain 616586ff53b29d65
+f32 erf 32de7b324a221221
 f32 exp 6cfe4fe247e9f7a7
 f32 exp2 8a20f56c715260ca
 f32 expm1 f8c3437aa7d72e3f
@@ -29,6 +30,7 @@ f64 cos 9f5c9f6e8df45e57
 f64 cos_turns 9559fc8b4483f173
 f64 cosh e7c2c199dfd33315
 f64 db_to_gain a029963957d088fc
+f64 erf ca2e9846d9841d12
 f64 exp 2c11306d211599ff
 f64 exp2 58611e941a05a666
 f64 expm1 f178ca1cdcd65d07

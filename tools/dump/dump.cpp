@@ -129,6 +129,7 @@ namespace
                 add("cosh", [](auto v) { return wray::cosh(v); });
                 add("asinh", [](auto v) { return wray::asinh(v); });
                 add("cbrt", [](auto v) { return wray::cbrt(v); });
+                add("erf", [](auto v) { return wray::erf(v); });
                 add("tanh", [](auto v) { return wray::tanh(v); });
                 add("sigmoid", [](auto v) { return wray::sigmoid(v); });
                 add("db_to_gain", [](auto v) { return wray::db_to_gain(v); });

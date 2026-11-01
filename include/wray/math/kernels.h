@@ -38,6 +38,10 @@ namespace wray::math
         using cosh = coeff::cosh_f32;
         using asinh = coeff::asinh_f32;
         using cbrt = coeff::cbrt_f32;
+        using erf = coeff::erf_f32;
+        using erfc = coeff::erfc_f32;
+        using erf_mid = coeff::erf_mid_f32;
+        using erf_mid2 = coeff::erf_mid2_f32;
     };
 
     template<>
@@ -57,6 +61,10 @@ namespace wray::math
         using cosh = coeff::cosh_f64;
         using asinh = coeff::asinh_f64;
         using cbrt = coeff::cbrt_f64;
+        using erf = coeff::erf_f64;
+        using erfc = coeff::erfc_f64;
+        using erf_mid = coeff::erf_mid_f64;
+        using erf_mid2 = coeff::erf_mid2_f64;
     };
 
     template<>
@@ -1241,6 +1249,39 @@ namespace wray::math::detail
         const V k = q - select(sub, V(F::subnormal_exponent / S(3)), V(S(0)));
         const V v = copysign_from(root * pow2(k), x);
         return select(either(either(a == V(S(0)), a == inf<V>()), isnan(x)), x, v);
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V erf(const V &x) noexcept
+    {
+        using S = scalar_t<V>;
+        using K = constants<S>;
+        using Cs = typename table<Tier, S>::erf;
+        using Cl = typename table<Tier, S>::erfc;
+        const V one(S(1));
+        const V a = abs(x);
+        const V t = x * x;
+        const auto lead = two_product(x, V(K::two_over_sqrt_pi_hi));
+        const V small = lead.hi + (lead.lo + x * fma(t, numerics::rational<Cs>(t), V(K::two_over_sqrt_pi_lo)));
+        const V cut(std::numeric_limits<S>::digits == 24 ? S(4) : S(6));
+        const V ac = simd::max(simd::min(a, cut), V(S(1.5)));
+        const auto sq = two_product(ac, ac);
+        const V e = exp_regular<Tier>(-sq.hi) * (one - sq.lo);
+        const V large = one - e * numerics::rational<Cl>(ac);
+        using Cm = typename table<Tier, S>::erf_mid;
+        const V d = a - V(S(0.75));
+        const V mid = V(K::erf_mid_hi) + fma(d, numerics::rational<Cm>(d), V(K::erf_mid_lo));
+        using Cm2 = typename table<Tier, S>::erf_mid2;
+        const V d2 = a - V(S(1.25));
+        const V mid2 = V(K::erf_mid2_hi) + fma(d2, numerics::rational<Cm2>(d2), V(K::erf_mid2_lo));
+        const V outer = copysign_from(select(a < one, mid, select(a < V(S(1.5)), mid2, select(a < cut, large, one))), x);
+        const V up(S(0x1p64));
+        const V xs = x * up;
+        const auto lead_s = two_product(xs, V(K::two_over_sqrt_pi_hi));
+        const V scaled = (lead_s.hi + (lead_s.lo + xs * V(K::two_over_sqrt_pi_lo))) * V(S(0x1p-64));
+        const V tiny = select(a < V(tiny_turn<S>), scaled, small);
+        const V v = select(a < V(S(0.5)), keep_zero(x, tiny), outer);
+        return select(isnan(x), x, v);
     }
 
     template<class V>

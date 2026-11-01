@@ -119,6 +119,23 @@ def asinh_tail(t):
     return (mp.asinh(s) - s) / (s * t)
 
 
+def erf_tail(t):
+    s = mp.sqrt(t)
+    return (mp.erf(s) / s - 2 / mp.sqrt(mp.pi)) / t
+
+
+def erf_mid(d):
+    return (mp.erf(mp.mpf(3) / 4 + d) - mp.erf(mp.mpf(3) / 4)) / d
+
+
+def erf_mid2(d):
+    return (mp.erf(mp.mpf(5) / 4 + d) - mp.erf(mp.mpf(5) / 4)) / d
+
+
+def erfc_scaled(a):
+    return mp.erfc(a) * mp.exp(a * a)
+
+
 def tan_turns(t):
     s = mp.sqrt(t)
     return (mp.tan(mp.pi * s) - mp.pi * s) / (s * t)
@@ -140,6 +157,10 @@ CORES = {
     "cosh": dict(g=_limit(precise(cosh_tail), lambda: mp.mpf(1) / 24), interval=lambda tier: (0, 1)),
     "asinh": dict(g=_limit(precise(asinh_tail), lambda: mp.mpf(-1) / 6), interval=lambda tier: (0, mp.mpf(1) / 4)),
     "cbrt": dict(g=lambda y: mp.mpf(y) ** (-mp.mpf(1) / 3), interval=lambda tier: (1, 8)),
+    "erf": dict(g=_limit(precise(erf_tail), lambda: -2 / (3 * mp.sqrt(mp.pi))), interval=lambda tier: (0, mp.mpf(1) / 4)),
+    "erf_mid": dict(g=_limit(precise(erf_mid), lambda: 2 / mp.sqrt(mp.pi) * mp.exp(-mp.mpf(9) / 16)), interval=lambda tier: (-mp.mpf(1) / 4, mp.mpf(1) / 4)),
+    "erf_mid2": dict(g=_limit(precise(erf_mid2), lambda: 2 / mp.sqrt(mp.pi) * mp.exp(-mp.mpf(25) / 16)), interval=lambda tier: (-mp.mpf(1) / 4, mp.mpf(1) / 4)),
+    "erfc": dict(g=erfc_scaled, interval=lambda tier: (mp.mpf(3) / 2, 4 if tier == "f32" else 6)),
     "sin_turns": dict(g=_limit(precise(sin_turns), lambda: -(2 * mp.pi) ** 3 / 6), interval=lambda tier: (0, mp.mpf(1) / 64)),
     "cos_turns": dict(g=_limit(precise(cos_turns), lambda: (2 * mp.pi) ** 4 / 24), interval=lambda tier: (0, mp.mpf(1) / 64)),
     "tan_turns": dict(g=_limit(precise(tan_turns), lambda: mp.pi ** 3 / 3), interval=lambda tier: (0, mp.mpf(1) / 16)),

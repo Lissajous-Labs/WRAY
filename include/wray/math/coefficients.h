@@ -102,6 +102,62 @@ namespace wray::math::coeff
         static constexpr std::array<double, 1> q{ 0x1p+0 };
     };
 
+    struct erf_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 5> p{ -0x1.812746p-2f, 0x1.ce2f16p-4f, -0x1.b8271ap-6f, 0x1.5557a8p-8f, -0x1.9a83acp-11f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct erf_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 9> p{ -0x1.812746b0379e7p-2, 0x1.ce2f21a042bcfp-4, -0x1.b82ce31286c3bp-6, 0x1.565bcd0d2bf52p-8, -0x1.c02db333ca39cp-11, 0x1.f9a2dd188e153p-14, -0x1.f4c2a4b052ea7p-17, 0x1.b7f1e7da930c7p-20, -0x1.3d826f25a8cc8p-23 };
+        static constexpr std::array<double, 1> q{ 0x1p+0 };
+    };
+
+    struct erf_mid_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 7> p{ 0x1.492e42p-1f, -0x1.edc56p-2f, 0x1.b6e74ep-6f, 0x1.34973ap-3f, -0x1.b4012cp-5f, -0x1.b422dcp-6f, 0x1.25f06cp-6f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct erf_mid_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 15> p{ 0x1.492e42d78d2c5p-1, -0x1.edc5644353c27p-2, 0x1.b6e8591f66e49p-6, 0x1.349b5eaa1467ep-3, -0x1.b42a1890cda5cp-5, -0x1.b847796700fd2p-6, 0x1.2e0afb0b3f631p-6, 0x1.2db333b3abadbp-9, -0x1.04105c79cf503p-8, 0x1.862187199aa6bp-13, 0x1.47256060dfb57p-11, -0x1.bd14094bb51fep-14, -0x1.3d929286baafbp-14, 0x1.66835e0819ca1p-16, 0x1.d3140bdaae2dfp-18 };
+        static constexpr std::array<double, 1> q{ 0x1p+0 };
+    };
+
+    struct erf_mid2_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 7> p{ 0x1.e4653p-3f, -0x1.2ebf48p-2f, 0x1.571ccep-3f, -0x1.926c9cp-8f, -0x1.8262aap-5f, 0x1.52f6c4p-6f, 0x1.cea2d2p-9f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct erf_mid2_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 15> p{ 0x1.e4652fadcb6b2p-3, -0x1.2ebf3dcc9f22fp-2, 0x1.571d01c5c56cp-3, -0x1.93a9a7bb7f906p-8, -0x1.8281ce0b356f4p-5, 0x1.5d0003af8fa07p-6, 0x1.db43c9755063dp-9, -0x1.75672d1152366p-8, 0x1.cc22531688565p-11, 0x1.a0077df97821fp-11, -0x1.53b0fe6574c3fp-12, -0x1.baa378a9b544cp-15, 0x1.d41b2e3cc714p-15, -0x1.6b306353e8971p-19, -0x1.a1c236fc24548p-18 };
+        static constexpr std::array<double, 1> q{ 0x1p+0 };
+    };
+
+    struct erfc_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 4> p{ 0x1.010cfep+0f, 0x1.9a549p-1f, 0x1.24d876p-2f, -0x1.4caff4p-15f };
+        static constexpr std::array<float, 4> q{ 0x1p+0f, 0x1.f364f6p+0f, 0x1.6f6becp+0f, 0x1.02bdeep-1f };
+    };
+
+    struct erfc_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 8> p{ 0x1.0000084ab05d4p+0, 0x1.af1d0328a3e1ep+0, 0x1.642c2dbe2e7b2p+0, 0x1.64326d9cb802ap-1, 0x1.c449530b8a42p-3, 0x1.5cd9a366c74efp-5, 0x1.0b0a11798467dp-8, -0x1.55a7a679a504ep-36 };
+        static constexpr std::array<double, 8> q{ 0x1p+0, 0x1.67fd5f8c86746p+1, 0x1.c849f8d3e6904p+1, 0x1.54388f759b403p+1, 0x1.45561ef3565d3p+0, 0x1.948666e829202p-2, 0x1.352920651826fp-4, 0x1.d950934cf0276p-8 };
+    };
+
     struct exp_f32
     {
         using value_type = float;
@@ -300,6 +356,12 @@ namespace wray::math
         static constexpr float log10_per_ln_lo = -0x1.5b235ep-27f;
         static constexpr float two_pi_sq_hi = 0x1.3bd3ccp+4f;
         static constexpr float two_pi_sq_lo = 0x1.37c8bcp-21f;
+        static constexpr float two_over_sqrt_pi_hi = 0x1.20dd76p+0f;
+        static constexpr float two_over_sqrt_pi_lo = -0x1.f7ac92p-25f;
+        static constexpr float erf_mid_hi = 0x1.6c1c98p-1f;
+        static constexpr float erf_mid_lo = -0x1.4c5e34p-26f;
+        static constexpr float erf_mid2_hi = 0x1.d8865ep-1f;
+        static constexpr float erf_mid2_lo = -0x1.9d508p-27f;
     };
 
     template <>
@@ -346,5 +408,11 @@ namespace wray::math
         static constexpr double log10_per_ln_lo = 0x1.95355baaafad3p-57;
         static constexpr double two_pi_sq_hi = 0x1.3bd3cc9be45dep+4;
         static constexpr double two_pi_sq_lo = 0x1.692b71366cc04p-50;
+        static constexpr double two_over_sqrt_pi_hi = 0x1.20dd750429b6dp+0;
+        static constexpr double two_over_sqrt_pi_lo = 0x1.1ae3a914fed8p-56;
+        static constexpr double erf_mid_hi = 0x1.6c1c9759d0e5fp-1;
+        static constexpr double erf_mid_lo = 0x1.b1432f2cbc455p-55;
+        static constexpr double erf_mid2_hi = 0x1.d8865d98abe01p-1;
+        static constexpr double erf_mid2_lo = -0x1.fcec4afb974d9p-55;
     };
 }

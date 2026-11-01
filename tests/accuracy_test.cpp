@@ -149,6 +149,8 @@ namespace
         constexpr double trig32 = 0x1.921fb6p+12;
         constexpr double trig64 = 0x1.921fb54442d18p+22;
         return {
+            {"erf", [](double x) { return std::erf(x); }, all, batch32([](auto v) { return wray::erf(v); }), {}, all,
+             batch64([](auto v) { return wray::erf(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -6.5, 6.5) : signed_bits(g, 0x1p-1074, 0x1.fffffffffffffp+1023); }, 0.9, 0.0, 3.0},
             {"cbrt", [](double x) { return std::cbrt(x); }, all, batch32([](auto v) { return wray::cbrt(v); }), {}, all,
              batch64([](auto v) { return wray::cbrt(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -10.0, 10.0) : signed_bits(g, 0x1p-1074, 0x1.fffffffffffffp+1023); }, 0.55, 0.0, 0.55},
             {"asinh", [](double x) { return std::asinh(x); }, all, batch32([](auto v) { return wray::asinh(v); }), {}, all,
@@ -522,6 +524,7 @@ namespace
             {"cosh", parity::even, {{-inf, 0.0, -1}, {0.0, inf, 1}}, 1.0, inf, [](double x, bool w) { return std::fabs(x) < (w ? 710.47 : 89.41) ? bounded : std::isnan(x) ? any : defined; }, 3.0, {1.0, 0x1p-30, 86.0, 707.0, 88.72, 89.41, 709.78, 710.47, 0.3466, 1.0397}},
             {"asinh", parity::odd, {{-inf, inf, 1}}, -inf, inf, finite_only, 4.0, {0.5, 0x1p-30, 0x1p13, 0x1p27, 1e300, 1.0, 2.0}},
             {"cbrt", parity::odd, {{-inf, inf, 1}}, -inf, inf, finite_only, 8.0, {1.0, 8.0, 0x1p-1022, 0x1p-1074, 27.0, 1e300, 2.0, 4.0}},
+            {"erf", parity::odd, {{-inf, inf, 1}}, -1.0, 1.0, everywhere, 6.5, {1.0, 4.0, 6.0, 0x1p-30, 0x1p-1022, 3.92, 5.93}},
             {"expm1", parity::none, {{-inf, inf, 1}}, -1.0, inf, [](double x, bool w) { return below(x, w ? 709.78 : 88.72); }, 2.0,
              joined(multiples(ln2, 0.5, 60), {86.0, 707.0, 88.72, 709.78, 0x1p-25, 0x1p-54, 17.3, 37.5})},
             {"exp2", parity::none, {{-inf, inf, 1}}, 0.0, inf, [](double x, bool w) { return below(x, w ? 1024.0 : 128.0); }, 20.0,
@@ -694,6 +697,7 @@ namespace
 
     constexpr exemption exemptions[] = {
         {"atan", "f64", "monotonic", "near |x| = 1 one input step moves atan by half an ulp, the same size as the rounding of the x^5 tail"},
+        {"erf", "f64", "monotonic", "past 1.5 one input step moves erf by a fifth of an ulp, the size of the tail rounding"},
         {"tanh", "fast", "monotonic", "a monotone saturation needs the exp form of wray::tanh, which costs as much as the precise tier"},
         {"atan", "f32", "monotonic", "without FMA the core's fused steps round twice", true},
         {"atan", "fast", "monotonic", "without FMA the core's fused steps round twice", true},
