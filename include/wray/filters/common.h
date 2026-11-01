@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
+#include <cstdint>
 #include <cmath>
 #include <limits>
 #include <complex>
@@ -46,12 +48,19 @@ namespace wray::filters::detail
         return static_cast<double>(static_cast<simd::scalar_t<V> >(c));
     }
 
+    template<class S>
+    WRAY_INLINE S below(S x) noexcept
+    {
+        using U = std::conditional_t<sizeof(S) == 4, std::uint32_t, std::uint64_t>;
+        return std::bit_cast<S>(std::bit_cast<U>(x) - U(1));
+    }
+
     template<class V>
     WRAY_INLINE double open_unit(double c) noexcept
     {
         using S = simd::scalar_t<V>;
         const S lo = std::numeric_limits<S>::min();
-        const S hi = std::nextafter(S(1), S(0));
+        const S hi = below(S(1));
         const S value = static_cast<S>(c);
         return static_cast<double>(value > lo ? (value < hi ? value : hi) : lo);
     }

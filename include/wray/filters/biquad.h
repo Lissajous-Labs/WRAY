@@ -246,9 +246,9 @@ namespace wray::filters
             c_.a1 = detail::realise<P>(k.a1);
             c_.a2 = detail::realise<P>(k.a2);
             using S = simd::scalar_t<P>;
-            const double edge = static_cast<double>(std::nextafter(S(1), S(0)));
+            const double edge = static_cast<double>(detail::below(S(1)));
             c_.a2 = std::clamp(c_.a2, -edge, edge);
-            const double limit = static_cast<double>(std::nextafter(static_cast<S>(1.0 + c_.a2), S(0)));
+            const double limit = static_cast<double>(detail::below(static_cast<S>(1.0 + c_.a2)));
             c_.a1 = std::clamp(c_.a1, -limit, limit);
             if (k.b0 == k.a2 && k.b1 == k.a1 && k.b2 == 1.0)
             {
