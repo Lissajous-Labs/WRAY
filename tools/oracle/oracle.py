@@ -31,6 +31,8 @@ REFERENCE = {
     "tan_turns": lambda x: mp.sinpi(x) / mp.cospi(x) if mp.cospi(x) != 0 else mp.inf * mp.sign(x),
     "tan": lambda x: mp.tan(x),
     "atan": lambda x: mp.atan(x),
+    "sinh": lambda x: mp.sinh(x),
+    "cosh": lambda x: mp.cosh(x),
     "tanh": lambda x: mp.tanh(x),
     "sigmoid": lambda x: 1 / (1 + mp.exp(-x)),
     "db_to_gain": lambda x: mp.power(10, x / 20),
@@ -39,12 +41,12 @@ REFERENCE = {
     "pow": lambda x, y: mp.power(x, y),
 }
 
-UNARY = ["tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid", "db_to_gain", "gain_to_db"]
+UNARY = ["cosh", "sinh", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid", "db_to_gain", "gain_to_db"]
 
 CONTRACTS = {
-    "f32": {"tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 1.0, "log10": 1.4, "log1p": 1.0, "exp": 1.0, "expm1": 2.0, "exp2": 1.0, "log": 1.0, "log2": 1.5, "sin": 1.0, "cos": 1.0, "tan": 1.75, "atan": 1.0, "tanh": 1.35,
+    "f32": {"cosh": 0.9, "sinh": 0.85, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 1.0, "log10": 1.4, "log1p": 1.0, "exp": 1.0, "expm1": 2.0, "exp2": 1.0, "log": 1.0, "log2": 1.5, "sin": 1.0, "cos": 1.0, "tan": 1.75, "atan": 1.0, "tanh": 1.35,
             "sigmoid": 2.0, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.0, "pow": 2.0},
-    "f64": {"tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 0.85, "log10": 1.0, "log1p": 0.95, "exp": 1.0, "expm1": 1.75, "exp2": 1.0, "log": 1.0, "log2": 1.0, "sin": 1.0, "cos": 1.0, "tan": 1.4, "atan": 1.1, "tanh": 1.3,
+    "f64": {"cosh": 0.9, "sinh": 0.85, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 0.85, "log10": 1.0, "log1p": 0.95, "exp": 1.0, "expm1": 1.75, "exp2": 1.0, "log": 1.0, "log2": 1.0, "sin": 1.0, "cos": 1.0, "tan": 1.4, "atan": 1.1, "tanh": 1.3,
             "sigmoid": 1.75, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.1, "pow": 1.5},
     "fast": {name: 2.0 ** -16 for name in ["tan_turns", "cos_turns", "sin_turns", "exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid",
                                            "db_to_gain", "gain_to_db", "atan2", "pow"]},
@@ -92,6 +94,9 @@ def domain(fn, tier, rng, n):
         k = rng.integers(-64, 64, size=r).astype(np.float64) / 8
         near = np.nextafter(k.astype(fmt["dtype"]), (k + rng.choice([-1.0, 1.0], size=r)).astype(fmt["dtype"]))
         return np.concatenate([value_uniform(rng, fmt, -1.0, 1.0, half), bit_uniform(rng, fmt, tiny, huge, q, True), near])
+    if fn in ("sinh", "cosh"):
+        lim = 89.5 if f32 else 710.5
+        return np.concatenate([value_uniform(rng, fmt, -3.0, 3.0, half), value_uniform(rng, fmt, -lim, lim, n // 4), bit_uniform(rng, fmt, tiny, lim, n - half - n // 4, True)])
     if fn == "exp2":
         lo, hi = ((-126.0, 127.0) if fast else (-149.9, 127.99)) if f32 else (-1074.9, 1023.99)
         return np.concatenate([value_uniform(rng, fmt, lo, hi, half), bit_uniform(rng, fmt, 1e-6, min(-lo, hi), n - half, True)])

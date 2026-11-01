@@ -105,6 +105,15 @@ def cos_turns(t):
     return (mp.cos(2 * mp.pi * mp.sqrt(t)) - 1 + 2 * mp.pi ** 2 * t) / (t * t)
 
 
+def sinh_tail(t):
+    s = mp.sqrt(t)
+    return (mp.sinh(s) - s) / (s * t)
+
+
+def cosh_tail(t):
+    return (mp.cosh(mp.sqrt(t)) - 1 - t / 2) / (t * t)
+
+
 def tan_turns(t):
     s = mp.sqrt(t)
     return (mp.tan(mp.pi * s) - mp.pi * s) / (s * t)
@@ -122,6 +131,8 @@ CORES = {
     "atan_rest": dict(g=_limit(atan_rest, lambda: mp.mpf(1) / 5), interval=lambda tier: (0, 1)),
     "tanh": dict(g=_limit(tanh_tail, lambda: mp.mpf(-1) / 3), interval=lambda tier: (0, mp.mpf("0.390625"))),
     "tanh_range": dict(g=_limit(tanh_core, lambda: mp.mpf(1)), interval=lambda tier: (0, mp.mpf(TANH_CLAMP[tier]) ** 2)),
+    "sinh": dict(g=_limit(precise(sinh_tail), lambda: mp.mpf(1) / 6), interval=lambda tier: (0, 1)),
+    "cosh": dict(g=_limit(precise(cosh_tail), lambda: mp.mpf(1) / 24), interval=lambda tier: (0, 1)),
     "sin_turns": dict(g=_limit(precise(sin_turns), lambda: -(2 * mp.pi) ** 3 / 6), interval=lambda tier: (0, mp.mpf(1) / 64)),
     "cos_turns": dict(g=_limit(precise(cos_turns), lambda: (2 * mp.pi) ** 4 / 24), interval=lambda tier: (0, mp.mpf(1) / 64)),
     "tan_turns": dict(g=_limit(precise(tan_turns), lambda: mp.pi ** 3 / 3), interval=lambda tier: (0, mp.mpf(1) / 16)),

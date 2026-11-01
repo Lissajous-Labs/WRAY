@@ -1,6 +1,7 @@
 f32 atan b0ad6709ed44704f
 f32 cos 8dd1c45768cf4f29
 f32 cos_turns aed3e4b695f14a0c
+f32 cosh ba21ce4e4e3c892f
 f32 db_to_gain 616586ff53b29d65
 f32 exp 6cfe4fe247e9f7a7
 f32 exp2 8a20f56c715260ca
@@ -13,6 +14,7 @@ f32 log2 d513a96da16f0227
 f32 sigmoid 6ac533ed310330fd
 f32 sin 67af771285aad947
 f32 sin_turns 0297bb62dcc894e4
+f32 sinh c1eb8ae4aef99a80
 f32 tan b96dac8c26c6252a
 f32 tan_turns 5bfd6128cd6604fa
 f32 tanh 2cf6a38e7bdda16c
@@ -21,6 +23,7 @@ f32 pow b9b658f91e6311f5
 f64 atan 26f1349a977be3d9
 f64 cos 9f5c9f6e8df45e57
 f64 cos_turns 9559fc8b4483f173
+f64 cosh e7c2c199dfd33315
 f64 db_to_gain a029963957d088fc
 f64 exp 2c11306d211599ff
 f64 exp2 58611e941a05a666
@@ -33,6 +36,7 @@ f64 log2 6d06c27ddd24262d
 f64 sigmoid 20fc3a0c3fb759c4
 f64 sin 5e589dada1578048
 f64 sin_turns 8649bccb01e38028
+f64 sinh 2a04d47217dd531b
 f64 tan fdaec1abbdb7b22f
 f64 tan_turns 6eaed3cb656f4c5a
 f64 tanh ef513765bf0d9a0f

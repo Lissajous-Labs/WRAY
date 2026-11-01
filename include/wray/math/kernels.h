@@ -34,6 +34,8 @@ namespace wray::math
         using sin_turns = coeff::sin_turns_f32;
         using cos_turns = coeff::cos_turns_f32;
         using tan_turns = coeff::tan_turns_f32;
+        using sinh = coeff::sinh_f32;
+        using cosh = coeff::cosh_f32;
     };
 
     template<>
@@ -49,6 +51,8 @@ namespace wray::math
         using sin_turns = coeff::sin_turns_f64;
         using cos_turns = coeff::cos_turns_f64;
         using tan_turns = coeff::tan_turns_f64;
+        using sinh = coeff::sinh_f64;
+        using cosh = coeff::cosh_f64;
     };
 
     template<>
@@ -1018,6 +1022,60 @@ namespace wray::math::detail
             return fma(fma(-q, dl, rest), inv, q);
         } else
             return one / (one + exp<Tier>(-x));
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE pair<V> exp_half(const V &a) noexcept
+    {
+        using S = scalar_t<V>;
+        using K = constants<S>;
+        using C = typename table<Tier, S>::exp;
+        const auto red = exp_reduce(clamp(a, V(K::min_arg - S(1)), V(K::max_arg + S(2))));
+        const V r = red.hi;
+        const V one(S(1));
+        const V hi = one + r;
+        const V small = fma(r * r, numerics::rational<C>(r), r - (hi - one));
+        const V p = hi + small;
+        const V k = red.lo - one;
+        return {scale_split(p, k), scale_split((hi - p) + small, k)};
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V sinh(const V &x) noexcept
+    {
+        using S = scalar_t<V>;
+        using K = constants<S>;
+        using C = typename table<Tier, S>::sinh;
+        const V a = abs(x);
+        const V t = a * a;
+        const V small = fma(a * t, numerics::rational<C>(t), a);
+        const auto e = exp_half<Tier>(a);
+        const V quarter(S(0.25));
+        const V inv = quarter / e.hi;
+        const V d = e.hi - inv;
+        const V rest = ((e.hi - d) - inv) + (fma(e.lo, inv / e.hi, e.lo) - select(a < V(S(16)), residual(inv, e.hi, quarter) / e.hi, V(S(0))));
+        const V large = select(a > V(K::max_arg + K::ln2), inf<V>(), d + rest);
+        return copysign_from(select(a < V(S(1)), small, large), x);
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V cosh(const V &x) noexcept
+    {
+        using S = scalar_t<V>;
+        using K = constants<S>;
+        using C = typename table<Tier, S>::cosh;
+        const V a = abs(x);
+        const V t = a * a;
+        const V one(S(1));
+        const V y = fma(a, a * V(S(0.5)), (t * t) * numerics::rational<C>(t));
+        const V small = one + y;
+        const auto e = exp_half<Tier>(a);
+        const V quarter(S(0.25));
+        const V inv = quarter / e.hi;
+        const V d = e.hi + inv;
+        const V rest = ((e.hi - d) + inv) + (fma(-e.lo, inv / e.hi, e.lo) + select(a < V(S(16)), residual(inv, e.hi, quarter) / e.hi, V(S(0))));
+        const V large = select(a > V(K::max_arg + K::ln2), inf<V>(), d + rest);
+        return select(a < one, small, large);
     }
 
     template<class V>

@@ -60,6 +60,20 @@ namespace wray::math::coeff
         static constexpr std::array<double, 1> q{ 0x1p+0 };
     };
 
+    struct cosh_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 3> p{ 0x1.55555ap-5f, 0x1.6c0c4cp-10f, 0x1.a714b6p-16f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct cosh_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 6> p{ 0x1.5555555555552p-5, 0x1.6c16c16c18a56p-10, 0x1.a01a019a92206p-16, 0x1.27e50160ce274p-22, 0x1.1ee7da5443778p-29, 0x1.98a916b471a96p-37 };
+        static constexpr std::array<double, 1> q{ 0x1p+0 };
+    };
+
     struct exp_f32
     {
         using value_type = float;
@@ -134,6 +148,20 @@ namespace wray::math::coeff
     {
         using value_type = double;
         static constexpr std::array<double, 7> p{ -0x1.4abbce625be53p+5, 0x1.466bc6775aae1p+6, -0x1.32d2cce62b868p+6, 0x1.50783486f970fp+5, -0x1.e3074d237aa4fp+3, 0x1.e8f0346d3ac48p+1, -0x1.6cc4b2c7ad5dp-1 };
+        static constexpr std::array<double, 1> q{ 0x1p+0 };
+    };
+
+    struct sinh_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 4> p{ 0x1.555556p-3f, 0x1.11111ep-7f, 0x1.a0091cp-13f, 0x1.78a24cp-19f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct sinh_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 7> p{ 0x1.5555555555555p-3, 0x1.11111111110fep-7, 0x1.a01a01a01ed75p-13, 0x1.71de3a4e25c12p-19, 0x1.ae6460eaa9872p-26, 0x1.611cba693ad22p-33, 0x1.b40fca07893b3p-41 };
         static constexpr std::array<double, 1> q{ 0x1p+0 };
     };
 

@@ -79,6 +79,8 @@ namespace
         unary(x, [](auto v) { return wray::sin_turns(v); });
         unary(x, [](auto v) { return wray::cos_turns(v); });
         unary(x, [](auto v) { return wray::tan_turns(v); });
+        unary(x, [](auto v) { return wray::sinh(v); });
+        unary(x, [](auto v) { return wray::cosh(v); });
         unary(x, [](auto v) { return wray::expm1(v); });
         unary(x, [](auto v) { return wray::exp2(v); });
         unary(x, [](auto v) { return wray::log(v); });

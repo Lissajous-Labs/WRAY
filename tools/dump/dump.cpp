@@ -125,6 +125,8 @@ namespace
                 add("tan_turns", [](auto v) { return wray::tan_turns(v); });
                 add("tan", [](auto v) { return wray::tan(v); });
                 add("atan", [](auto v) { return wray::atan(v); });
+                add("sinh", [](auto v) { return wray::sinh(v); });
+                add("cosh", [](auto v) { return wray::cosh(v); });
                 add("tanh", [](auto v) { return wray::tanh(v); });
                 add("sigmoid", [](auto v) { return wray::sigmoid(v); });
                 add("db_to_gain", [](auto v) { return wray::db_to_gain(v); });
