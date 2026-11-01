@@ -19,7 +19,7 @@ namespace wray::filters
 
     struct svf_coefficients
     {
-        double a1 = 1.0;
+        double d = 0.0;
         double a2 = 0.0;
         double a3 = 0.0;
         double m0 = 0.0;
@@ -91,8 +91,10 @@ namespace wray::filters
                 c.m2 = -a2m1 / a;
                 break;
         }
-        c.a1 = 1.0 / (1.0 + g * (g + k));
-        c.a2 = g * c.a1;
+        const double ggk = g * (g + k);
+        const double inv = 1.0 / (1.0 + ggk);
+        c.d = ggk * inv;
+        c.a2 = g * inv;
         c.a3 = g * c.a2;
         return c;
     }
@@ -161,11 +163,12 @@ namespace wray::filters
         WRAY_INLINE V tick(const V &x) noexcept
         {
             const V v3 = x - ic2_;
-            const V p1 = a1_ * ic1_;
-            const V v1 = simd::fma(a2_, v3, p1);
-            const V v2 = simd::fma(a3_, v3, simd::fma(a2_, ic1_, ic2_));
-            ic1_ = v1 + v1 - ic1_;
-            ic2_ = v2 + v2 - ic2_;
+            const V delta1 = simd::fma(a2_, v3, -d_ * ic1_);
+            const V delta2 = simd::fma(a3_, v3, a2_ * ic1_);
+            const V v1 = ic1_ + delta1;
+            const V v2 = ic2_ + delta2;
+            ic1_ = simd::fma(V(simd::scalar_t<V>(2)), delta1, ic1_);
+            ic2_ = simd::fma(V(simd::scalar_t<V>(2)), delta2, ic2_);
             const V direct = m0_ * x;
             return simd::fma(m2_, v2, simd::fma(m1_, v1, direct));
         }
@@ -186,29 +189,40 @@ namespace wray::filters
         [[nodiscard]] std::complex<double> response(double hz) const noexcept
         {
             const auto sc = detail::half_angle(hz, fs_);
-            const std::complex<double> u(-2.0 * sc.sin * sc.sin, 2.0 * sc.sin * sc.cos);
-            const double b2 = 4.0 * c_.a2 * c_.a2;
-            const std::complex<double> p = u + 2.0 * (1.0 - c_.a1);
-            const std::complex<double> q = u + 2.0 * c_.a3;
-            const std::complex<double> det = p * q + b2;
-            const double c1 = c_.m1 * c_.a1 + c_.m2 * c_.a2;
-            const double c2 = c_.m2 * (1.0 - c_.a3) - c_.m1 * c_.a2;
-            const double d0 = c_.m0 + c_.m1 * c_.a2 + c_.m2 * c_.a3;
-            const std::complex<double> num = 2.0 * c_.a2 * c1 * u + c2 * (b2 + 2.0 * c_.a3 * p);
-            return d0 + num / det;
+            const double s = hz == fs_ * 0.5 ? 1.0 : sc.sin;
+            const double c = hz == fs_ * 0.5 ? 0.0 : sc.cos;
+            const double t = c_.d * c_.a3 + c_.a2 * c_.a2;
+            const double upper = (1.0 - c_.d) * (1.0 - c_.a3) + c_.a2 * c_.a2;
+            const std::complex<double> den(t * c * c - upper * s * s, (c_.d + c_.a3 - 2.0 * t) * s * c);
+            const std::complex<double> v1(0.0, c_.a2 * s * c);
+            const std::complex<double> v2(t * c * c, (c_.a3 - t) * s * c);
+            return c_.m0 + (c_.m1 * v1 + c_.m2 * v2) / den;
         }
 
     private:
         void update() noexcept
         {
             const svf_coefficients d = design_svf(type_, fs_, hz_, q_, gain_db_);
-            c_.a1 = detail::realise<V>(d.a1);
+            c_.d = detail::open_unit<V>(d.d);
             c_.a2 = detail::realise<V>(d.a2);
-            c_.a3 = detail::realise<V>(d.a3);
+            c_.a3 = detail::open_unit<V>(d.a3);
+            using S = simd::scalar_t<V>;
+            const long double rd = c_.d;
+            const long double r3 = c_.a3;
+            const long double cap = (rd + r3) * 0.5L - rd * r3;
+            if (static_cast<long double>(c_.a2) * c_.a2 >= cap)
+            {
+                S a2 = static_cast<S>(std::sqrt(cap));
+                do
+                {
+                    a2 = std::nextafter(a2, S(0));
+                } while (static_cast<long double>(a2) * a2 >= cap);
+                c_.a2 = static_cast<double>(a2);
+            }
             c_.m0 = detail::realise<V>(d.m0);
             c_.m1 = detail::realise<V>(d.m1);
             c_.m2 = detail::realise<V>(d.m2);
-            a1_ = detail::splat<V>(c_.a1);
+            d_ = detail::splat<V>(c_.d);
             a2_ = detail::splat<V>(c_.a2);
             a3_ = detail::splat<V>(c_.a3);
             m0_ = detail::splat<V>(c_.m0);
@@ -222,7 +236,7 @@ namespace wray::filters
         double gain_db_ = 0.0;
         svf_type type_ = svf_type::lowpass;
         svf_coefficients c_{};
-        V a1_{};
+        V d_{};
         V a2_{};
         V a3_{};
         V m0_{};
