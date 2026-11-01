@@ -1,7 +1,13 @@
 #pragma once
 
-#if defined(__FAST_MATH__) && !defined(WRAY_ALLOW_FAST_MATH)
-#error "wray relies on IEEE rounding for compensated arithmetic; -ffast-math breaks it. Define WRAY_ALLOW_FAST_MATH to build anyway."
+#if !defined(WRAY_ALLOW_FAST_MATH)
+#if defined(__FAST_MATH__) || defined(_M_FP_FAST)
+#error "wray relies on IEEE rounding for compensated arithmetic; fast floating-point models break it. Define WRAY_ALLOW_FAST_MATH to build anyway."
+#elif defined(__FINITE_MATH_ONLY__) && __FINITE_MATH_ONLY__
+#error "wray handles infinities and NaN explicitly; -ffinite-math-only removes those checks. Define WRAY_ALLOW_FAST_MATH to build anyway."
+#elif defined(__ASSOCIATIVE_MATH__) || defined(__RECIPROCAL_MATH__) || defined(__NO_SIGNED_ZEROS__)
+#error "wray relies on unreassociated IEEE arithmetic and signed zeros; -fassociative-math, -freciprocal-math and -fno-signed-zeros break it. Define WRAY_ALLOW_FAST_MATH to build anyway."
+#endif
 #endif
 
 #if defined(WRAY_SIMD_SCALAR)

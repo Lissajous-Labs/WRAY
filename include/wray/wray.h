@@ -4,6 +4,7 @@
 #include "denormals.h"
 #include "numerics/polynomial.h"
 #include "math.h"
+#include "floating_point.h"
 #include "adaa.h"
 #include "filters/one_pole.h"
 #include "filters/svf.h"

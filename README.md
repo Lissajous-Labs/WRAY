@@ -139,7 +139,7 @@ cmake -S . -B build -G Ninja && cmake --build build && ctest --test-dir build
 - The turns functions' reduction is exact for all inputs: whole turns are removed without rounding, and the result carries only the polynomial's error. For example, in double, `sin_turns(2^40 + 0.25)` is exactly 1; that input is not representable in float.
 - Filters clamp their parameters as described above and recover from NaN input after `reset()`.
 - Under flush-to-zero the measured errors stay within contract for normal inputs and outputs; subnormals read and write as zero. In the directed rounding modes the measured error grows by at most 1 ulp.
-- `-ffast-math` is rejected with `#error`, since compensated arithmetic needs IEEE rounding. Define `WRAY_ALLOW_FAST_MATH` to build anyway, at your own risk.
+- Fast floating-point models break the compensated arithmetic. The headers stop with `#error` when the compiler announces one: `-ffast-math` or clang's `-ffp-model=fast` (`__FAST_MATH__`), MSVC `/fp:fast` (`_M_FP_FAST`), `-ffinite-math-only`, and on GCC `-fassociative-math`, `-freciprocal-math` and `-fno-signed-zeros`. Clang's individual `-fassociative-math` and `-freciprocal-math`, and FP contraction on any compiler, define no macro; Intel icx defaults to a fast model, and if it defines none of these macros only the runtime check will see it. `wray::floating_point_ok()` runs that check in the calling translation unit's floating-point model: rounding of sums and products, no reassociation, exact division, no contraction, NaN and signed zeros. Linking `wray::wray` adds `-ffp-contract=off`; without it, clang's default contraction makes the check fail. Define `WRAY_ALLOW_FAST_MATH` to build anyway, at your own risk.
 
 ## Rational minimax cores
 

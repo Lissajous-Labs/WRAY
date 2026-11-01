@@ -180,7 +180,10 @@ def main():
     check("S(0x1p-80) : S(0x1p-200)" in common, "flush thresholds")
 
     config = (ROOT / "include/wray/simd/config.h").read_text()
-    check("__FAST_MATH__" in config and "WRAY_ALLOW_FAST_MATH" in config and "WRAY_ALLOW_FAST_MATH" in limits, "fast-math policy")
+    for macro in ("__FAST_MATH__", "_M_FP_FAST", "__FINITE_MATH_ONLY__", "__ASSOCIATIVE_MATH__", "__RECIPROCAL_MATH__", "__NO_SIGNED_ZEROS__", "WRAY_ALLOW_FAST_MATH"):
+        check(macro in config, f"config.h checks {macro}")
+    for text in ("`__FAST_MATH__`", "`_M_FP_FAST`", "`-ffinite-math-only`", "`-fassociative-math`", "`-freciprocal-math`", "`-fno-signed-zeros`", "`wray::floating_point_ok()`", "WRAY_ALLOW_FAST_MATH"):
+        claims(text)
 
     for f in failures:
         print("FAIL", f)

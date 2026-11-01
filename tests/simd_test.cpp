@@ -1,4 +1,5 @@
 #include <wray/denormals.h>
+#include <wray/floating_point.h>
 #include <wray/simd/vec.h>
 
 #include <bit>
@@ -288,6 +289,7 @@ namespace
 
 int main()
 {
+    CHECK(wray::floating_point_ok());
     static_assert(native_width<float> * int(sizeof(float)) == native_bytes);
     static_assert(native_width<double> * int(sizeof(double)) == native_bytes);
     static_assert(native<float>::size == native_width<float>);
