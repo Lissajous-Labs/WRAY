@@ -122,33 +122,28 @@ namespace wray::adaa::detail
         return select(isnan(x), x, copysign_from(select(a < one, small, large), x));
     }
 
-    template<class V>
-    struct segments
+    template<class V, class M>
+    WRAY_INLINE V folded(const V &x0, const V &x1, M mean_of_magnitudes) noexcept
     {
-        V a;
-        V b;
-        V below;
-        V above;
-        V h;
-    };
-
-    template<class V>
-    WRAY_INLINE segments<V> split(const V &x0, const V &x1) noexcept
-    {
-        using S = scalar_t<V>;
-        const V one(S(1));
-        const V lo = simd::min(x0, x1);
-        const V hi = simd::max(x0, x1);
-        return {simd::min(simd::max(lo, -one), one), simd::min(simd::max(hi, -one), one), simd::max(simd::min(hi, -one) - lo, V(S(0))),
-                simd::max(hi - simd::max(lo, one), V(S(0))), hi - lo};
+        const V p = abs(x0);
+        const V q = abs(x1);
+        const V lo = simd::min(p, q);
+        const V hi = simd::max(p, q);
+        const V d = hi - lo;
+        const V m = mean_of_magnitudes(lo, hi, d);
+        return select(q >= p, m, -m) * (d / (x1 - x0));
     }
 
     template<class V>
     WRAY_INLINE V hard_first(const V &x0, const V &x1) noexcept
     {
         using S = scalar_t<V>;
-        const auto s = split(x0, x1);
-        const V v = (fma(s.b - s.a, (s.a + s.b) * V(S(0.5)), s.above) - s.below) / s.h;
+        const V v = folded(x0, x1, [](const V &lo, const V &hi, const V &d) {
+            const V one(S(1));
+            const V half(S(0.5));
+            const V mixed = fma((one - lo) * (one + lo), half, hi - one) / d;
+            return select(hi <= one, (hi + lo) * half, select(lo >= one, one, mixed));
+        });
         return settle(x0, x1, v, [](const V &x) { return clip(x); });
     }
 
@@ -156,10 +151,14 @@ namespace wray::adaa::detail
     WRAY_INLINE V soft_first(const V &x0, const V &x1) noexcept
     {
         using S = scalar_t<V>;
-        const auto s = split(x0, x1);
-        const V sum = s.a + s.b;
-        const V inner = fma(sum * fma(s.a, s.a, s.b * s.b), V(S(-1) / S(12)), sum * V(S(0.5)));
-        const V v = fma(s.b - s.a, inner, (s.above - s.below) * V(S(2) / S(3))) / s.h;
+        const V v = folded(x0, x1, [](const V &lo, const V &hi, const V &d) {
+            const V one(S(1));
+            const V sum = hi + lo;
+            const V inner = fma(sum * fma(hi, hi, lo * lo), V(S(-1) / S(12)), sum * V(S(0.5)));
+            const V edge = (one - lo) * (one + lo) * fma(fma(lo, lo, one), V(S(-1) / S(12)), V(S(0.5)));
+            const V mixed = fma(hi - one, V(S(2) / S(3)), edge) / d;
+            return select(hi <= one, inner, select(lo >= one, V(S(2) / S(3)), mixed));
+        });
         return settle(x0, x1, v, [](const V &x) { return soft(x); });
     }
 

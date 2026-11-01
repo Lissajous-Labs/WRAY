@@ -90,7 +90,7 @@ Beyond the error bound, the precise tier keeps shape: every function is checked 
 | shape | F1 (ulp) | first (ulp) | shape | F1 (ulp) | first (ulp) |
 |---|---|---|---|---|---|
 | hard_clip | 0.8 | 3.0 | atan | 3.5 | 15.0 |
-| soft_clip | 1.5 | 8.0 | algebraic | 6.0 | 62.0 |
+| soft_clip | 1.5 | 3.5 | algebraic | 6.0 | 62.0 |
 | tanh | 3.0 | 10.0 | radical | 3.0 | 5.0 |
 
 ![adaa](docs/charts/adaa_aliasing.png)

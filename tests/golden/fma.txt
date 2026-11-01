@@ -35,9 +35,9 @@ f32 tanh acc9316652ed2aa5
 f32 tanpi 725532f481a313f5
 f32 adaa_algebraic_first 7eb61041a958f62f
 f32 adaa_atan_first 0719327021121e0d
-f32 adaa_hard_clip_first 8a86e1443f83ed4f
+f32 adaa_hard_clip_first 7c7d70cbfa3ff7b1
 f32 adaa_radical_first b9bcf6b997f45785
-f32 adaa_soft_clip_first 2776dfe10d06f41d
+f32 adaa_soft_clip_first ea8308385eaace54
 f32 adaa_tanh_first f60130ae5655b4d7
 f32 atan2 4bf04355a2d22656
 f32 pole_from_cutoff 3fe1f4d426a1beb7
@@ -81,9 +81,9 @@ f64 tanh bd657e251c6bb8b4
 f64 tanpi 6aa55d06eade024e
 f64 adaa_algebraic_first 3f6f40ae6fab7056
 f64 adaa_atan_first 3c99c071672b5116
-f64 adaa_hard_clip_first f7e9664d97f6c8b8
+f64 adaa_hard_clip_first 47895370467e4aed
 f64 adaa_radical_first 24d665c5b02ee25b
-f64 adaa_soft_clip_first 00bb2e936b9e3c11
+f64 adaa_soft_clip_first 373004a29b6defec
 f64 adaa_tanh_first d87eaba0dd498fc4
 f64 atan2 18f5e5190918436c
 f64 pole_from_cutoff ef03d386aadf043f

@@ -124,7 +124,7 @@ CONTRACTS = {
     "fast": {name: 2.0 ** -16 for name in ["product_log", "omega", "tanpi", "tan_turns", "cos_turns", "sin_turns", "exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid",
                                            "db_to_gain", "gain_to_db", "atan2", "pow"]},
 }
-ADAA_CONTRACTS = {"hard_clip": (0.8, 3.0), "soft_clip": (1.5, 8.0), "tanh": (3.0, 10.0), "atan": (3.5, 15.0), "algebraic": (6.0, 62.0),
+ADAA_CONTRACTS = {"hard_clip": (0.8, 3.0), "soft_clip": (1.5, 3.5), "tanh": (3.0, 10.0), "atan": (3.5, 15.0), "algebraic": (6.0, 62.0),
                   "radical": (3.0, 5.0)}
 for _tier in ("f32", "f64"):
     for _name, (_f1, _first) in ADAA_CONTRACTS.items():
