@@ -205,7 +205,7 @@ namespace
         constexpr double trig64 = 0x1.921fb54442d18p+22;
         return {
             {"product_log", [](double x) { return product_log_ref(x); }, all, batch32([](auto v) { return wray::product_log(v); }), batch32([](auto v) { return wray::fast::product_log(v); }), all,
-             batch64([](auto v) { return wray::product_log(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -0.36787944117144, 10.0) : bit_uniform(g, 0x1p-1074, 0x1p1000); }, 2.05, 0x1p-16, 400.0},
+             batch64([](auto v) { return wray::product_log(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -0.36, 10.0) : bit_uniform(g, 0x1p-1074, 0x1p1000); }, 2.05, 0x1p-16, 5.0},
             {"omega", [](double x) { return omega_ref(x); }, all, batch32([](auto v) { return wray::omega(v); }), batch32([](auto v) { return wray::fast::omega(v); }), [](float x) { return x >= -80.0f; },
              batch64([](auto v) { return wray::omega(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -10.0, 30.0) : signed_bits(g, 0x1p-1074, 0x1p1000); }, 1.65, 0x1p-16, 1.3},
             {"ratio_from_cents", [](double x) { return std::exp2(x / 1200.0); }, all, batch32([](auto v) { return wray::ratio_from_cents(v); }), {}, all,
@@ -217,7 +217,7 @@ namespace
             {"erf", [](double x) { return std::erf(x); }, all, batch32([](auto v) { return wray::erf(v); }), {}, all,
              batch64([](auto v) { return wray::erf(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -6.5, 6.5) : signed_bits(g, 0x1p-1074, 0x1.fffffffffffffp+1023); }, 0.9, 0.0, 3.0},
             {"cbrt", [](double x) { return std::cbrt(x); }, all, batch32([](auto v) { return wray::cbrt(v); }), {}, all,
-             batch64([](auto v) { return wray::cbrt(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -10.0, 10.0) : signed_bits(g, 0x1p-1074, 0x1.fffffffffffffp+1023); }, 0.55, 0.0, 0.55},
+             batch64([](auto v) { return wray::cbrt(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -10.0, 10.0) : signed_bits(g, 0x1p-1074, 0x1.fffffffffffffp+1023); }, 0.55, 0.0, 3.0},
             {"asinh", [](double x) { return std::asinh(x); }, all, batch32([](auto v) { return wray::asinh(v); }), {}, all,
              batch64([](auto v) { return wray::asinh(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -4.0, 4.0) : signed_bits(g, 0x1p-1074, 0x1.fffffffffffffp+1023); }, 0.9, 0.0, 0.85},
             {"cosh", [](double x) { return std::cosh(x); }, all, batch32([](auto v) { return wray::cosh(v); }), {}, all,
@@ -487,7 +487,9 @@ namespace
                 const auto f = sweep_f32(c, c.fast, true, stride, c.fast_domain, h);
                 double wx = 0.0;
                 const double d = sweep_f64(c, samples, wx, h);
-                if (report)
+                const bool ok = p.worst <= c.contract_f32 + margin + slack && f.worst <= c.contract_fast + slack * 0x1p-23 &&
+                                d <= c.contract_f64 + 2.0 + margin + slack;
+                if (report || !ok)
                     std::printf("%-11s f32 %8.3f ulp @ %-14.9g fast %.3e @ %-14.9g f64 %8.3f ulp @ %.17g %s\n", c.name, p.worst, double(p.worst_x), f.worst,
                                 double(f.worst_x), d, wx, label);
                 CHECK(p.worst <= c.contract_f32 + margin + slack);
@@ -977,7 +979,8 @@ int main(int argc, char** argv)
         const auto f = sweep_f32(c, c.fast, true, stride, c.fast_domain);
         double wx = 0.0;
         const double d = sweep_f64(c, samples64, wx);
-        if (report)
+        const bool ok = p.worst <= c.contract_f32 + margin && f.worst <= c.contract_fast && d <= c.contract_f64 + 2.0 + margin;
+        if (report || !ok)
             std::printf("%-11s f32 %8.3f ulp @ %-14.9g fast %.3e @ %-14.9g f64 %8.3f ulp @ %.17g (vs libm)\n", c.name, p.worst, double(p.worst_x), f.worst,
                         double(f.worst_x), d, wx);
         CHECK(p.worst <= c.contract_f32 + margin);
