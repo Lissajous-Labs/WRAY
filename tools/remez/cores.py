@@ -84,13 +84,17 @@ def pi4_sq():
 
 TANH_CLAMP = {"f32": "9.25", "f64": "19.25", "fast": "5.9"}
 
+
+def fast_pi4(tier):
+    return [pi4_sq()] if tier == "fast" else []
+
+
 CORES = {
     "exp": dict(g=_limit(exp_tail, lambda: mp.mpf(1) / 2), interval=lambda tier: (-ln2_half(), ln2_half()), weight=exp_weight),
     "log": dict(g=_limit(log_tail, lambda: mp.mpf(2) / 3), interval=lambda tier: (0, log_t())),
-    "sin": dict(g=_limit(sin_core, lambda: mp.mpf(-1) / 6), interval=lambda tier: (0, pi4_sq())),
-    "cos": dict(g=_limit(cos_core, lambda: mp.mpf(1) / 24), interval=lambda tier: (0, pi4_sq())),
-    "tan": dict(g=_limit(tan_tail, lambda: mp.mpf(1) / 3), interval=lambda tier: (0, pi4_sq())),
-    "tan_unit": dict(g=_limit(tan_core, lambda: mp.mpf(1)), interval=lambda tier: (0, pi4_sq())),
+    "sin": dict(g=_limit(sin_core, lambda: mp.mpf(-1) / 6), interval=lambda tier: (0, pi4_sq()), pin=fast_pi4),
+    "cos": dict(g=_limit(cos_core, lambda: mp.mpf(1) / 24), interval=lambda tier: (0, pi4_sq()), pin=fast_pi4),
+    "tan": dict(g=_limit(tan_tail, lambda: mp.mpf(1) / 3), interval=lambda tier: (0, pi4_sq()), pin=fast_pi4),
     "atan": dict(g=_limit(atan_tail, lambda: mp.mpf(-1) / 3), interval=lambda tier: (0, 1)),
     "atan_rest": dict(g=_limit(atan_rest, lambda: mp.mpf(1) / 5), interval=lambda tier: (0, 1)),
     "tanh": dict(g=_limit(tanh_tail, lambda: mp.mpf(-1) / 3), interval=lambda tier: (0, mp.mpf("0.390625"))),

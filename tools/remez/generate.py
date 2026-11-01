@@ -20,8 +20,7 @@ PLAN = {
     "log": {"f32": (2, 0), "f64": (6, 0), "fast": (1, 0)},
     "sin": {"f32": (2, 0), "f64": (5, 0), "fast": (1, 0)},
     "cos": {"f32": (2, 0), "f64": (5, 0), "fast": (1, 0)},
-    "tan": {"f32": (6, 0), "f64": (3, 3)},
-    "tan_unit": {"fast": (1, 1)},
+    "tan": {"f32": (6, 0), "f64": (3, 3), "fast": (4, 0)},
     "atan": {"fast": (6, 0)},
     "atan_rest": {"f32": (8, 0), "f64": (5, 6)},
     "tanh": {"f32": (4, 0), "f64": (3, 3)},
@@ -60,8 +59,12 @@ def fit(job):
         a, b = interval(name, tier)
         g = cores.CORES[name]["g"]
         weight = cores.CORES[name].get("weight", lambda tier: "rel")(tier)
+        pins = cores.CORES[name].get("pin", lambda tier: [])(tier)
         try:
-            r, err = remez.remez(g, a, b, m, n, weight=weight, dps=DPS)
+            if pins:
+                r, err = remez.pinned(g, a, b, m, pins, weight=weight, dps=DPS)
+            else:
+                r, err = remez.remez(g, a, b, m, n, weight=weight, dps=DPS)
         except remez.RemezFailure:
             return job, None
         curve = remez.weighted_error_curve(g, r, a, b, weight=weight, samples=1200, dps=DPS)

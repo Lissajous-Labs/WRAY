@@ -52,7 +52,7 @@ namespace wray::math
         using log = coeff::log_fast;
         using sin = coeff::sin_fast;
         using cos = coeff::cos_fast;
-        using tan = coeff::tan_unit_fast;
+        using tan = coeff::tan_fast;
         using atan = coeff::atan_fast;
         using tanh = coeff::tanh_range_fast;
     };
@@ -523,12 +523,12 @@ namespace wray::math::detail
         const V r = red.hi;
         const V t = r * r;
         const V rt = r * t;
-        const V tt = t * t;
         const V ps = numerics::rational<Cs>(t);
         const V pc = numerics::rational<Cc>(t);
         if constexpr (full<Tier>)
         {
             const V h = t * V(S(0.5));
+            const V tt = t * t;
             const V s = r + (fma(rt, ps, red.lo) - h * red.lo);
             const V w = fma(t, V(S(-0.5)), V(S(1)));
             const V werr = (V(S(1)) - w) - h;
@@ -537,8 +537,7 @@ namespace wray::math::detail
         } else
         {
             const V s = fma(rt, ps, r);
-            const V c0 = fma(t, V(S(-0.5)), V(S(1)));
-            const V c = fma(tt, pc, c0);
+            const V c = fma(t, fma(t, pc, V(S(-0.5))), V(S(1)));
             return {s, c};
         }
     }
@@ -563,20 +562,17 @@ namespace wray::math::detail
         return v * sign;
     }
 
-    template<class Tier, class V>
+    template<class V>
     WRAY_INLINE V keep_zero(const V &x, const V &v) noexcept
     {
-        if constexpr (full<Tier>)
-            return select(x == V(scalar_t<V>(0)), x, v);
-        else
-            return v;
+        return select(x == V(scalar_t<V>(0)), x, v);
     }
 
     template<class Tier, class V>
     WRAY_INLINE V sin(const V &x) noexcept
     {
         const auto red = reduce_pio2<Tier>(x);
-        return keep_zero<Tier>(x, orient(trig_core<Tier>(red), red.q, trig_unit<Tier>(x)));
+        return keep_zero(x, orient(trig_core<Tier>(red), red.q, trig_unit<Tier>(x)));
     }
 
     template<class Tier, class V>
@@ -594,7 +590,7 @@ namespace wray::math::detail
         const auto red = reduce_pio2<Tier>(x);
         const auto p = trig_core<Tier>(red);
         const V unit = trig_unit<Tier>(x);
-        return {keep_zero<Tier>(x, orient(p, red.q, unit)), orient(p, red.q + I(1), unit)};
+        return {keep_zero(x, orient(p, red.q, unit)), orient(p, red.q + I(1), unit)};
     }
 
     template<class Tier, class V>
@@ -607,19 +603,17 @@ namespace wray::math::detail
         const V r = red.hi;
         const V t = r * r;
         const auto odd = nonzero(red.q & I(1));
+        const V rt = r * t;
         if constexpr (full<Tier>)
         {
-            const V rt = r * t;
             const V v = r + fma(rt, numerics::rational<C>(t), red.lo);
             const V c = V(S(-1)) / v;
-            return keep_zero<Tier>(x, select(odd, c, v) * trig_unit<Tier>(x));
+            return keep_zero(x, select(odd, c, v) * trig_unit<Tier>(x));
         } else
         {
-            const auto parts = numerics::rational_parts<C>(t);
-            const V num = r * parts.num;
-            const V top = select(odd, -parts.den, num);
-            const V bottom = select(odd, num, parts.den);
-            return top / bottom;
+            const V v = fma(rt, numerics::rational<C>(t), r);
+            const V c = V(S(-1)) / v;
+            return keep_zero(x, select(odd, c, v));
         }
     }
 

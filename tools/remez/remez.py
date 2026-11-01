@@ -132,9 +132,8 @@ def _remez(f, a, b, m, n, weight, dps, maxiter, tol, grid):
         count = m + n + 2
         nodes = chebyshev_nodes(a, b, count)
         if callable(weight):
-            spare = chebyshev_nodes(a, b, count + 1)
-            spare.remove(min(spare, key=lambda x: abs(w(x))))
-            nodes = spare
+            spare = sorted(chebyshev_nodes(a, b, count + 4), key=lambda x: abs(w(x)))[4:]
+            nodes = sorted(spare)
         q = [mp.mpf(1)] + [mp.mpf(0)] * n
         best = None
         for _ in range(maxiter):
@@ -155,6 +154,38 @@ def _remez(f, a, b, m, n, weight, dps, maxiter, tol, grid):
                 return r, peak
             nodes = [x for x, _ in alt]
         return best[0], best[1]
+
+
+def poly_mul(p, q):
+    out = [mp.mpf(0)] * (len(p) + len(q) - 1)
+    for i, x in enumerate(p):
+        for j, y in enumerate(q):
+            out[i + j] += x * y
+    return out
+
+
+def poly_add(p, q):
+    n = max(len(p), len(q))
+    return [(p[i] if i < len(p) else 0) + (q[i] if i < len(q) else 0) for i in range(n)]
+
+
+def pinned(f, a, b, m, pins, weight="rel", dps=60):
+    with mp.workdps(dps):
+        pins = [mp.mpf(p) for p in pins]
+        base = weight if callable(weight) else (lambda x: 1 / abs(f(x))) if weight == "rel" else (lambda x: mp.mpf(1))
+        node = [mp.mpf(1)]
+        lagrange = [mp.mpf(0)]
+        for i, p in enumerate(pins):
+            term = [f(p)]
+            for j, o in enumerate(pins):
+                if j != i:
+                    term = poly_mul(term, [-o / (p - o), 1 / (p - o)])
+            lagrange = poly_add(lagrange, term)
+            node = poly_mul(node, [-p, mp.mpf(1)])
+        s = lambda x: mp.mpf(0) if x in pins else (f(x) - horner(lagrange, x)) / horner(node, x)
+        r, err = remez(s, a, b, m - len(pins), 0, weight=lambda x: abs(horner(node, x)) * base(x), dps=dps)
+        c = poly_add(lagrange, poly_mul(node, r.p))[:m + 1]
+        return Rational(c, [mp.mpf(1)]), err
 
 
 def weighted_error_curve(f, r, a, b, weight="rel", samples=2000, dps=60):

@@ -42,7 +42,7 @@ namespace wray::math::coeff
     struct cos_fast
     {
         using value_type = float;
-        static constexpr std::array<float, 2> p{ 0x1.5552dcp-5f, -0x1.681876p-10f };
+        static constexpr std::array<float, 2> p{ 0x1.5551f2p-5f, -0x1.676b56p-10f };
         static constexpr std::array<float, 1> q{ 0x1p+0f };
     };
 
@@ -105,7 +105,7 @@ namespace wray::math::coeff
     struct sin_fast
     {
         using value_type = float;
-        static constexpr std::array<float, 2> p{ -0x1.55506p-3f, 0x1.0d1336p-7f };
+        static constexpr std::array<float, 2> p{ -0x1.554e8cp-3f, 0x1.0c671ep-7f };
         static constexpr std::array<float, 1> q{ 0x1p+0f };
     };
 
@@ -123,11 +123,11 @@ namespace wray::math::coeff
         static constexpr std::array<double, 4> q{ 0x1p+0, -0x1.db779db8c6119p-2, 0x1.926030f8ce96cp-6, -0x1.0c6559eb2ca66p-12 };
     };
 
-    struct tan_unit_fast
+    struct tan_fast
     {
         using value_type = float;
-        static constexpr std::array<float, 2> p{ 0x1.00006p+0f, -0x1.189d4ap-4f };
-        static constexpr std::array<float, 2> q{ 0x1p+0f, -0x1.9b553p-2f };
+        static constexpr std::array<float, 5> p{ 0x1.5555b6p-2f, 0x1.10d556p-3f, 0x1.c59822p-5f, 0x1.0692dcp-6f, 0x1.283c82p-6f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
     };
 
     struct tanh_f32
