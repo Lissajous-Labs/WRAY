@@ -692,7 +692,7 @@ namespace wray::math::detail
     }
 
     template<class S>
-    inline constexpr S residual_floor = format<S>::min_normal * format<S>::two_mantissa * S(2);
+    inline constexpr S residual_floor = format<S>::min_normal * format<S>::two_mantissa * S(512);
 
     template<class S>
     inline constexpr S ratio_ceiling = S(1) / format<S>::min_normal;
@@ -707,7 +707,10 @@ namespace wray::math::detail
         const V s = select(n < V(residual_floor<S>), up, select(d < V(ratio_ceiling<S>), V(S(1)), down));
         const V ns = n * s;
         const V ds = d * s;
-        const auto q = ratio(ns, ds);
+        const V hi = ns / ds;
+        const auto exact = !(n >= d * V(residual_floor<S>));
+        const auto r = ratio(ns, ds);
+        const pair<V> q{select(exact, hi, r.hi), select(exact, fma(-hi, ds, ns) / ds, r.lo)};
         const auto finite = both(ds > V(S(0)), ds < inf<V>());
         const V u = select(finite, q.hi, select(ns == inf<V>(), V(S(1)), V(S(0))));
         return {u, select(finite, q.lo, V(S(0)))};
@@ -728,7 +731,7 @@ namespace wray::math::detail
         pair<V> q;
         if constexpr (full<Tier>)
         {
-            if (simd::any(!both(n >= V(residual_floor<S>), d < V(ratio_ceiling<S>))))
+            if (simd::any(!both(both(n >= V(residual_floor<S>), d < V(ratio_ceiling<S>)), n >= d * V(residual_floor<S>))))
                 q = ratio_edge(n, d);
             else
                 q = ratio(n, d);
