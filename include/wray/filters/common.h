@@ -1,5 +1,8 @@
 #pragma once
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
 #include <complex>
 #include <numbers>
 #include <span>
@@ -15,7 +18,15 @@ namespace wray::filters::detail
     inline constexpr double lowest_q = 1.0e-3;
     inline constexpr double highest_q = 1.0e3;
 
-    WRAY_INLINE double sample_rate_or_default(double fs) noexcept { return fs > 0.0 ? fs : default_sample_rate; }
+    WRAY_INLINE double sample_rate_or_default(double fs) noexcept
+    {
+        return std::isfinite(fs) && fs > 0.0 ? fs : default_sample_rate;
+    }
+
+    WRAY_INLINE double clamp_gain_db(double gain_db) noexcept
+    {
+        return std::isnan(gain_db) ? 0.0 : (gain_db < -120.0 ? -120.0 : (gain_db > 120.0 ? 120.0 : gain_db));
+    }
 
     WRAY_INLINE double clamp_frequency(double hz, double fs) noexcept
     {
@@ -26,12 +37,22 @@ namespace wray::filters::detail
 
     WRAY_INLINE double clamp_q(double q) noexcept { return q > lowest_q ? (q < highest_q ? q : highest_q) : lowest_q; }
 
-    WRAY_INLINE double prewarp(double hz, double fs) noexcept { return wray::tan(std::numbers::pi * (hz / fs)); }
+    WRAY_INLINE double prewarp(double hz, double fs) noexcept { return wray::tan_turns(hz / fs); }
 
     template<class V>
     WRAY_INLINE double realise(double c) noexcept
     {
         return static_cast<double>(static_cast<simd::scalar_t<V> >(c));
+    }
+
+    template<class V>
+    WRAY_INLINE double open_unit(double c) noexcept
+    {
+        using S = simd::scalar_t<V>;
+        const S lo = std::numeric_limits<S>::min();
+        const S hi = std::nextafter(S(1), S(0));
+        const S value = static_cast<S>(c);
+        return static_cast<double>(value > lo ? (value < hi ? value : hi) : lo);
     }
 
     template<class V>
@@ -62,6 +83,6 @@ namespace wray::filters::detail
 
     WRAY_INLINE math::sincos_result<double> half_angle(double hz, double fs) noexcept
     {
-        return wray::sincos(std::numbers::pi * (hz / fs));
+        return wray::sincos_turns(0.5 * (hz / fs));
     }
 }

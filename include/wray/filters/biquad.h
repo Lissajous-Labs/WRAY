@@ -34,6 +34,9 @@ namespace wray::filters
                                              double gain_db) noexcept
     {
         const double fs = detail::sample_rate_or_default(sample_rate);
+        gain_db = detail::clamp_gain_db(gain_db);
+        if (uses_gain(type) && gain_db == 0.0)
+            return {};
         const auto half = detail::half_angle(detail::clamp_frequency(hz, fs), fs);
         const double s = half.sin;
         const double c = half.cos;
@@ -115,6 +118,8 @@ namespace wray::filters
                 break;
         }
         const double inv = 1.0 / a0;
+        if (type == biquad_type::allpass)
+            return {a2 * inv, a1 * inv, 1.0, a1 * inv, a2 * inv};
         return {b0 * inv, b1 * inv, b2 * inv, a1 * inv, a2 * inv};
     }
 
@@ -178,7 +183,7 @@ namespace wray::filters
         [[nodiscard]] biquad_type type() const noexcept { return type_; }
         [[nodiscard]] double frequency() const noexcept { return detail::clamp_frequency(hz_, fs_); }
         [[nodiscard]] double q() const noexcept { return detail::clamp_q(q_); }
-        [[nodiscard]] double gain_db() const noexcept { return gain_db_; }
+        [[nodiscard]] double gain_db() const noexcept { return detail::clamp_gain_db(gain_db_); }
         [[nodiscard]] double sample_rate() const noexcept { return fs_; }
         [[nodiscard]] const biquad_coefficients &coefficients() const noexcept { return c_; }
 
@@ -225,6 +230,17 @@ namespace wray::filters
             c_.b2 = detail::realise<P>(k.b2);
             c_.a1 = detail::realise<P>(k.a1);
             c_.a2 = detail::realise<P>(k.a2);
+            using S = simd::scalar_t<P>;
+            const double edge = static_cast<double>(std::nextafter(S(1), S(0)));
+            c_.a2 = std::clamp(c_.a2, -edge, edge);
+            const double limit = static_cast<double>(std::nextafter(static_cast<S>(1.0 + c_.a2), S(0)));
+            c_.a1 = std::clamp(c_.a1, -limit, limit);
+            if (k.b0 == k.a2 && k.b1 == k.a1 && k.b2 == 1.0)
+            {
+                c_.b0 = c_.a2;
+                c_.b1 = c_.a1;
+                c_.b2 = 1.0;
+            }
             b0_ = detail::splat<P>(c_.b0);
             b1_ = detail::splat<P>(c_.b1);
             b2_ = detail::splat<P>(c_.b2);

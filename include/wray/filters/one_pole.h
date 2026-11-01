@@ -87,7 +87,7 @@ namespace wray::filters
         void update() noexcept
         {
             const double g = detail::prewarp(detail::clamp_frequency(hz_, fs_), fs_);
-            big_g_ = detail::realise<V>(g / (1.0 + g));
+            big_g_ = detail::open_unit<V>(g / (1.0 + g));
             switch (type_)
             {
                 case one_pole_type::lowpass:

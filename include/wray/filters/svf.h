@@ -32,7 +32,10 @@ namespace wray::filters
         const double fs = detail::sample_rate_or_default(sample_rate);
         const double gt = detail::prewarp(detail::clamp_frequency(hz, fs), fs);
         const double kq = 1.0 / detail::clamp_q(q);
+        gain_db = detail::clamp_gain_db(gain_db);
         const double a = wray::db_to_gain(gain_db * 0.5);
+        const double am1 = wray::expm1(gain_db * (std::numbers::ln10 / 40.0));
+        const double a2m1 = wray::expm1(gain_db * (std::numbers::ln10 / 20.0));
         double g = gt;
         double k = kq;
         svf_coefficients c;
@@ -61,20 +64,20 @@ namespace wray::filters
             case svf_type::peak:
                 k = kq / a;
                 c.m0 = 1.0;
-                c.m1 = k * (a * a - 1.0);
+                c.m1 = k * a2m1;
                 c.m2 = 0.0;
                 break;
             case svf_type::low_shelf:
                 g = gt / simd::sqrt(a);
                 c.m0 = 1.0;
-                c.m1 = k * (a - 1.0);
-                c.m2 = a * a - 1.0;
+                c.m1 = k * am1;
+                c.m2 = a2m1;
                 break;
             case svf_type::high_shelf:
                 g = gt * simd::sqrt(a);
                 c.m0 = a * a;
-                c.m1 = k * (1.0 - a) * a;
-                c.m2 = 1.0 - a * a;
+                c.m1 = -k * am1 * a;
+                c.m2 = -a2m1;
                 break;
             case svf_type::allpass:
                 c.m0 = 1.0;
@@ -84,8 +87,8 @@ namespace wray::filters
             case svf_type::tilt:
                 g = gt * simd::sqrt(a);
                 c.m0 = a;
-                c.m1 = k * (1.0 - a);
-                c.m2 = 1.0 / a - a;
+                c.m1 = -k * am1;
+                c.m2 = -a2m1 / a;
                 break;
         }
         c.a1 = 1.0 / (1.0 + g * (g + k));
@@ -151,7 +154,7 @@ namespace wray::filters
         [[nodiscard]] svf_type type() const noexcept { return type_; }
         [[nodiscard]] double frequency() const noexcept { return detail::clamp_frequency(hz_, fs_); }
         [[nodiscard]] double q() const noexcept { return detail::clamp_q(q_); }
-        [[nodiscard]] double gain_db() const noexcept { return gain_db_; }
+        [[nodiscard]] double gain_db() const noexcept { return detail::clamp_gain_db(gain_db_); }
         [[nodiscard]] double sample_rate() const noexcept { return fs_; }
         [[nodiscard]] const svf_coefficients &coefficients() const noexcept { return c_; }
 
