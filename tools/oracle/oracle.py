@@ -129,7 +129,7 @@ CONTRACTS = {
     "fast": {name: 2.0 ** -16 for name in ["product_log", "omega", "tanpi", "tan_turns", "cos_turns", "sin_turns", "exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid",
                                            "db_to_gain", "gain_to_db", "atan2", "pow"]},
 }
-ADAA_CONTRACTS = {"hard_clip": (0.8, 3.0), "soft_clip": (1.5, 3.5), "tanh": (3.0, 10.0), "atan": (3.5, 15.0), "algebraic": (6.0, 62.0),
+ADAA_CONTRACTS = {"hard_clip": (0.8, 1.0), "soft_clip": (1.5, 3.0), "tanh": (3.0, 10.0), "atan": (3.5, 15.0), "algebraic": (6.0, 62.0),
                   "radical": (3.0, 5.0)}
 for _tier in ("f32", "f64"):
     for _name, (_f1, _first) in ADAA_CONTRACTS.items():
@@ -237,10 +237,15 @@ def domain(fn, tier, rng, n):
         return np.concatenate([value_uniform(rng, fmt, -8.0, 8.0, half), bit_uniform(rng, fmt, tiny, huge, n - half, True)])
     if fn.startswith("adaa_"):
         q = n // 4
-        x0 = np.concatenate([value_uniform(rng, fmt, -8.0, 8.0, q), value_uniform(rng, fmt, -8.0, 8.0, q), value_uniform(rng, fmt, -8.0, 8.0, q),
-                             bit_uniform(rng, fmt, 1e-3, huge / 4, n - 3 * q, True)])
+        r = n - 3 * q
+        wide = bit_uniform(rng, fmt, 1e-3, huge, r, True)
+        mirror = -(wide[: r // 2].astype(np.float64) * (1 + rng.uniform(-1e-3, 1e-3, r // 2)))
+        mirror = np.clip(mirror, -float(huge), float(huge)).astype(fmt["dtype"])
+        x0 = np.concatenate([value_uniform(rng, fmt, -8.0, 8.0, q), value_uniform(rng, fmt, -8.0, 8.0, q), value_uniform(rng, fmt, -8.0, 8.0, q), wide,
+                             np.array([0.0, -huge, huge], dtype=fmt["dtype"])])
         near = (x0[q:2 * q].astype(np.float64) * (1 + rng.uniform(-1e-6, 1e-6, q))).astype(fmt["dtype"])
-        x1 = np.concatenate([value_uniform(rng, fmt, -8.0, 8.0, q), near, x0[2 * q:3 * q], bit_uniform(rng, fmt, 1e-3, huge / 4, n - 3 * q, True)])
+        x1 = np.concatenate([value_uniform(rng, fmt, -8.0, 8.0, q), near, x0[2 * q:3 * q], mirror, bit_uniform(rng, fmt, 1e-3, huge, r - r // 2, True),
+                             np.array([huge, huge, -huge], dtype=fmt["dtype"])])
         return (x0, x1)
     if fn == "pow":
         q = n // 4

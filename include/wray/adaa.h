@@ -55,24 +55,57 @@ namespace wray::adaa::detail
     template<class V, class F>
     WRAY_INLINE V settle(const V &x0, const V &x1, const V &v, F f) noexcept
     {
-        V r = select(abs(x1 - x0) == inf<V>(), f(select(abs(x1) == inf<V>(), x1, x0)), v);
+        V r = select(either(abs(x0) == inf<V>(), abs(x1) == inf<V>()), f(select(abs(x1) == inf<V>(), x1, x0)), v);
         r = select(x0 == x1, f(x0), r);
         return select(either(isnan(x0), isnan(x1)), x0 + x1, r);
+    }
+
+    template<class V>
+    struct magnitudes
+    {
+        V lo;
+        V hi;
+        V d;
+    };
+
+    template<class V>
+    struct mean_parts
+    {
+        V m;
+        V df;
+    };
+
+    template<class V, class F, class P>
+    WRAY_INLINE V interval_mean(const V &x0, const V &x1, F f, P parts) noexcept
+    {
+        using S = scalar_t<V>;
+        const V zero(S(0));
+        const V half(S(0.5));
+        const V p = abs(x0);
+        const V q = abs(x1);
+        const magnitudes<V> g{simd::min(p, q), simd::max(p, q), simd::max(p, q) - simd::min(p, q)};
+        const mean_parts<V> mp = parts(g);
+        const V m = mp.m;
+        const V df = mp.df;
+        const V signed_m = select(q >= p, m, -m);
+        const V signed_df = select(q >= p, df, -df);
+        const V h = x1 * half - x0 * half;
+        const V d = g.d * half;
+        const auto same = either(both(x0 >= zero, x1 >= zero), both(x0 <= zero, x1 <= zero));
+        const V opposite = select(abs(signed_df) < inf<V>(), (signed_df * half) / h, signed_m * (d / h));
+        return settle(x0, x1, select(same, signed_m * (d / h), opposite), f);
     }
 
     template<class V, class F, class D>
     WRAY_INLINE V mean(const V &x0, const V &x1, F f, D delta) noexcept
     {
         using S = scalar_t<V>;
-        const V h = x1 - x0;
-        const V p = abs(x0);
-        const V q = abs(x1);
-        const V lo = simd::min(p, q);
-        const V hi = simd::max(p, q);
-        const V d = hi - lo;
-        const V m = select(d < V(gauss<S>::span), quadrature(lo, hi, f), delta(lo, hi, d) / d);
-        const V v = select(q >= p, m, -m) * (d / h);
-        return settle(x0, x1, select(d == V(S(0)), select(q >= p, m, -m) * (d / h), v), f);
+        return interval_mean(x0, x1, f, [&](const magnitudes<V> &g) {
+            const auto narrow = g.d < V(gauss<S>::span);
+            const V q = quadrature(g.lo, g.hi, f);
+            const V wide = delta(g.lo, g.hi, g.d);
+            return mean_parts<V>{select(narrow, q, wide / g.d), select(narrow, g.d * q, wide)};
+        });
     }
 
     template<class V>
@@ -122,44 +155,76 @@ namespace wray::adaa::detail
         return select(isnan(x), x, copysign_from(select(a < one, small, large), x));
     }
 
-    template<class V, class M>
-    WRAY_INLINE V folded(const V &x0, const V &x1, M mean_of_magnitudes) noexcept
+    template<class V>
+    WRAY_INLINE pair<V> plus(const pair<V> &a, const pair<V> &b) noexcept
     {
+        const auto t = two_sum(a.hi, b.hi);
+        return {t.hi, t.lo + (a.lo + b.lo)};
+    }
+
+    template<class V>
+    WRAY_INLINE V divided(const pair<V> &n, const pair<V> &d) noexcept
+    {
+        const V q = n.hi / d.hi;
+        const V r = (residual(q, d.hi, n.hi) + fma(-q, d.lo, n.lo)) / d.hi;
+        return q + r;
+    }
+
+    template<class V, class N, class F>
+    WRAY_INLINE V outside_mean(const V &x0, const V &x1, N numerator, F f) noexcept
+    {
+        using S = scalar_t<V>;
+        const V half(S(0.5));
         const V p = abs(x0);
         const V q = abs(x1);
-        const V lo = simd::min(p, q);
-        const V hi = simd::max(p, q);
-        const V d = hi - lo;
-        const V m = mean_of_magnitudes(lo, hi, d);
-        return select(q >= p, m, -m) * (d / (x1 - x0));
+        const V big(std::numeric_limits<S>::digits == 24 ? S(0x1p64) : S(0x1p512));
+        const V shrink = select(simd::max(p, q) > big, V(S(1)) / big, V(S(1)));
+        const auto n = numerator(simd::min(p, q), simd::max(p, q), shrink);
+        const V scale = half * shrink;
+        const V sign = select(q >= p, half, -half);
+        const auto h = two_sum(x1 * scale, -(x0 * scale));
+        return settle(x0, x1, divided(pair<V>{n.hi * sign, n.lo * sign}, h), f);
     }
 
     template<class V>
     WRAY_INLINE V hard_first(const V &x0, const V &x1) noexcept
     {
         using S = scalar_t<V>;
-        const V v = folded(x0, x1, [](const V &lo, const V &hi, const V &d) {
-            const V one(S(1));
-            const V half(S(0.5));
-            const V mixed = fma((one - lo) * (one + lo), half, hi - one) / d;
-            return select(hi <= one, (hi + lo) * half, select(lo >= one, one, mixed));
-        });
-        return settle(x0, x1, v, [](const V &x) { return clip(x); });
+        const V one(S(1));
+        const V half(S(0.5));
+        const auto f = [](const V &x) { return clip(x); };
+        const V outside = outside_mean(x0, x1, [=](const V &lo, const V &hi, const V &shrink) {
+            const auto wide = two_sum(hi, -lo);
+            const auto sq = two_product(lo, lo);
+            const auto rest = two_sum(half, -(sq.hi * half));
+            const auto mixed = plus(two_sum(hi, -one), pair<V>{rest.hi, rest.lo - sq.lo * half});
+            const auto beyond = lo >= one;
+            return pair<V>{select(beyond, wide.hi, mixed.hi) * shrink, select(beyond, wide.lo, mixed.lo) * shrink};
+        }, f);
+        return select(simd::max(abs(x0), abs(x1)) <= one, x0 * half + x1 * half, outside);
     }
 
     template<class V>
     WRAY_INLINE V soft_first(const V &x0, const V &x1) noexcept
     {
         using S = scalar_t<V>;
-        const V v = folded(x0, x1, [](const V &lo, const V &hi, const V &d) {
-            const V one(S(1));
-            const V sum = hi + lo;
-            const V inner = fma(sum * fma(hi, hi, lo * lo), V(S(-1) / S(12)), sum * V(S(0.5)));
-            const V edge = (one - lo) * (one + lo) * fma(fma(lo, lo, one), V(S(-1) / S(12)), V(S(0.5)));
-            const V mixed = fma(hi - one, V(S(2) / S(3)), edge) / d;
-            return select(hi <= one, inner, select(lo >= one, V(S(2) / S(3)), mixed));
-        });
-        return settle(x0, x1, v, [](const V &x) { return soft(x); });
+        const V one(S(1));
+        const S third_hi = S(2) / S(3);
+        const V third_lo = residual(V(third_hi), V(S(3)), V(S(2))) / V(S(3));
+        const auto f = [](const V &x) { return soft(x); };
+        const V outside = outside_mean(x0, x1, [=](const V &lo, const V &hi, const V &shrink) {
+            const auto beyond = lo >= one;
+            const auto t = two_sum(hi, select(beyond, -lo, -one));
+            const V th = t.hi * shrink;
+            const auto c = two_product(th, V(third_hi));
+            const pair<V> scaled{c.hi, c.lo + fma(th, third_lo, (t.lo * shrink) * V(third_hi))};
+            const V edge = ((one - lo) * (one + lo)) * fma(fma(lo, lo, one), V(S(-1) / S(12)), V(S(0.5))) * shrink;
+            const auto mixed = plus(scaled, pair<V>{edge, V(S(0))});
+            return pair<V>{select(beyond, scaled.hi, mixed.hi), select(beyond, scaled.lo, mixed.lo)};
+        }, f);
+        const V sum = x0 + x1;
+        const V inside = fma(sum * (x0 * x0 + x1 * x1), V(S(-1) / S(12)), sum * V(S(0.5)));
+        return settle(x0, x1, select(simd::max(abs(x0), abs(x1)) <= one, inside, outside), f);
     }
 
     template<class V>
@@ -185,19 +250,38 @@ namespace wray::adaa::detail
     }
 
     template<class V>
+    struct atan_pieces
+    {
+        V top;
+        V turn;
+        V spread;
+    };
+
+    template<class V>
+    WRAY_INLINE atan_pieces<V> atan_split(const V &lo, const V &hi, const V &d) noexcept
+    {
+        using S = scalar_t<V>;
+        const V one(S(1));
+        const V turn = lo * atan<math::precise>(d / fma(lo, hi, one));
+        const V ratio_log = select(d < V(S(0.5)) * lo, log1p<math::precise>(d / lo), log<math::precise>(hi) - log<math::precise>(lo));
+        const V both = fma(ratio_log, V(S(2)), log1p<math::precise>(-(d / hi) * (one + lo / hi) / fma(lo, lo, one)));
+        const V ih = one / simd::max(hi, one);
+        const V mixed = fma(log<math::precise>(hi), V(S(2)), log1p<math::precise>(ih * ih) - log1p<math::precise>(lo * lo));
+        const V narrow = log1p<math::precise>(d * (hi + lo) / fma(lo, lo, one));
+        return {atan<math::precise>(hi), turn, select(lo >= one, both, select(hi >= one, mixed, narrow))};
+    }
+
+    template<class V>
     WRAY_INLINE V atan_first(const V &x0, const V &x1) noexcept
     {
         using S = scalar_t<V>;
-        return mean(x0, x1, [](const V &x) { return atan<math::precise>(x); }, [](const V &lo, const V &hi, const V &d) {
-            const V one(S(1));
-            const V lead = fma(d, atan<math::precise>(hi), lo * atan<math::precise>(d / fma(lo, hi, one)));
-            const V ratio_log = select(d < V(S(0.5)) * lo, log1p<math::precise>(d / lo), log<math::precise>(hi) - log<math::precise>(lo));
-            const V both = fma(ratio_log, V(S(2)), log1p<math::precise>(-(d / hi) * (one + lo / hi) / fma(lo, lo, one)));
-            const V ih = one / simd::max(hi, one);
-            const V mixed = fma(log<math::precise>(hi), V(S(2)), log1p<math::precise>(ih * ih) - log1p<math::precise>(lo * lo));
-            const V narrow = log1p<math::precise>(d * (hi + lo) / fma(lo, lo, one));
-            const V spread = select(lo >= one, both, select(hi >= one, mixed, narrow));
-            return fma(spread, V(S(-0.5)), lead);
+        const auto f = [](const V &x) { return atan<math::precise>(x); };
+        return interval_mean(x0, x1, f, [=](const magnitudes<V> &g) {
+            const auto narrow = g.d < V(gauss<S>::span);
+            const V q = quadrature(g.lo, g.hi, f);
+            const auto a = atan_split(g.lo, g.hi, g.d);
+            const V rest = fma(a.spread, V(S(-0.5)), a.turn);
+            return mean_parts<V>{select(narrow, q, a.top + rest / g.d), select(narrow, g.d * q, fma(g.d, a.top, rest))};
         });
     }
 
@@ -239,7 +323,7 @@ namespace wray::adaa::detail
     {
         using S = scalar_t<V>;
         const V half(S(0.5));
-        const V v = fma(x0, half, x1 * half) / fma(root_norm(x0), half, root_norm(x1) * half);
+        const V v = (x0 * half + x1 * half) / (root_norm(x0) * half + root_norm(x1) * half);
         return settle(x0, x1, v, [](const V &x) { return root_ratio(x); });
     }
 }
