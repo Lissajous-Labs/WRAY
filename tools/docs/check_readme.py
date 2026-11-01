@@ -88,11 +88,11 @@ def main():
     parser.add_argument("--dump", required=True)
     parser.add_argument("--readme", default=str(ROOT / "README.md"))
     args = parser.parse_args()
-    text = pathlib.Path(args.readme).read_text()
+    text = pathlib.Path(args.readme).read_text(encoding="utf-8")
     dump = Dump(args.dump)
-    coeff = (ROOT / "include/wray/math/coefficients.h").read_text()
-    kernels = (ROOT / "include/wray/math/kernels.h").read_text()
-    common = (ROOT / "include/wray/filters/common.h").read_text()
+    coeff = (ROOT / "include/wray/math/coefficients.h").read_text(encoding="utf-8")
+    kernels = (ROOT / "include/wray/math/kernels.h").read_text(encoding="utf-8")
+    common = (ROOT / "include/wray/filters/common.h").read_text(encoding="utf-8")
 
     for name, f32, f64 in table_rows(section(text, "Accuracy contracts")):
         check(float(f32) == oracle.CONTRACTS["f32"].get(name) and float(f64) == oracle.CONTRACTS["f64"].get(name), f"contract row {name}")
@@ -131,7 +131,7 @@ def main():
                 check(ok, f"{fn} {t} accurate past the fast reduction range")
             check(np.isnan(dump(fn, tier, [np.inf])[0]), f"{fn} {tier} of infinity is NaN")
     claims("1280-bit table of 2/π")
-    generate = (ROOT / "tools/remez/generate.py").read_text()
+    generate = (ROOT / "tools/remez/generate.py").read_text(encoding="utf-8")
     check(re.search(r"TWO_OVER_PI_WORDS = (\d+)", generate) and 32 * int(re.search(r"TWO_OVER_PI_WORDS = (\d+)", generate).group(1)) == 1280, "2/pi table size")
 
     def edge(fn, tier, lo, hi, kind):
@@ -181,13 +181,13 @@ def main():
     fx = dump("db_to_gain", "fast", [-1e9, 1e9])
     check(bool(np.all(np.isfinite(fx)) and np.all(fx >= np.finfo(np.float32).tiny)), "fast db_to_gain stays finite and normal")
     claims("The fast tier exists for `float` only")
-    fast_api = (ROOT / "include/wray/math.h").read_text().split("namespace wray::fast")[1]
+    fast_api = (ROOT / "include/wray/math.h").read_text(encoding="utf-8").split("namespace wray::fast")[1]
     check("concept single = std::is_same_v<simd::scalar_t<V>, float>;" in fast_api and "template<simd::real V>" not in fast_api, "fast tier is float only")
 
     filters = section(text, "Filters")
     for text in ("at least fs/1000", "DC gain of 0.22", "`biquad<float, double>`", "within 1e-5 down to 1e-6 of the sample rate"):
         check(text in filters, f"filters section states {text}")
-    tests_text = (ROOT / "tests/filters_test.cpp").read_text()
+    tests_text = (ROOT / "tests/filters_test.cpp").read_text(encoding="utf-8")
     check("if (ratio >= 1.0e-3)" in tests_text and "passband_ok(narrow, f0, 5e-3)" in tests_text and "passband_ok(mixed, f0, 1e-5)" in tests_text, "filter limits match the tests")
     for number in ("[1e-6, 0.4999]", "[1e-3, 1e3]", "±120 dB", "48 kHz", "2^-80", "2^-200"):
         check(number in filters, f"filters section states {number}")
@@ -198,7 +198,7 @@ def main():
     check("gain_db < -120.0 ? -120.0 : (gain_db > 120.0 ? 120.0" in common and "std::isnan(gain_db) ? 0.0" in common, "gain clamp")
     check("S(0x1p-80) : S(0x1p-200)" in common, "flush thresholds")
 
-    config = (ROOT / "include/wray/simd/config.h").read_text()
+    config = (ROOT / "include/wray/simd/config.h").read_text(encoding="utf-8")
     for macro in ("__FAST_MATH__", "_M_FP_FAST", "__FINITE_MATH_ONLY__", "__ASSOCIATIVE_MATH__", "__RECIPROCAL_MATH__", "__NO_SIGNED_ZEROS__", "WRAY_ALLOW_FAST_MATH"):
         check(macro in config, f"config.h checks {macro}")
     for text in ("`__FAST_MATH__`", "`_M_FP_FAST`", "`-ffinite-math-only`", "`-fassociative-math`", "`-freciprocal-math`", "`-fno-signed-zeros`", "`wray::floating_point_ok()`", "WRAY_ALLOW_FAST_MATH"):
