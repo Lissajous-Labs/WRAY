@@ -106,6 +106,8 @@ namespace
             w.a = uniform<T>(rng, -10, 10);
         else if (name == "sinh")
             w.a = uniform<T>(rng, -10, 10);
+        else if (name == "tanpi")
+            w.a = uniform<T>(rng, -10, 10);
         else if (name == "tan_turns")
             w.a = uniform<T>(rng, -10, 10);
         else if (name == "cos_turns")
@@ -181,6 +183,8 @@ namespace
             w.a = mirrored<T>(rng, std::is_same_v<T, double> ? 708.0 : 87.0, std::is_same_v<T, double> ? 760.0 : 110.0);
         else if (name == "sinh")
             w.a = mirrored<T>(rng, std::is_same_v<T, double> ? 708.0 : 87.0, std::is_same_v<T, double> ? 760.0 : 110.0);
+        else if (name == "tanpi")
+            w.a = mirrored<T>(rng, 1e6, 1e7);
         else if (name == "tan_turns")
             w.a = mirrored<T>(rng, 1e6, 1e7);
         else if (name == "cos_turns")
@@ -315,7 +319,9 @@ namespace
         if (n == "cos_turns")
             unary(s, [](T x) { return std::cos(T(6.283185307179586) * x); }, [](auto x) { return wray::cos_turns(x); }, [](auto x) { return wray::fast::cos_turns(x); });
         if (n == "tan_turns")
-            unary(s, [](T x) { return std::tan(T(3.141592653589793) * x); }, [](auto x) { return wray::tan_turns(x); }, [](auto x) { return wray::fast::tan_turns(x); });
+            unary(s, [](T x) { return std::tan(T(6.283185307179586) * x); }, [](auto x) { return wray::tan_turns(x); }, [](auto x) { return wray::fast::tan_turns(x); });
+        if (n == "tanpi")
+            unary(s, [](T x) { return std::tan(T(3.141592653589793) * x); }, [](auto x) { return wray::tanpi(x); }, [](auto x) { return wray::fast::tanpi(x); });
         if (n == "sinh")
             unary(s, [](T x) { return std::sinh(x); }, [](auto x) { return wray::sinh(x); }, none{});
         if (n == "cosh")
@@ -399,7 +405,7 @@ namespace
     template <class T>
     void run(const char* type, std::FILE* json, bool& first, const std::vector<std::string>& only)
     {
-        const char* names[] = {"product_log", "omega", "smoothing_coefficient", "pole_from_cutoff", "prewarp", "ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "sincos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain",
+        const char* names[] = {"product_log", "omega", "smoothing_coefficient", "pole_from_cutoff", "prewarp", "ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tanpi", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "sincos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain",
                                "gain_to_db"};
         std::mt19937_64 rng(7);
         std::mt19937_64 edge_rng(11);

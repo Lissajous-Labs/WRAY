@@ -22,8 +22,8 @@ wray::filters::biquad<wray::f64x2> eq;
 
 Every function takes a scalar, a SIMD vector, or a contiguous range:
 
-- elementary: `exp exp2 expm1 log log2 log10 log1p pow cbrt sin cos sincos tan atan atan2 sinh cosh tanh asinh erf sigmoid`
-- turns, where one turn is a full cycle: `sin_turns cos_turns sincos_turns tan_turns wrap_turns`
+- elementary: `exp exp2 expm1 log log2 log10 log1p pow cbrt sin cos sincos tan tanpi atan atan2 sinh cosh tanh asinh erf sigmoid`, where `tanpi(x)` is tan(πx)
+- turns, where one turn is a full cycle: `sin_turns cos_turns sincos_turns tan_turns wrap_turns`, so `tan_turns(x)` is tan(2πx) and equals `sin_turns(x) / cos_turns(x)`
 - audio: `db_to_gain gain_to_db midi_to_hz hz_to_midi ratio_from_cents omega product_log`
 - parameter maps: `smoothing_coefficient(seconds, fs) pole_from_cutoff(hz, fs) prewarp(hz, fs)`
 
@@ -44,7 +44,7 @@ Maximum error in ulp against 40-digit references, over the full domain.
 | log2 | 1.5 | 1.0 | atan2 | 1.0 | 1.1 |
 | log10 | 1.4 | 1.0 | sin_turns | 1.0 | 0.85 |
 | log1p | 1.0 | 0.95 | cos_turns | 0.8 | 0.8 |
-| pow | 2.0 | 1.5 | tan_turns | 1.2 | 1.2 |
+| pow | 2.0 | 1.5 | tanpi | 1.2 | 1.2 |
 | cbrt | 0.55 | 0.55 | sinh | 0.85 | 0.85 |
 | erf | 0.9 | 0.9 | cosh | 0.9 | 0.9 |
 | sigmoid | 2.0 | 1.75 | tanh | 1.35 | 1.3 |
@@ -53,7 +53,7 @@ Maximum error in ulp against 40-digit references, over the full domain.
 | midi_to_hz | 1.4 | 0.75 | product_log | 2.05 | 1.45 |
 | hz_to_midi | 1.25 | 1.0 | smoothing_coefficient | 2.0 | 2.0 |
 | ratio_from_cents | 0.85 | 0.75 | pole_from_cutoff | 2.0 | 2.0 |
-| prewarp | 2.0 | 2.0 | | | |
+| prewarp | 2.0 | 2.0 | tan_turns | 1.2 | 1.2 |
 
 Beyond the error bound, the precise tier keeps shape: every function is checked for monotonicity on its monotone intervals, exact odd or even symmetry, range bounds, and finite outputs for finite inputs, over every `float` and a dense `double` sample. The few documented exceptions are listed in `tests/accuracy_test.cpp`. `midi_to_hz(69 + 12k)` is exactly `440 * 2^k`, and the turns functions are exact at multiples of 1/8 turn.
 

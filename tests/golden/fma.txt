@@ -30,8 +30,9 @@ f32 sin b95fb4bd0f16ed9c
 f32 sin_turns bcf1e4576bbea612
 f32 sinh 61edfb1a38e0a178
 f32 tan 8984f18cdfcafcc7
-f32 tan_turns 725532f481a313f5
+f32 tan_turns 67f35d1d27772d48
 f32 tanh acc9316652ed2aa5
+f32 tanpi 725532f481a313f5
 f32 adaa_algebraic_first 7eb61041a958f62f
 f32 adaa_atan_first 0719327021121e0d
 f32 adaa_hard_clip_first 8a86e1443f83ed4f
@@ -75,8 +76,9 @@ f64 sin edebb3ed387c7107
 f64 sin_turns 0bb1119b5deaeab7
 f64 sinh cfb5c0234d6bc21c
 f64 tan 67c744e59e65ea3d
-f64 tan_turns 6aa55d06eade024e
+f64 tan_turns 82c3438c4e78631e
 f64 tanh bd657e251c6bb8b4
+f64 tanpi 6aa55d06eade024e
 f64 adaa_algebraic_first 3f6f40ae6fab7056
 f64 adaa_atan_first 3c99c071672b5116
 f64 adaa_hard_clip_first f7e9664d97f6c8b8
@@ -103,7 +105,8 @@ fast sigmoid 98f9c3fb2197442f
 fast sin 35a4876130b4510c
 fast sin_turns 5db085e8ca00925f
 fast tan 1d8bb01720ffaf21
-fast tan_turns d242411ae94b6e91
+fast tan_turns 84ae1fae9568e538
 fast tanh aa17788e58b9903f
+fast tanpi d242411ae94b6e91
 fast atan2 b67f0397d4f990fc
 fast pow 1607ee992bef7f7c

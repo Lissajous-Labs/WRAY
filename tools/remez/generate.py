@@ -36,7 +36,7 @@ PLAN = {
     "omega": {"f32": (3, 3), "f64": (3, 3), "fast": (3, 3)},
     "sin_turns": {"f32": (3, 0), "f64": (6, 0)},
     "cos_turns": {"f32": (2, 0), "f64": (5, 0)},
-    "tan_turns": {"f32": (6, 0), "f64": (3, 3)},
+    "tanpi": {"f32": (6, 0), "f64": (3, 3)},
 }
 
 PARETO = {"exp": "f64", "log": "f64", "tan": "f64", "atan_rest": "f64", "tanh": "f64", "tanh_range": "f32"}

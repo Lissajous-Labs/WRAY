@@ -33,7 +33,7 @@ namespace wray::math
         using tanh = coeff::tanh_f32;
         using sin_turns = coeff::sin_turns_f32;
         using cos_turns = coeff::cos_turns_f32;
-        using tan_turns = coeff::tan_turns_f32;
+        using tanpi = coeff::tanpi_f32;
         using sinh = coeff::sinh_f32;
         using cosh = coeff::cosh_f32;
         using asinh = coeff::asinh_f32;
@@ -57,7 +57,7 @@ namespace wray::math
         using tanh = coeff::tanh_f64;
         using sin_turns = coeff::sin_turns_f64;
         using cos_turns = coeff::cos_turns_f64;
-        using tan_turns = coeff::tan_turns_f64;
+        using tanpi = coeff::tanpi_f64;
         using sinh = coeff::sinh_f64;
         using cosh = coeff::cosh_f64;
         using asinh = coeff::asinh_f64;
@@ -823,7 +823,7 @@ namespace wray::math::detail
     }
 
     template<class Tier, class V>
-    WRAY_INLINE V tan_turns(const V &x, const V &xl = V(scalar_t<V>(0))) noexcept
+    WRAY_INLINE V tanpi(const V &x, const V &xl = V(scalar_t<V>(0))) noexcept
     {
         using S = scalar_t<V>;
         using K = constants<S>;
@@ -834,7 +834,7 @@ namespace wray::math::detail
         V c;
         if constexpr (full<Tier>)
         {
-            using C = typename table<Tier, S>::tan_turns;
+            using C = typename table<Tier, S>::tanpi;
             const V t = f * f;
             const auto p = two_product(f, V(K::pi_hi));
             const V low = fma(xl, V(K::pi_hi), fma(f, V(K::pi_lo), p.lo) + (f * t) * numerics::rational<C>(t));
@@ -855,6 +855,14 @@ namespace wray::math::detail
         v = select(quarter, copysign_from(V(S(1)), f), v);
         c = select(quarter, -copysign_from(V(S(1)), f), select(v == V(S(0)), copysign_from(inf<V>(), x), c));
         return odd_zero(x, select(nonzero(r.q & I(1)), c, v));
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V tan_turns(const V &x) noexcept
+    {
+        using S = scalar_t<V>;
+        const V whole = select(abs(x) < V(S(1) / std::numeric_limits<S>::epsilon()), x, x * V(S(0)));
+        return tanpi<Tier>(whole + whole);
     }
 
     template<class Tier, class V>
@@ -1382,7 +1390,7 @@ namespace wray::math::detail
     WRAY_INLINE V prewarp(const V &hz, const V &fs) noexcept
     {
         const auto x = quotient(hz, fs);
-        return tan_turns<Tier>(x.hi, x.lo);
+        return tanpi<Tier>(x.hi, x.lo);
     }
 
     template<class Tier, class V>

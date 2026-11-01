@@ -174,7 +174,7 @@ namespace
         return std::sin(6.283185307179586 * (0.25 - std::fabs(x - std::nearbyint(x))));
     }
 
-    double tan_turns_ref(double x)
+    double tanpi_ref(double x)
     {
         const double w = x - std::nearbyint(x);
         if (std::fabs(w) == 0.5)
@@ -182,6 +182,13 @@ namespace
         if (std::fabs(w) > 0.25)
             return -1.0 / std::tan(3.141592653589793 * (w - std::copysign(0.5, w)));
         return std::tan(3.141592653589793 * w);
+    }
+
+    double tan_turns_ref(double x)
+    {
+        if (!std::isfinite(x))
+            return x - x;
+        return std::fabs(x) < 0x1p53 ? tanpi_ref(x + x) : std::copysign(0.0, x);
     }
 
     double uniform(std::mt19937_64& g, double lo, double hi) { return std::uniform_real_distribution<double>(lo, hi)(g); }
@@ -224,6 +231,8 @@ namespace
              batch64([](auto v) { return wray::cosh(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -3.0, 3.0) : signed_bits(g, 0x1p-1074, 711.0); }, 0.9, 0.0, 0.9},
             {"sinh", [](double x) { return std::sinh(x); }, all, batch32([](auto v) { return wray::sinh(v); }), {}, all,
              batch64([](auto v) { return wray::sinh(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -3.0, 3.0) : signed_bits(g, 0x1p-1074, 711.0); }, 0.85, 0.0, 0.85},
+            {"tanpi", tanpi_ref, all, batch32([](auto v) { return wray::tanpi(v); }), batch32([](auto v) { return wray::fast::tanpi(v); }), all,
+             batch64([](auto v) { return wray::tanpi(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -1.0, 1.0) : signed_bits(g, 1e-300, 1e300); }, 1.2, 0x1p-16, 2.0},
             {"tan_turns", tan_turns_ref, all, batch32([](auto v) { return wray::tan_turns(v); }), batch32([](auto v) { return wray::fast::tan_turns(v); }), all,
              batch64([](auto v) { return wray::tan_turns(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -1.0, 1.0) : signed_bits(g, 1e-300, 1e300); }, 1.2, 0x1p-16, 2.0},
             {"cos_turns", cos_turns_ref, all, batch32([](auto v) { return wray::cos_turns(v); }), batch32([](auto v) { return wray::fast::cos_turns(v); }), all,
@@ -535,7 +544,7 @@ namespace
                                         [](double hz, double fs) { return std::exp(-6.283185307179586 * (hz / fs)); },
                                         [](float hz, float fs) { return std::exp(-2.0f * pi_f * hz / fs); }, 1);
         const auto warp = parameter_map([](auto hz, auto fs) { return wray::prewarp(hz, fs); },
-                                        [](double hz, double fs) { return tan_turns_ref(hz / fs); },
+                                        [](double hz, double fs) { return tanpi_ref(hz / fs); },
                                         [](float hz, float fs) { return std::tan(pi_f * hz / fs); }, 2);
         if (report)
             std::printf("parameter maps f32: smoothing %.3f ulp (naive %.3g)  pole %.3f ulp (naive %.3g)  prewarp %.3f ulp (naive %.3g)\n", smoothing[0],
@@ -633,7 +642,8 @@ namespace
             {"log10", parity::none, {{0.0, inf, 1}}, -inf, inf, logarithmic, 4.0, logs},
             {"sin_turns", parity::odd, {{-0.25, 0.25, 1}}, -1.0, 1.0, finite_only, 1.0, joined(multiples(0.125, 0.0, 16), {1e6 + 0.25, 4194303.75, 0x1p-30})},
             {"cos_turns", parity::even, {{-0.5, 0.0, 1}, {0.0, 0.5, -1}}, -1.0, 1.0, finite_only, 1.0, joined(multiples(0.125, 0.0, 16), {1e6 + 0.25, 4194303.75, 0x1p-30})},
-            {"tan_turns", parity::odd, {{-0.49999999999999994, 0.49999999999999994, 1}}, -inf, inf, [](double x, bool) { return std::isnan(x) || std::isinf(x) ? any : std::fabs(x - std::nearbyint(x)) == 0.5 ? defined : bounded; }, 1.0, joined(multiples(0.125, 0.0, 16), {0.25, 0.5, 1e6 + 0.25, 4194303.75, 0x1p-30})},
+            {"tanpi", parity::odd, {{-0.49999999999999994, 0.49999999999999994, 1}}, -inf, inf, [](double x, bool) { return std::isnan(x) || std::isinf(x) ? any : std::fabs(x - std::nearbyint(x)) == 0.5 ? defined : bounded; }, 1.0, joined(multiples(0.125, 0.0, 16), {0.25, 0.5, 1e6 + 0.25, 4194303.75, 0x1p-30})},
+            {"tan_turns", parity::odd, {{-0.24999999999999997, 0.24999999999999997, 1}}, -inf, inf, [](double x, bool) { return std::isnan(x) || std::isinf(x) ? any : std::fabs(2.0 * x - std::nearbyint(2.0 * x)) == 0.5 ? defined : bounded; }, 1.0, joined(multiples(0.125, 0.0, 16), {0.25, 0.5, 1e6 + 0.25, 4194303.75, 0x1p-30})},
             {"sinh", parity::odd, {{-inf, inf, 1}}, -inf, inf, [](double x, bool w) { return std::fabs(x) < (w ? 710.47 : 89.41) ? bounded : std::isnan(x) ? any : defined; }, 3.0, {1.0, 0x1p-30, 86.0, 707.0, 88.72, 89.41, 709.78, 710.47, 0.3466, 1.0397}},
             {"cosh", parity::even, {{-inf, 0.0, -1}, {0.0, inf, 1}}, 1.0, inf, [](double x, bool w) { return std::fabs(x) < (w ? 710.47 : 89.41) ? bounded : std::isnan(x) ? any : defined; }, 3.0, {1.0, 0x1p-30, 86.0, 707.0, 88.72, 89.41, 709.78, 710.47, 0.3466, 1.0397}},
             {"asinh", parity::odd, {{-inf, inf, 1}}, -inf, inf, finite_only, 4.0, {0.5, 0x1p-30, 0x1p13, 0x1p27, 1e300, 1.0, 2.0}},

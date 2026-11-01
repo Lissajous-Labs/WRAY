@@ -61,7 +61,8 @@ REFERENCE = {
     "sin": lambda x: mp.sin(x),
     "cos_turns": lambda x: mp.cospi(2 * x),
     "cos": lambda x: mp.cos(x),
-    "tan_turns": lambda x: mp.sinpi(x) / mp.cospi(x) if mp.cospi(x) != 0 else mp.inf * mp.sign(x),
+    "tanpi": lambda x: mp.sinpi(x) / mp.cospi(x) if mp.cospi(x) != 0 else mp.inf * mp.sign(x),
+    "tan_turns": lambda x: mp.sinpi(2 * x) / mp.cospi(2 * x) if mp.cospi(2 * x) != 0 else mp.inf * mp.sign(x),
     "tan": lambda x: mp.tan(x),
     "atan": lambda x: mp.atan(x),
     "sinh": lambda x: mp.sinh(x),
@@ -113,14 +114,14 @@ for _name, (_f, _F) in ADAA.items():
     REFERENCE[f"adaa_{_name}_F1"] = _F
     REFERENCE[f"adaa_{_name}_first"] = _mean(_f, _F)
 
-UNARY = ["product_log", "omega", "ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid", "db_to_gain", "gain_to_db"] + [f"adaa_{n}_F1" for n in ADAA]
+UNARY = ["product_log", "omega", "ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tanpi", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid", "db_to_gain", "gain_to_db"] + [f"adaa_{n}_F1" for n in ADAA]
 
 CONTRACTS = {
-    "f32": {"product_log": 2.05, "omega": 1.65, "smoothing_coefficient": 2.0, "pole_from_cutoff": 2.0, "prewarp": 2.0, "ratio_from_cents": 0.85, "hz_to_midi": 1.25, "midi_to_hz": 1.4, "erf": 0.9, "cbrt": 0.55, "asinh": 0.9, "cosh": 0.9, "sinh": 0.85, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 1.0, "log10": 1.4, "log1p": 1.0, "exp": 1.0, "expm1": 2.0, "exp2": 1.0, "log": 1.0, "log2": 1.5, "sin": 1.0, "cos": 1.0, "tan": 1.75, "atan": 1.0, "tanh": 1.35,
+    "f32": {"product_log": 2.05, "omega": 1.65, "smoothing_coefficient": 2.0, "pole_from_cutoff": 2.0, "prewarp": 2.0, "ratio_from_cents": 0.85, "hz_to_midi": 1.25, "midi_to_hz": 1.4, "erf": 0.9, "cbrt": 0.55, "asinh": 0.9, "cosh": 0.9, "sinh": 0.85, "tanpi": 1.2, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 1.0, "log10": 1.4, "log1p": 1.0, "exp": 1.0, "expm1": 2.0, "exp2": 1.0, "log": 1.0, "log2": 1.5, "sin": 1.0, "cos": 1.0, "tan": 1.75, "atan": 1.0, "tanh": 1.35,
             "sigmoid": 2.0, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.0, "pow": 2.0},
-    "f64": {"product_log": 1.45, "omega": 1.3, "smoothing_coefficient": 2.0, "pole_from_cutoff": 2.0, "prewarp": 2.0, "ratio_from_cents": 0.75, "hz_to_midi": 1.0, "midi_to_hz": 0.75, "erf": 0.9, "cbrt": 0.55, "asinh": 0.85, "cosh": 0.9, "sinh": 0.85, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 0.85, "log10": 1.0, "log1p": 0.95, "exp": 1.0, "expm1": 1.75, "exp2": 1.0, "log": 1.0, "log2": 1.0, "sin": 1.0, "cos": 1.0, "tan": 1.45, "atan": 1.1, "tanh": 1.3,
+    "f64": {"product_log": 1.45, "omega": 1.3, "smoothing_coefficient": 2.0, "pole_from_cutoff": 2.0, "prewarp": 2.0, "ratio_from_cents": 0.75, "hz_to_midi": 1.0, "midi_to_hz": 0.75, "erf": 0.9, "cbrt": 0.55, "asinh": 0.85, "cosh": 0.9, "sinh": 0.85, "tanpi": 1.2, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 0.85, "log10": 1.0, "log1p": 0.95, "exp": 1.0, "expm1": 1.75, "exp2": 1.0, "log": 1.0, "log2": 1.0, "sin": 1.0, "cos": 1.0, "tan": 1.45, "atan": 1.1, "tanh": 1.3,
             "sigmoid": 1.75, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.1, "pow": 1.5},
-    "fast": {name: 2.0 ** -16 for name in ["product_log", "omega", "tan_turns", "cos_turns", "sin_turns", "exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid",
+    "fast": {name: 2.0 ** -16 for name in ["product_log", "omega", "tanpi", "tan_turns", "cos_turns", "sin_turns", "exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid",
                                            "db_to_gain", "gain_to_db", "atan2", "pow"]},
 }
 ADAA_CONTRACTS = {"hard_clip": (0.8, 3.0), "soft_clip": (1.5, 8.0), "tanh": (3.0, 10.0), "atan": (3.5, 15.0), "algebraic": (6.0, 62.0),
@@ -166,7 +167,7 @@ def domain(fn, tier, rng, n):
         return np.concatenate([value_uniform(rng, fmt, -0.75, 2.0, half), bit_uniform(rng, fmt, tiny, huge, q), -bit_uniform(rng, fmt, tiny, 0.999, n - half - q)])
     if fn == "log10":
         return np.concatenate([bit_uniform(rng, fmt, tiny, huge, half), value_uniform(rng, fmt, 0.5, 20.0, n - half)])
-    if fn in ("sin_turns", "cos_turns", "tan_turns"):
+    if fn in ("sin_turns", "cos_turns", "tanpi", "tan_turns"):
         q = n // 4
         r = n - half - q
         k = rng.integers(-64, 64, size=r).astype(np.float64) / 8

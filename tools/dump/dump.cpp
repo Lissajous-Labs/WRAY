@@ -99,6 +99,7 @@ namespace
                 add("sin", [](auto v) { return wray::fast::sin(v); });
                 add("cos_turns", [](auto v) { return wray::fast::cos_turns(v); });
                 add("cos", [](auto v) { return wray::fast::cos(v); });
+                add("tanpi", [](auto v) { return wray::fast::tanpi(v); });
                 add("tan_turns", [](auto v) { return wray::fast::tan_turns(v); });
                 add("tan", [](auto v) { return wray::fast::tan(v); });
                 add("atan", [](auto v) { return wray::fast::atan(v); });
@@ -124,6 +125,7 @@ namespace
                 add("sin", [](auto v) { return wray::sin(v); });
                 add("cos_turns", [](auto v) { return wray::cos_turns(v); });
                 add("cos", [](auto v) { return wray::cos(v); });
+                add("tanpi", [](auto v) { return wray::tanpi(v); });
                 add("tan_turns", [](auto v) { return wray::tan_turns(v); });
                 add("tan", [](auto v) { return wray::tan(v); });
                 add("atan", [](auto v) { return wray::atan(v); });

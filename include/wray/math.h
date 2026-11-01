@@ -151,6 +151,9 @@ namespace wray
     WRAY_INLINE math::sincos_result<V> sincos(const V &x) noexcept { return math::lift_pair(x, [](const auto &v) { return math::detail::sincos<math::precise>(v); }); }
 
     template<simd::real V>
+    WRAY_INLINE V tanpi(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::tanpi<math::precise>(v); }); }
+
+    template<simd::real V>
     WRAY_INLINE V tan_turns(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::tan_turns<math::precise>(v); }); }
 
     template<simd::real V>
@@ -251,6 +254,9 @@ namespace wray
 
     template<math::real_range In, class Out>
     void cos(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::cos(v); }); }
+
+    template<math::real_range In, class Out>
+    void tanpi(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::tanpi(v); }); }
 
     template<math::real_range In, class Out>
     void tan_turns(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::tan_turns(v); }); }
@@ -376,6 +382,9 @@ namespace wray::fast
     WRAY_INLINE math::sincos_result<V> sincos(const V &x) noexcept { return math::lift_pair(x, [](const auto &v) { return math::detail::sincos<math::fast>(v); }); }
 
     template<single V>
+    WRAY_INLINE V tanpi(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::tanpi<math::fast>(v); }); }
+
+    template<single V>
     WRAY_INLINE V tan_turns(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::tan_turns<math::fast>(v); }); }
 
     template<single V>
@@ -431,6 +440,9 @@ namespace wray::fast
 
     template<math::real_range In, class Out>
     void cos(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return fast::cos(v); }); }
+
+    template<math::real_range In, class Out>
+    void tanpi(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return fast::tanpi(v); }); }
 
     template<math::real_range In, class Out>
     void tan_turns(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return fast::tan_turns(v); }); }

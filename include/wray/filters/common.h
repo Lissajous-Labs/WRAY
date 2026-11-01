@@ -40,7 +40,7 @@ namespace wray::filters::detail
 
     WRAY_INLINE double clamp_q(double q) noexcept { return q > lowest_q ? (q < highest_q ? q : highest_q) : lowest_q; }
 
-    WRAY_INLINE double prewarp(double hz, double fs) noexcept { return wray::tan_turns(hz / fs); }
+    WRAY_INLINE double prewarp(double hz, double fs) noexcept { return wray::tanpi(hz / fs); }
 
     template<class V>
     WRAY_INLINE double realise(double c) noexcept

@@ -291,14 +291,14 @@ namespace wray::math::coeff
         static constexpr std::array<float, 1> q{ 0x1p+0f };
     };
 
-    struct tan_turns_f32
+    struct tanpi_f32
     {
         using value_type = float;
         static constexpr std::array<float, 7> p{ 0x1.4abbcep+3f, 0x1.466b22p+5f, 0x1.46288cp+7f, 0x1.42401ap+9f, 0x1.6e626cp+11f, 0x1.adea66p+11f, 0x1.ae468p+16f };
         static constexpr std::array<float, 1> q{ 0x1p+0f };
     };
 
-    struct tan_turns_f64
+    struct tanpi_f64
     {
         using value_type = double;
         static constexpr std::array<double, 4> p{ 0x1.4abbce625be53p+3, -0x1.a3ee448b39e6bp+2, 0x1.7a92e09cf4531p-1, -0x1.17307d5e521bcp-11 };

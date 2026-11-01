@@ -147,7 +147,7 @@ def omega(x):
     return y
 
 
-def tan_turns(t):
+def tanpi(t):
     s = mp.sqrt(t)
     return (mp.tan(mp.pi * s) - mp.pi * s) / (s * t)
 
@@ -175,5 +175,5 @@ CORES = {
     "omega": dict(g=omega, interval=lambda tier: (-2, 3)),
     "sin_turns": dict(g=_limit(precise(sin_turns), lambda: -(2 * mp.pi) ** 3 / 6), interval=lambda tier: (0, mp.mpf(1) / 64)),
     "cos_turns": dict(g=_limit(precise(cos_turns), lambda: (2 * mp.pi) ** 4 / 24), interval=lambda tier: (0, mp.mpf(1) / 64)),
-    "tan_turns": dict(g=_limit(precise(tan_turns), lambda: mp.pi ** 3 / 3), interval=lambda tier: (0, mp.mpf(1) / 16)),
+    "tanpi": dict(g=_limit(precise(tanpi), lambda: mp.pi ** 3 / 3), interval=lambda tier: (0, mp.mpf(1) / 16)),
 }
