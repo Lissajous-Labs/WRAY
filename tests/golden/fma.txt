@@ -43,7 +43,7 @@ f32 atan2 4bf04355a2d22656
 f32 pole_from_cutoff 3fe1f4d426a1beb7
 f32 pow b4020c8599dda265
 f32 prewarp ed56bbb7dad50c08
-f32 smoothing_coefficient 02d887a639e29ee6
+f32 smoothing_coefficient 96d9cbb6aa728a97
 f64 adaa_algebraic_F1 cf26c61a033a61b9
 f64 adaa_atan_F1 246306bcbdac2ae0
 f64 adaa_hard_clip_F1 9f9562aee6f1ba53
@@ -89,7 +89,7 @@ f64 atan2 18f5e5190918436c
 f64 pole_from_cutoff ef03d386aadf043f
 f64 pow a69da17e85a93c11
 f64 prewarp 7cfeeed2b250edf0
-f64 smoothing_coefficient 86f9a83f27e997ad
+f64 smoothing_coefficient 9fcd7898d4f8e23f
 fast atan d0606aa0f0c8b80f
 fast cos 55ae97456032a147
 fast cos_turns 9941431f86f6b19a

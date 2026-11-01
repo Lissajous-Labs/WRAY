@@ -1384,8 +1384,11 @@ namespace wray::math::detail
         const V one(S(1));
         const auto p = two_product(seconds, fs);
         const auto x = quotient(one, p.hi);
-        const V xl = finite_or_zero(p.hi, fma(-x.hi, p.lo / p.hi, x.lo));
-        const V e = expm1<Tier>(-x.hi);
+        const auto overflow = both(p.hi == inf<V>(), both(abs(seconds) < inf<V>(), abs(fs) < inf<V>()));
+        const V u = select(overflow, (one / simd::min(seconds, fs)) / simd::max(seconds, fs), x.hi);
+        const V correction = fma(-x.hi, p.lo / p.hi, x.lo);
+        const V xl = select(both(abs(correction) < inf<V>(), both(abs(x.hi) < inf<V>(), !overflow)), correction, V(S(0)));
+        const V e = expm1<Tier>(-u);
         return fma(xl, one + e, -e);
     }
 

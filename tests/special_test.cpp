@@ -277,6 +277,12 @@ namespace
         CHECK(same(wray::pow(nan, T(0)), T(1)));
         CHECK(same(wray::pow(T(1), nan), T(1)));
         CHECK(same(wray::pow(T(-8), T(1.0 / 3.0)), nan));
+        CHECK(same(wray::smoothing_coefficient(T(0), T(48000)), T(1)));
+        CHECK(same(wray::smoothing_coefficient(std::numeric_limits<T>::denorm_min(), T(48000)), T(1)));
+        CHECK(same(wray::smoothing_coefficient(std::numeric_limits<T>::min(), T(48000)), T(1)));
+        CHECK(same(wray::smoothing_coefficient(inf, T(48000)), T(0)));
+        CHECK(same(wray::smoothing_coefficient(std::numeric_limits<T>::max(), T(48000)), (T(1) / T(48000)) / std::numeric_limits<T>::max()));
+        CHECK(same(wray::smoothing_coefficient(std::numeric_limits<T>::max() / T(4), T(8)), (T(1) / T(8)) / (std::numeric_limits<T>::max() / T(4))));
         CHECK(same(wray::pow(T(-2), T(3)), T(-8)));
         CHECK(same(wray::pow(T(-2), T(2)), T(4)));
         CHECK(same(wray::pow(T(-2), T(-1)), T(-0.5)));
