@@ -173,8 +173,11 @@ def constants(ctype):
         }
 
 
+TWO_OVER_PI_WORDS = 40
+
+
 def emit_header(results, out):
-    lines = ["#pragma once", "", "#include <array>", "", "namespace wray::math::coeff", "{"]
+    lines = ["#pragma once", "", "#include <array>", "#include <cstdint>", "", "namespace wray::math::coeff", "{"]
     for (name, tier), data in sorted(results.items()):
         ctype = TIERS[tier][0]
         p = ", ".join(literal(mp.mpf(c), ctype) for c in data["p"])
@@ -188,6 +191,11 @@ def emit_header(results, out):
             "    };",
             "",
         ]
+    with mp.workdps(500):
+        bits = int(mp.floor(2 / mp.pi * mp.mpf(2) ** (32 * TWO_OVER_PI_WORDS)))
+    words = [(bits >> (32 * (TWO_OVER_PI_WORDS - 1 - k))) & 0xFFFFFFFF for k in range(TWO_OVER_PI_WORDS)]
+    lines += [f"    inline constexpr std::array<std::uint32_t, {TWO_OVER_PI_WORDS}> two_over_pi_words{{",
+              "        " + ", ".join(f"0x{w:08x}u" for w in words), "    };", ""]
     lines[-1:] = ["}", ""]
     lines += ["namespace wray::math", "{", "    template <class T>", "    struct constants;", ""]
     for ctype in ("float", "double"):

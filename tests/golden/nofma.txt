@@ -7,7 +7,7 @@ f32 adaa_tanh_F1 24876e25afd131f4
 f32 asinh 76abd9934068d18c
 f32 atan b0ad6709ed44704f
 f32 cbrt fa94df6296b65cf8
-f32 cos 8dd1c45768cf4f29
+f32 cos d86300fba490a3ec
 f32 cos_turns aed3e4b695f14a0c
 f32 cosh ba21ce4e4e3c892f
 f32 db_to_gain 616586ff53b29d65
@@ -26,10 +26,10 @@ f32 omega 628f1864ad40e319
 f32 product_log c18bd0c61c708470
 f32 ratio_from_cents 7b577db0641641e3
 f32 sigmoid 6ac533ed310330fd
-f32 sin 67af771285aad947
+f32 sin 9fee988fc06de4f0
 f32 sin_turns 0297bb62dcc894e4
 f32 sinh c1eb8ae4aef99a80
-f32 tan b96dac8c26c6252a
+f32 tan 77fae9a905cfdd77
 f32 tan_turns 8841fccd542859c7
 f32 tanh 2cf6a38e7bdda16c
 f32 tanpi 5bfd6128cd6604fa
@@ -53,7 +53,7 @@ f64 adaa_tanh_F1 89713e2bd9e33f13
 f64 asinh cbe4583cc3bc7cf7
 f64 atan 26f1349a977be3d9
 f64 cbrt 0bb5154efebe3c3f
-f64 cos 9f5c9f6e8df45e57
+f64 cos dd2c19e8ecb8da72
 f64 cos_turns 9559fc8b4483f173
 f64 cosh e7c2c199dfd33315
 f64 db_to_gain a029963957d088fc
@@ -72,10 +72,10 @@ f64 omega 7aa76967b7ffb7cd
 f64 product_log d3d8fe720cce4d1f
 f64 ratio_from_cents 8d0b6d4c4ac8ea5e
 f64 sigmoid 20fc3a0c3fb759c4
-f64 sin 5e589dada1578048
+f64 sin 427a7bb5bd8f123a
 f64 sin_turns 8649bccb01e38028
 f64 sinh 2a04d47217dd531b
-f64 tan fdaec1abbdb7b22f
+f64 tan 5d4bfcba162478f5
 f64 tan_turns a5b67fa6f39be039
 f64 tanh ef513765bf0d9a0f
 f64 tanpi 6eaed3cb656f4c5a
@@ -91,7 +91,7 @@ f64 pow ad1f3e0111f3e7a6
 f64 prewarp 0182812dfd476174
 f64 smoothing_coefficient 9b83112aa75520ed
 fast atan d5e6a6944933cc7c
-fast cos b593f6ecc8f638c8
+fast cos cef449d807710a08
 fast cos_turns e69af60cddc9ad60
 fast db_to_gain 8e18ca65ef73c481
 fast exp a3792d20e0d58861
@@ -102,9 +102,9 @@ fast log2 c45633711e959739
 fast omega adda58e5464a1ffe
 fast product_log 77391cc05ecfddb9
 fast sigmoid b2ccb2b976037ccd
-fast sin 2f5beb8f759f3ab7
+fast sin d60ead15de16df0a
 fast sin_turns 6984b869ededc0a4
-fast tan 96c746e2044c02a9
+fast tan 6846b89553c7645e
 fast tan_turns 8b984c55cf7bbaec
 fast tanh 8fefb3a2086016de
 fast tanpi 9eae4f156c9a2598

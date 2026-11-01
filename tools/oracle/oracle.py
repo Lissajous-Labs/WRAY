@@ -49,6 +49,11 @@ def _product_log_ref(x):
     return (lo + hi) / 2
 
 
+def _wide_trig(f, x):
+    with mp.workdps(mp.mp.dps + max(0, int(mp.log10(abs(x) + 1))) + 20):
+        return +f(x)
+
+
 REFERENCE = {
     "exp": lambda x: mp.exp(x),
     "expm1": lambda x: mp.expm1(x),
@@ -58,12 +63,12 @@ REFERENCE = {
     "log10": lambda x: mp.log10(x),
     "log2": lambda x: mp.log(x, 2),
     "sin_turns": lambda x: mp.sinpi(2 * x),
-    "sin": lambda x: mp.sin(x),
+    "sin": lambda x: _wide_trig(mp.sin, x),
     "cos_turns": lambda x: mp.cospi(2 * x),
-    "cos": lambda x: mp.cos(x),
+    "cos": lambda x: _wide_trig(mp.cos, x),
     "tanpi": lambda x: mp.sinpi(x) / mp.cospi(x) if mp.cospi(x) != 0 else mp.inf * mp.sign(x),
     "tan_turns": lambda x: mp.sinpi(2 * x) / mp.cospi(2 * x) if mp.cospi(2 * x) != 0 else mp.inf * mp.sign(x),
-    "tan": lambda x: mp.tan(x),
+    "tan": lambda x: _wide_trig(mp.tan, x),
     "atan": lambda x: mp.atan(x),
     "sinh": lambda x: mp.sinh(x),
     "cosh": lambda x: mp.cosh(x),
@@ -207,8 +212,9 @@ def domain(fn, tier, rng, n):
         k = rng.integers(-int(trig / (np.pi / 2)), int(trig / (np.pi / 2)), size=q)
         near = (k * (np.pi / 2)).astype(fmt["dtype"])
         near = np.nextafter(near, near + rng.choice([-1, 1], size=q)).astype(fmt["dtype"])
+        wide = q // 2
         return np.concatenate([value_uniform(rng, fmt, -2 * np.pi, 2 * np.pi, q), value_uniform(rng, fmt, -trig, trig, q),
-                               bit_uniform(rng, fmt, 1e-6, trig, n - 3 * q, True), near])
+                               bit_uniform(rng, fmt, 1e-6, trig, n - 3 * q - wide, True), near[: q], bit_uniform(rng, fmt, trig, huge, wide, True)])
     if fn == "atan":
         return np.concatenate([bit_uniform(rng, fmt, tiny, huge, half, True), value_uniform(rng, fmt, -4.0, 4.0, n - half)])
     if fn == "tanh":

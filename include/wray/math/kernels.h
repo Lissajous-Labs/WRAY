@@ -1,5 +1,6 @@
 #pragma once
 
+#include <bit>
 #include <cstdint>
 #include <limits>
 #include <type_traits>
@@ -604,7 +605,153 @@ namespace wray::math::detail
     };
 
     template<class Tier, class V>
-    WRAY_INLINE reduced<V> reduce_pio2(const V &x) noexcept
+    WRAY_INLINE reduced<V> reduce_pio2_inside(const V &x) noexcept;
+
+    struct huge_reduction
+    {
+        double hi;
+        double lo;
+        int q;
+    };
+
+    inline std::uint64_t bits_at(const std::uint32_t *limbs, int count, int position, int width) noexcept
+    {
+        std::uint64_t v = 0;
+        for (int b = width - 1; b >= 0; --b)
+        {
+            const int at = position + b;
+            const std::uint64_t bit = at >= 0 && at < 32 * count ? (limbs[at / 32] >> (at % 32)) & 1u : 0u;
+            v = (v << 1) | bit;
+        }
+        return v;
+    }
+
+    inline huge_reduction reduce_huge(double x) noexcept
+    {
+        using K = constants<double>;
+        constexpr int window = 6;
+        const std::uint64_t bits = std::bit_cast<std::uint64_t>(x);
+        const int biased = static_cast<int>((bits >> 52) & 0x7ffu);
+        const std::uint64_t m = (bits & ((std::uint64_t(1) << 52) - 1)) | (biased != 0 ? std::uint64_t(1) << 52 : 0);
+        const int e = (biased != 0 ? biased : 1) - 1075;
+        const int k0 = e > 2 ? (e - 2) / 32 : 0;
+        std::uint32_t w[window];
+        for (int i = 0; i < window; ++i)
+            w[i] = coeff::two_over_pi_words[static_cast<std::size_t>(k0 + window - 1 - i)];
+        std::uint32_t product[window + 2] = {};
+        const std::uint32_t half[2] = {static_cast<std::uint32_t>(m), static_cast<std::uint32_t>(m >> 32)};
+        for (int a = 0; a < 2; ++a)
+        {
+            std::uint64_t carry = 0;
+            for (int j = 0; j < window; ++j)
+            {
+                const std::uint64_t t = std::uint64_t(w[j]) * half[a] + product[j + a] + carry;
+                product[j + a] = static_cast<std::uint32_t>(t);
+                carry = t >> 32;
+            }
+            for (int j = window + a; j < window + 2 && carry != 0; ++j)
+            {
+                const std::uint64_t t = std::uint64_t(product[j]) + carry;
+                product[j] = static_cast<std::uint32_t>(t);
+                carry = t >> 32;
+            }
+        }
+        const int s = 32 * (k0 + window) - e;
+        int q = static_cast<int>(bits_at(product, window + 2, s, 2));
+        std::uint64_t f_hi = bits_at(product, window + 2, s - 64, 64);
+        std::uint64_t f_lo = bits_at(product, window + 2, s - 128, 64);
+        double sign = 1.0;
+        if ((f_hi >> 63) != 0)
+        {
+            q = (q + 1) & 3;
+            f_lo = ~f_lo + 1;
+            f_hi = ~f_hi + (f_lo == 0 ? 1u : 0u);
+            sign = -1.0;
+        }
+        const double top = static_cast<double>(f_hi & ~std::uint64_t(0x7ff)) * 0x1p-64;
+        const double rest = (static_cast<double>(f_hi & 0x7ffu) + static_cast<double>(f_lo) * 0x1p-64) * 0x1p-64;
+        const auto f = two_sum(top, rest);
+        const auto p = two_product(f.hi, K::pio2_hi);
+        const double lo = p.lo + (f.hi * K::pio2_lo + f.lo * K::pio2_hi);
+        const auto r = two_sum(p.hi, lo);
+        const bool negative = (bits >> 63) != 0;
+        const double out = negative ? -sign : sign;
+        return {r.hi * out, r.lo * out, negative ? (4 - q) & 3 : q};
+    }
+
+    template<class T, bool = std::is_arithmetic_v<T> >
+    struct lane_of
+    {
+        using type = T;
+    };
+
+    template<class T>
+    struct lane_of<T, false>
+    {
+        using type = typename T::value_type;
+    };
+
+    template<class V>
+    void patch_huge(const V &x, V &hi, V &lo, integer_t<V> &q) noexcept
+    {
+        using S = scalar_t<V>;
+        using I = typename lane_of<integer_t<V> >::type;
+        using K = constants<S>;
+        constexpr int n = simd::traits<V>::width;
+        S xa[n], ha[n], la[n];
+        I qa[n];
+        if constexpr (n == 1)
+        {
+            xa[0] = x;
+            ha[0] = hi;
+            la[0] = lo;
+            qa[0] = q;
+        } else
+        {
+            x.store(xa);
+            hi.store(ha);
+            lo.store(la);
+            q.store(qa);
+        }
+        for (int i = 0; i < n; ++i)
+        {
+            const S a = xa[i] < S(0) ? -xa[i] : xa[i];
+            if (!(a > K::trig_arg_max) || !(a < std::numeric_limits<S>::infinity()))
+                continue;
+            const auto r = reduce_huge(static_cast<double>(xa[i]));
+            const S h = static_cast<S>(r.hi);
+            ha[i] = h;
+            la[i] = static_cast<S>((r.hi - static_cast<double>(h)) + r.lo);
+            qa[i] = static_cast<I>(r.q);
+        }
+        if constexpr (n == 1)
+        {
+            hi = ha[0];
+            lo = la[0];
+            q = qa[0];
+        } else
+        {
+            hi = V::load(ha);
+            lo = V::load(la);
+            q = integer_t<V>::load(qa);
+        }
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE reduced<V> reduce_pio2(const V &input) noexcept
+    {
+        using S = scalar_t<V>;
+        using K = constants<S>;
+        const auto inside = abs(input) <= V(K::trig_arg_max);
+        const V x = select(inside, input, V(S(0)));
+        reduced<V> r = reduce_pio2_inside<Tier>(x);
+        if (simd::any(both(!inside, abs(input) < inf<V>())))
+            patch_huge(input, r.hi, r.lo, r.q);
+        return r;
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE reduced<V> reduce_pio2_inside(const V &x) noexcept
     {
         using S = scalar_t<V>;
         using K = constants<S>;
@@ -662,11 +809,7 @@ namespace wray::math::detail
     WRAY_INLINE V trig_unit(const V &x) noexcept
     {
         using S = scalar_t<V>;
-        using K = constants<S>;
-        if constexpr (full<Tier>)
-            return select(abs(x) <= V(K::trig_arg_max), V(S(1)), nan<V>());
-        else
-            return V(S(1));
+        return select(abs(x) < inf<V>(), V(S(1)), nan<V>());
     }
 
     template<class V>

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 
 namespace wray::math::coeff
 {
@@ -324,6 +325,10 @@ namespace wray::math::coeff
         using value_type = double;
         static constexpr std::array<double, 4> p{ 0x1.4abbce625be53p+3, -0x1.a3ee448b39e6bp+2, 0x1.7a92e09cf4531p-1, -0x1.17307d5e521bcp-11 };
         static constexpr std::array<double, 4> q{ 0x1p+0, -0x1.254ac7571b21cp+2, 0x1.32361c9105e3bp+1, -0x1.f7f875e4624fap-3 };
+    };
+
+    inline constexpr std::array<std::uint32_t, 40> two_over_pi_words{
+        0xa2f9836eu, 0x4e441529u, 0xfc2757d1u, 0xf534ddc0u, 0xdb629599u, 0x3c439041u, 0xfe5163abu, 0xdebbc561u, 0xb7246e3au, 0x424dd2e0u, 0x06492eeau, 0x09d1921cu, 0xfe1deb1cu, 0xb129a73eu, 0xe88235f5u, 0x2ebb4484u, 0xe99c7026u, 0xb45f7e41u, 0x3991d639u, 0x835339f4u, 0x9c845f8bu, 0xbdf9283bu, 0x1ff897ffu, 0xde05980fu, 0xef2f118bu, 0x5a0a6d1fu, 0x6d367ecfu, 0x27cb09b7u, 0x4f463f66u, 0x9e5fea2du, 0x7527bac7u, 0xebe5f17bu, 0x3d0739f7u, 0x8a5292eau, 0x6bfb5fb1u, 0x1f8d5d08u, 0x56033046u, 0xfc7b6babu, 0xf0cfbc20u, 0x9af4361du
     };
 }
 

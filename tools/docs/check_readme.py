@@ -63,6 +63,13 @@ def correctly_rounded(value, dt):
     return min(candidates, key=lambda c: abs(mp.mpf(float(c)) - value))
 
 
+def ulp_of(value, dt):
+    import mpmath as mp
+    fi = np.finfo(dt)
+    e = max(int(mp.floor(mp.log(abs(value), 2))), int(np.log2(fi.tiny))) if value != 0 else int(np.log2(fi.tiny))
+    return mp.ldexp(1, e - fi.nmant)
+
+
 def threshold(dump, fn, tier, lo, hi, keep):
     dt = np.float64 if tier == "f64" else np.float32
     lo, hi = dt(lo), dt(hi)
@@ -113,11 +120,19 @@ def main():
         claims(shown)
         check(float(shown) == float(f"{limit:.3g}") if tier == "f64" else round(limit) == int(shown), f"trig limit {tier}")
         dt = np.float64 if tier == "f64" else np.float32
-        above = np.nextafter(dt(limit), dt(np.inf))
-        for fn in ("sin", "cos", "tan"):
-            values = dump(fn, tier, [limit, above])
-            check(np.isfinite(values[0]) and np.isnan(values[1]), f"{fn} {tier} returns NaN past the reduction range")
-    check(not np.isnan(dump("sin", "fast", 1.0e6)[0]), "fast sin has no range check")
+        import mpmath as mp
+        probes = [float(limit), float(np.nextafter(dt(limit), dt(np.inf))), -2.0e7, float(np.finfo(dt).max), -float(np.finfo(dt).max)]
+        for fn, ref in (("sin", mp.sin), ("cos", mp.cos), ("tan", mp.tan)):
+            for t in ((tier, "fast") if tier == "f32" else (tier,)):
+                values = dump(fn, t, probes)
+                with mp.workdps(400):
+                    want = [ref(mp.mpf(float(dt(v)))) for v in probes]
+                ok = all(np.isfinite(g) and abs(mp.mpf(float(g)) - w) <= (abs(w) * 2.0 ** -16 if t == "fast" else ulp_of(w, dt)) for g, w in zip(values, want))
+                check(ok, f"{fn} {t} accurate past the fast reduction range")
+            check(np.isnan(dump(fn, tier, [np.inf])[0]), f"{fn} {tier} of infinity is NaN")
+    claims("1280-bit table of 2/π")
+    generate = (ROOT / "tools/remez/generate.py").read_text()
+    check(re.search(r"TWO_OVER_PI_WORDS = (\d+)", generate) and 32 * int(re.search(r"TWO_OVER_PI_WORDS = (\d+)", generate).group(1)) == 1280, "2/pi table size")
 
     def edge(fn, tier, lo, hi, kind):
         return threshold(dump, fn, tier, lo, hi, np.isfinite if kind == "over" else (lambda v: v == 0))

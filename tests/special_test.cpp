@@ -209,7 +209,6 @@ namespace
             {[](T x) { return wray::sin(x); }, [](V x) { return wray::sin(x); }, -T(0), -T(0)},
             {[](T x) { return wray::sin(x); }, [](V x) { return wray::sin(x); }, inf, nan},
             {[](T x) { return wray::sin(x); }, [](V x) { return wray::sin(x); }, nan, nan},
-            {[](T x) { return wray::sin(x); }, [](V x) { return wray::sin(x); }, huge, nan},
             {[](T x) { return wray::cos(x); }, [](V x) { return wray::cos(x); }, T(0), T(1)},
             {[](T x) { return wray::cos(x); }, [](V x) { return wray::cos(x); }, -inf, nan},
             {[](T x) { return wray::tan(x); }, [](V x) { return wray::tan(x); }, T(0), T(0)},
@@ -244,6 +243,49 @@ namespace
             const V v = r.vfn(V(r.x));
             for (int i = 0; i < V::size; ++i)
                 CHECK(same(v[i], r.want));
+        }
+    }
+
+    template <class T, class V>
+    void huge_trig()
+    {
+        struct row
+        {
+            T x;
+            long double sin;
+            long double cos;
+            long double tan;
+        };
+        const row rows[] = {
+            {std::numeric_limits<T>::max(), std::is_same_v<T, float> ? -0.5218765233336585405515054L : 0.004961954789184061790502671L,
+             std::is_same_v<T, float> ? 0.8530210398303041580517915L : -0.9999876894265599374648701L, std::is_same_v<T, float> ? -0.611797949834248061162496L : -0.004962015874444894900500884L},
+            {T(-2e7), 0.7631011174721591478089145L, 0.6462791072847256792926895L, 1.180760926464494528273596L},
+        };
+        const auto close = [](T got, long double want, long double tolerance) {
+            const long double ulp = std::ldexp(1.0L, std::ilogb(static_cast<T>(want)) - std::numeric_limits<T>::digits + 1);
+            return std::isfinite(got) && std::fabs(static_cast<long double>(got) - want) <= tolerance * ulp;
+        };
+        for (const auto& r : rows)
+        {
+            for (const T x : {r.x, -r.x})
+            {
+                const long double sign = (x < 0) == (r.x < 0) ? 1.0L : -1.0L;
+                const long double s = sign * r.sin;
+                const long double t = sign * r.tan;
+                CHECK(close(wray::sin(x), s, 1));
+                CHECK(close(wray::cos(x), r.cos, 1));
+                CHECK(close(wray::tan(x), t, 1));
+                const auto sc = wray::sincos(x);
+                CHECK(close(sc.sin, s, 1));
+                CHECK(close(sc.cos, r.cos, 1));
+                CHECK(close(wray::sin(V(x))[V::size - 1], s, 1));
+                if constexpr (std::is_same_v<T, float>)
+                {
+                    CHECK(close(wray::fast::sin(x), s, 128));
+                    CHECK(close(wray::fast::cos(x), r.cos, 128));
+                    CHECK(close(wray::fast::tan(x), t, 128));
+                }
+            }
         }
     }
 
@@ -365,5 +407,7 @@ int main()
     octaves<float>();
     octaves<double>();
     ranges();
+    huge_trig<float, wray::f32x4>();
+    huge_trig<double, wray::f64x2>();
     return wray::test::finish("special");
 }

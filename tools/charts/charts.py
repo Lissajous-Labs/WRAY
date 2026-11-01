@@ -178,7 +178,7 @@ def trig_chart(acc, out):
             keep = (x > 0) & np.isfinite(y)
             ax.scatter(x[keep], y[keep], s=1.2, alpha=0.45, color=COLORS[tier], label=TIER_LABEL[tier], linewidths=0)
         ax.set_xscale("log")
-        ax.set_title(f"{name}: error vs |x| up to the reduction limit")
+        ax.set_title(f"{name}: error vs |x|, both reductions")
         ax.set_xlabel("|x|")
         ax.set_ylabel("ulp")
         ax.legend(markerscale=6, loc="upper left")
