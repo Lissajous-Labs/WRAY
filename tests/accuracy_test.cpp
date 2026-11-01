@@ -127,6 +127,9 @@ namespace
         constexpr double trig32 = 0x1.921fb6p+12;
         constexpr double trig64 = 0x1.921fb54442d18p+22;
         return {
+            {"expm1", [](double x) { return std::expm1(x); }, all, batch32([](auto v) { return wray::expm1(v); }), {}, all,
+             batch64([](auto v) { return wray::expm1(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -745.0, 709.78) : signed_bits(g, 0x1p-1074, 2.0); },
+             2.0, 0.0, 1.75},
             {"exp", [](double x) { return std::exp(x); }, all, batch32([](auto v) { return wray::exp(v); }), batch32([](auto v) { return wray::fast::exp(v); }),
              [](float x) { return x >= -87.0f && x <= 88.0f; }, batch64([](auto v) { return wray::exp(v); }),
              [](std::mt19937_64& g) { return uniform(g, -745.0, 709.78); }, 1.0, 0x1p-16, 1.0},
@@ -220,6 +223,8 @@ namespace
     result sweep_f32(const unary_case& c, const batch_f32& fn, bool relative, std::uint64_t stride, const std::function<bool(float)>& domain,
                      host h = host::nearest)
     {
+        if (!fn)
+            return {};
         const unsigned threads = std::max(1u, std::thread::hardware_concurrency());
         std::vector<result> partial(threads);
         std::vector<std::thread> pool;
@@ -466,6 +471,8 @@ namespace
         return {
             {"exp", parity::none, {{-inf, inf, 1}}, 0.0, inf, [](double x, bool w) { return below(x, w ? 709.78 : 88.72); }, 20.0,
              joined(multiples(ln2, 0.5, 60), {86.0, 707.0, 88.72, 709.78, 745.1, 708.39, 103.97, 87.0})},
+            {"expm1", parity::none, {{-inf, inf, 1}}, -1.0, inf, [](double x, bool w) { return below(x, w ? 709.78 : 88.72); }, 2.0,
+             joined(multiples(ln2, 0.5, 60), {86.0, 707.0, 88.72, 709.78, 0x1p-25, 0x1p-54, 17.3, 37.5})},
             {"exp2", parity::none, {{-inf, inf, 1}}, 0.0, inf, [](double x, bool w) { return below(x, w ? 1024.0 : 128.0); }, 20.0,
              joined(multiples(1.0, 0.5, 60), {124.0, 1020.0, 1022.0, 1074.0, 126.0, 149.0})},
             {"log", parity::none, {{0.0, inf, 1}}, -inf, inf, logarithmic, 4.0, logs},
@@ -596,6 +603,8 @@ namespace
 
     tally shape_f32(const shape& s, const batch_f32& fn, const std::function<bool(float)>& domain, std::uint64_t stride)
     {
+        if (!fn)
+            return {};
         constexpr std::size_t run = 4096;
         const std::uint64_t runs = (0x7f800000ull / run + 1 + stride - 1) / stride;
         return shape_parallel<float>(s, fn, domain, runs, run + 1,

@@ -112,6 +112,9 @@ namespace wray
     WRAY_INLINE V exp(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::exp<math::precise>(v); }); }
 
     template<simd::real V>
+    WRAY_INLINE V expm1(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::expm1<math::precise>(v); }); }
+
+    template<simd::real V>
     WRAY_INLINE V exp2(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::exp2<math::precise>(v); }); }
 
     template<simd::real V>
@@ -155,6 +158,9 @@ namespace wray
 
     template<math::real_range In, class Out>
     void exp(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::exp(v); }); }
+
+    template<math::real_range In, class Out>
+    void expm1(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::expm1(v); }); }
 
     template<math::real_range In, class Out>
     void exp2(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::exp2(v); }); }

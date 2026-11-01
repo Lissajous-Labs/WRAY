@@ -18,6 +18,7 @@ FORMATS = {
 
 REFERENCE = {
     "exp": lambda x: mp.exp(x),
+    "expm1": lambda x: mp.expm1(x),
     "exp2": lambda x: mp.power(2, x),
     "log": lambda x: mp.log(x),
     "log2": lambda x: mp.log(x, 2),
@@ -33,12 +34,12 @@ REFERENCE = {
     "pow": lambda x, y: mp.power(x, y),
 }
 
-UNARY = ["exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid", "db_to_gain", "gain_to_db"]
+UNARY = ["exp", "expm1", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid", "db_to_gain", "gain_to_db"]
 
 CONTRACTS = {
-    "f32": {"exp": 1.0, "exp2": 1.0, "log": 1.0, "log2": 1.5, "sin": 1.0, "cos": 1.0, "tan": 1.75, "atan": 1.0, "tanh": 1.35,
+    "f32": {"exp": 1.0, "expm1": 2.0, "exp2": 1.0, "log": 1.0, "log2": 1.5, "sin": 1.0, "cos": 1.0, "tan": 1.75, "atan": 1.0, "tanh": 1.35,
             "sigmoid": 2.0, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.0, "pow": 2.0},
-    "f64": {"exp": 1.0, "exp2": 1.0, "log": 1.0, "log2": 1.0, "sin": 1.0, "cos": 1.0, "tan": 1.4, "atan": 1.1, "tanh": 1.3,
+    "f64": {"exp": 1.0, "expm1": 1.75, "exp2": 1.0, "log": 1.0, "log2": 1.0, "sin": 1.0, "cos": 1.0, "tan": 1.4, "atan": 1.1, "tanh": 1.3,
             "sigmoid": 1.75, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.1, "pow": 1.5},
     "fast": {name: 2.0 ** -16 for name in ["exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid",
                                            "db_to_gain", "gain_to_db", "atan2", "pow"]},
@@ -72,6 +73,9 @@ def domain(fn, tier, rng, n):
     if fn == "exp":
         lo, hi = ((-87.0, 88.0) if fast else (-103.9, 88.72)) if f32 else (-745.0, 709.78)
         return np.concatenate([value_uniform(rng, fmt, lo, hi, half), bit_uniform(rng, fmt, 1e-6, min(-lo, hi), n - half, True)])
+    if fn == "expm1":
+        lo, hi = (-103.9, 88.72) if f32 else (-745.0, 709.78)
+        return np.concatenate([value_uniform(rng, fmt, -2.0, 2.0, half), bit_uniform(rng, fmt, tiny, -lo, n - half, True)])
     if fn == "exp2":
         lo, hi = ((-126.0, 127.0) if fast else (-149.9, 127.99)) if f32 else (-1074.9, 1023.99)
         return np.concatenate([value_uniform(rng, fmt, lo, hi, half), bit_uniform(rng, fmt, 1e-6, min(-lo, hi), n - half, True)])
@@ -187,7 +191,7 @@ def main():
     jobs = []
     for tier in args.tiers:
         for i, fn in enumerate(UNARY + BINARY):
-            if args.only and fn not in args.only:
+            if (args.only and fn not in args.only) or fn not in CONTRACTS.get(tier, {}):
                 continue
             jobs.append((fn, tier, args.dump, args.samples, 1000 + i))
     with ProcessPoolExecutor(args.jobs) as pool:

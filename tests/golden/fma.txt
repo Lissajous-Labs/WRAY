@@ -3,6 +3,7 @@ f32 cos 90e5da37948e62c0
 f32 db_to_gain 0be33d49e362bd34
 f32 exp 09a415688a8f30ba
 f32 exp2 1feb925ac26451b7
+f32 expm1 a82a8a32fbc4ecaa
 f32 gain_to_db ebffe46ca95e69e4
 f32 log de73e2bca256844d
 f32 log2 6e233a342d6272f6
@@ -17,6 +18,7 @@ f64 cos 74e0dba01350e280
 f64 db_to_gain 806f28c5d728d9c5
 f64 exp 0eb9c6f88dbcd5b5
 f64 exp2 dde3fbd7cec7b2a1
+f64 expm1 8446807fd1d20e63
 f64 gain_to_db c9ccb049c85a2d94
 f64 log fca62ed02f97a1a2
 f64 log2 9d9de4c383640dcf

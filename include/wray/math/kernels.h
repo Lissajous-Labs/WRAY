@@ -189,6 +189,12 @@ namespace wray::math::detail
     }
 
     template<class V>
+    WRAY_INLINE V keep_zero(const V &x, const V &v) noexcept
+    {
+        return select(x == V(scalar_t<V>(0)), x, v);
+    }
+
+    template<class V>
     WRAY_INLINE V clamp(const V &x, const V &lo, const V &hi) noexcept
     {
         return select(x > hi, hi, select(x < lo, lo, x));
@@ -303,6 +309,42 @@ namespace wray::math::detail
             const auto red = exp_reduce(xc);
             return exp_poly<Tier>(red.hi) * pow2(red.lo);
         }
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V expm1_regular(const V &x) noexcept
+    {
+        using S = scalar_t<V>;
+        using C = typename table<Tier, S>::exp;
+        const auto red = exp_reduce(x);
+        const V r = red.hi;
+        const V h = numerics::rational<C>(r);
+        const V r2 = r * r;
+        const V p = fma(r2, h, fma(r, r, -r2) * h);
+        const V s = r + p;
+        const V sl = (r - s) + p;
+        const V t = pow2(red.lo);
+        const auto a = two_sum(t - V(S(1)), t * s);
+        return keep_zero(x, a.hi + (a.lo + t * sl));
+    }
+
+    template<class Tier, class V>
+    V expm1_edge(const V &x) noexcept
+    {
+        using S = scalar_t<V>;
+        const auto inside = abs(x) < V(format<S>::exp_safe);
+        const V regular = expm1_regular<Tier>(select(inside, x, V(S(0))));
+        const V e = exp_edge<Tier>(x);
+        return select(inside, regular, select(x > V(S(0)), e, e - V(S(1))));
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V expm1(const V &x) noexcept
+    {
+        using S = scalar_t<V>;
+        if (simd::any(!(abs(x) < V(format<S>::exp_safe))))
+            return expm1_edge<Tier>(x);
+        return expm1_regular<Tier>(x);
     }
 
     template<class Tier, class V>
@@ -571,12 +613,6 @@ namespace wray::math::detail
         const V v = select(nonzero(q & I(1)), p.cos, p.sin);
         const V sign = select(nonzero(q & I(2)), -unit, unit);
         return v * sign;
-    }
-
-    template<class V>
-    WRAY_INLINE V keep_zero(const V &x, const V &v) noexcept
-    {
-        return select(x == V(scalar_t<V>(0)), x, v);
     }
 
     template<class Tier, class V>
