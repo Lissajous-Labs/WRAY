@@ -217,6 +217,17 @@ namespace wray::math::detail
     }
 
     template<class V>
+    WRAY_INLINE V residual(const V &q, const V &d, const V &n) noexcept
+    {
+#if WRAY_HAS_FMA
+        return fma(-q, d, n);
+#else
+        const auto p = two_product(q, d);
+        return (n - p.hi) - p.lo;
+#endif
+    }
+
+    template<class V>
     WRAY_INLINE pair<V> two_sum(const V &a, const V &b) noexcept
     {
         const V s = a + b;
@@ -796,7 +807,7 @@ namespace wray::math::detail
             const V dl = e - (d - one);
             const V inv = one / d;
             const V q = num * inv;
-            const V rest = fma(-q, d, num);
+            const V rest = residual(q, d, num);
             return fma(fma(-q, dl, rest), inv, q);
         } else
             return one / (one + exp<Tier>(-x));

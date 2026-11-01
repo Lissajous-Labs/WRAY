@@ -546,8 +546,6 @@ namespace
         {"atan", "fast", "monotonic", "without FMA the core's fused steps round twice", true},
         {"atan2", "f32", "monotonic", "without FMA the quotient residual is not exact", true},
         {"atan2", "f64", "monotonic", "without FMA the quotient residual is not exact", true},
-        {"sigmoid", "f32", "monotonic", "without FMA the quotient residual is not exact", true},
-        {"sigmoid", "f64", "monotonic", "without FMA the quotient residual is not exact", true},
     };
 
     bool shape_report(const char* name, const char* tier, const tally& t, bool report)
