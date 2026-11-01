@@ -146,13 +146,16 @@ def _remez(f, a, b, m, n, weight, dps, maxiter, tol, grid):
             cands = local_extrema(err, a, b, grid)
             alt = alternate(cands, count)
             peak = max(abs(e) for _, e in cands)
+            gap = (peak - abs(E)) / peak
             if best is None or peak < best[1]:
-                best = (r, peak, abs(E))
+                best = (r, peak, gap)
             if len(alt) < count:
                 raise RemezFailure("lost alternation")
-            if peak - abs(E) <= tol * peak:
+            if gap <= tol:
+                r.converged, r.gap = True, float(gap)
                 return r, peak
             nodes = [x for x, _ in alt]
+        best[0].converged, best[0].gap = False, float(best[2])
         return best[0], best[1]
 
 
@@ -185,7 +188,9 @@ def pinned(f, a, b, m, pins, weight="rel", dps=60):
         s = lambda x: mp.mpf(0) if x in pins else (f(x) - horner(lagrange, x)) / horner(node, x)
         r, err = remez(s, a, b, m - len(pins), 0, weight=lambda x: abs(horner(node, x)) * base(x), dps=dps)
         c = poly_add(lagrange, poly_mul(node, r.p))[:m + 1]
-        return Rational(c, [mp.mpf(1)]), err
+        out = Rational(c, [mp.mpf(1)])
+        out.converged, out.gap = r.converged, r.gap
+        return out, err
 
 
 def weighted_error_curve(f, r, a, b, weight="rel", samples=2000, dps=60):

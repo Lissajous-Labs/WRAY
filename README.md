@@ -33,7 +33,7 @@ Every function takes a scalar, a SIMD vector, or a contiguous range:
 
 ## Accuracy contracts
 
-Maximum error in ulp against 40-digit references, over the full domain.
+Measured maximum error in ulp. These are measured bounds, not proofs: one-argument `float` functions are checked on every input against a double-precision reference, and every function is sampled against 40-digit mpmath (50,000 points per function and tier in the published data). `double` and two-argument functions are only sampled.
 
 | function | float | double | function | float | double |
 |---|---|---|---|---|---|
@@ -119,7 +119,7 @@ cmake -S . -B build -G Ninja && cmake --build build && ctest --test-dir build
 
 ## Rational minimax cores
 
-Each core is the true minimax approximation on its reduced interval, so its error equioscillates. Rational or polynomial is chosen per core by cost at the target accuracy.
+Each core is fitted by a rational Remez exchange on its reduced interval. `docs/data/cores.json` records, per core, whether the exchange levelled the weighted error to within 1e-9 of equioscillation; a fit that did not converge is kept as the best candidate found and marked `"converged": false`. Rational or polynomial is chosen per core by cost at the target accuracy.
 
 ![remez](docs/charts/remez.png)
 

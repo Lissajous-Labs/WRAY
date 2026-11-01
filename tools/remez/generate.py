@@ -80,7 +80,7 @@ def fit(job):
         except remez.RemezFailure:
             return job, None
         curve = remez.weighted_error_curve(g, r, a, b, weight=weight, samples=1200, dps=DPS)
-        return job, dict(p=[str(c) for c in r.p], q=[str(c) for c in r.q], error=float(err),
+        return job, dict(p=[str(c) for c in r.p], q=[str(c) for c in r.q], error=float(err), converged=r.converged, gap=r.gap,
                          interval=[float(a), float(b)], curve=curve)
 
 
@@ -218,6 +218,8 @@ def main():
         if data is None:
             raise SystemExit(f"fit failed: {name} {tier} [{m}/{n}]")
         results[(name, tier)] = data
+        if not data["converged"]:
+            print(f"not levelled: {name} {tier} [{m}/{n}] gap {data['gap']:.3g}")
 
     pathlib.Path(args.header).parent.mkdir(parents=True, exist_ok=True)
     emit_header(results, pathlib.Path(args.header))
@@ -225,7 +227,7 @@ def main():
         return
 
     report = {
-        "cores": [dict(name=name, tier=tier, m=len(d["p"]) - 1, n=len(d["q"]) - 1, error=d["error"],
+        "cores": [dict(name=name, tier=tier, m=len(d["p"]) - 1, n=len(d["q"]) - 1, error=d["error"], converged=d["converged"], gap=d["gap"],
                        interval=d["interval"], curve=[[float(f"{x:.6g}"), float(f"{e:.5g}")] for x, e in d["curve"]])
                   for (name, tier), d in sorted(results.items())],
         "pareto": [dict(name=name, tier=tier, m=m, n=n, error=None if d is None else d["error"])
