@@ -107,6 +107,18 @@ namespace
         return std::exp2(hi) * (1.0 + lo * 0.6931471805599453);
     }
 
+    double midi_ref(double x)
+    {
+        const double d = x - 69.0;
+        const double bb = d - x;
+        const double dl = (x - (d - bb)) + (-69.0 - bb);
+        if (std::fabs(d) > 24000.0)
+            return d > 0.0 ? std::numeric_limits<double>::infinity() : 0.0;
+        const double q = std::nearbyint(d / 12.0);
+        const double r = (d - 12.0 * q) + dl;
+        return std::ldexp(440.0 * std::exp2(r / 12.0), int(q));
+    }
+
     double sin_turns_ref(double x)
     {
         const double w = x - std::nearbyint(x);
@@ -149,6 +161,12 @@ namespace
         constexpr double trig32 = 0x1.921fb6p+12;
         constexpr double trig64 = 0x1.921fb54442d18p+22;
         return {
+            {"ratio_from_cents", [](double x) { return std::exp2(x / 1200.0); }, all, batch32([](auto v) { return wray::ratio_from_cents(v); }), {}, all,
+             batch64([](auto v) { return wray::ratio_from_cents(v); }), [](std::mt19937_64& g) { return uniform(g, -2400.0, 2400.0); }, 0.85, 0.0, 0.75},
+            {"hz_to_midi", [](double x) { return 69.0 + 12.0 * std::log2(x / 440.0); }, all, batch32([](auto v) { return wray::hz_to_midi(v); }), {}, all,
+             batch64([](auto v) { return wray::hz_to_midi(v); }), [](std::mt19937_64& g) { return g() & 1 ? std::exp(uniform(g, 2.9, 14.0)) : bit_uniform(g, 18.0, 0x1.fffffffffffffp+1023); }, 1.25, 0.0, 4.0},
+            {"midi_to_hz", midi_ref, all, batch32([](auto v) { return wray::midi_to_hz(v); }), {}, all,
+             batch64([](auto v) { return wray::midi_to_hz(v); }), [](std::mt19937_64& g) { return uniform(g, -100.0, 250.0); }, 1.4, 0.0, 0.75},
             {"erf", [](double x) { return std::erf(x); }, all, batch32([](auto v) { return wray::erf(v); }), {}, all,
              batch64([](auto v) { return wray::erf(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -6.5, 6.5) : signed_bits(g, 0x1p-1074, 0x1.fffffffffffffp+1023); }, 0.9, 0.0, 3.0},
             {"cbrt", [](double x) { return std::cbrt(x); }, all, batch32([](auto v) { return wray::cbrt(v); }), {}, all,
@@ -525,6 +543,9 @@ namespace
             {"asinh", parity::odd, {{-inf, inf, 1}}, -inf, inf, finite_only, 4.0, {0.5, 0x1p-30, 0x1p13, 0x1p27, 1e300, 1.0, 2.0}},
             {"cbrt", parity::odd, {{-inf, inf, 1}}, -inf, inf, finite_only, 8.0, {1.0, 8.0, 0x1p-1022, 0x1p-1074, 27.0, 1e300, 2.0, 4.0}},
             {"erf", parity::odd, {{-inf, inf, 1}}, -1.0, 1.0, everywhere, 6.5, {1.0, 4.0, 6.0, 0x1p-30, 0x1p-1022, 3.92, 5.93}},
+            {"midi_to_hz", parity::none, {{-inf, inf, 1}}, 0.0, inf, [](double x, bool w) { return below(x, w ? 12250.0 : 1499.0); }, 200.0, {69.0, 81.0, 57.0, 63.0, 75.0, 1499.0, 12250.0}},
+            {"hz_to_midi", parity::none, {{0.0, inf, 1}}, -inf, inf, logarithmic, 4.0, {440.0, 880.0, 27.5, 8.175798915643707, 1.0, 1e300}},
+            {"ratio_from_cents", parity::none, {{-inf, inf, 1}}, 0.0, inf, [](double x, bool w) { return below(x, w ? 1228000.0 : 153000.0); }, 2400.0, {0.0, 1200.0, -1200.0, 600.0, 100.0}},
             {"expm1", parity::none, {{-inf, inf, 1}}, -1.0, inf, [](double x, bool w) { return below(x, w ? 709.78 : 88.72); }, 2.0,
              joined(multiples(ln2, 0.5, 60), {86.0, 707.0, 88.72, 709.78, 0x1p-25, 0x1p-54, 17.3, 37.5})},
             {"exp2", parity::none, {{-inf, inf, 1}}, 0.0, inf, [](double x, bool w) { return below(x, w ? 1024.0 : 128.0); }, 20.0,
@@ -698,6 +719,8 @@ namespace
     constexpr exemption exemptions[] = {
         {"atan", "f64", "monotonic", "near |x| = 1 one input step moves atan by half an ulp, the same size as the rounding of the x^5 tail"},
         {"erf", "f64", "monotonic", "past 1.5 one input step moves erf by a fifth of an ulp, the size of the tail rounding"},
+        {"midi_to_hz", "f32", "monotonic", "the pitch offset is carried as a pair, and a step of its high part can move the rounding boundary by an ulp"},
+        {"midi_to_hz", "f64", "monotonic", "without FMA the pair products round twice", true},
         {"tanh", "fast", "monotonic", "a monotone saturation needs the exp form of wray::tanh, which costs as much as the precise tier"},
         {"atan", "f32", "monotonic", "without FMA the core's fused steps round twice", true},
         {"atan", "fast", "monotonic", "without FMA the core's fused steps round twice", true},

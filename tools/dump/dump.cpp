@@ -130,6 +130,9 @@ namespace
                 add("asinh", [](auto v) { return wray::asinh(v); });
                 add("cbrt", [](auto v) { return wray::cbrt(v); });
                 add("erf", [](auto v) { return wray::erf(v); });
+                add("midi_to_hz", [](auto v) { return wray::midi_to_hz(v); });
+                add("hz_to_midi", [](auto v) { return wray::hz_to_midi(v); });
+                add("ratio_from_cents", [](auto v) { return wray::ratio_from_cents(v); });
                 add("tanh", [](auto v) { return wray::tanh(v); });
                 add("sigmoid", [](auto v) { return wray::sigmoid(v); });
                 add("db_to_gain", [](auto v) { return wray::db_to_gain(v); });

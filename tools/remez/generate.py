@@ -157,6 +157,16 @@ def constants(ctype):
             "erf_mid_lo": split(mp.erf(mp.mpf(3) / 4), total, total)[1],
             "erf_mid2_hi": split(mp.erf(mp.mpf(5) / 4), total, total)[0],
             "erf_mid2_lo": split(mp.erf(mp.mpf(5) / 4), total, total)[1],
+            "ln2_per_semitone_hi": split(mp.log(2) / 12, total, total)[0],
+            "ln2_per_semitone_lo": split(mp.log(2) / 12, total, total)[1],
+            "ln2_per_cent_hi": split(mp.log(2) / 1200, total, total)[0],
+            "ln2_per_cent_lo": split(mp.log(2) / 1200, total, total)[1],
+            "log2_a4_hi": split(mp.log(440, 2), total, total)[0],
+            "log2_a4_lo": split(mp.log(440, 2), total, total)[1],
+            "midi_zero_hz_hi": split(440 * mp.power(2, mp.mpf(-69) / 12), total, total)[0],
+            "midi_zero_hz_lo": split(440 * mp.power(2, mp.mpf(-69) / 12), total, total)[1],
+            "semitones_per_ln_hi": split(12 / mp.log(2), total, total)[0],
+            "semitones_per_ln_lo": split(12 / mp.log(2), total, total)[1],
         }
 
 

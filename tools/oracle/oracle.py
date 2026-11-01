@@ -36,6 +36,9 @@ REFERENCE = {
     "asinh": lambda x: mp.asinh(x),
     "cbrt": lambda x: mp.sign(x) * mp.cbrt(abs(x)),
     "erf": lambda x: mp.erf(x),
+    "midi_to_hz": lambda x: 440 * mp.power(2, (x - 69) / 12),
+    "hz_to_midi": lambda x: 69 + 12 * mp.log(x / 440, 2),
+    "ratio_from_cents": lambda x: mp.power(2, x / 1200),
     "tanh": lambda x: mp.tanh(x),
     "sigmoid": lambda x: 1 / (1 + mp.exp(-x)),
     "db_to_gain": lambda x: mp.power(10, x / 20),
@@ -44,12 +47,12 @@ REFERENCE = {
     "pow": lambda x, y: mp.power(x, y),
 }
 
-UNARY = ["erf", "cbrt", "asinh", "cosh", "sinh", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid", "db_to_gain", "gain_to_db"]
+UNARY = ["ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid", "db_to_gain", "gain_to_db"]
 
 CONTRACTS = {
-    "f32": {"erf": 0.9, "cbrt": 0.55, "asinh": 0.9, "cosh": 0.9, "sinh": 0.85, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 1.0, "log10": 1.4, "log1p": 1.0, "exp": 1.0, "expm1": 2.0, "exp2": 1.0, "log": 1.0, "log2": 1.5, "sin": 1.0, "cos": 1.0, "tan": 1.75, "atan": 1.0, "tanh": 1.35,
+    "f32": {"ratio_from_cents": 0.85, "hz_to_midi": 1.25, "midi_to_hz": 1.4, "erf": 0.9, "cbrt": 0.55, "asinh": 0.9, "cosh": 0.9, "sinh": 0.85, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 1.0, "log10": 1.4, "log1p": 1.0, "exp": 1.0, "expm1": 2.0, "exp2": 1.0, "log": 1.0, "log2": 1.5, "sin": 1.0, "cos": 1.0, "tan": 1.75, "atan": 1.0, "tanh": 1.35,
             "sigmoid": 2.0, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.0, "pow": 2.0},
-    "f64": {"erf": 0.9, "cbrt": 0.55, "asinh": 0.85, "cosh": 0.9, "sinh": 0.85, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 0.85, "log10": 1.0, "log1p": 0.95, "exp": 1.0, "expm1": 1.75, "exp2": 1.0, "log": 1.0, "log2": 1.0, "sin": 1.0, "cos": 1.0, "tan": 1.45, "atan": 1.1, "tanh": 1.3,
+    "f64": {"ratio_from_cents": 0.75, "hz_to_midi": 1.0, "midi_to_hz": 0.75, "erf": 0.9, "cbrt": 0.55, "asinh": 0.85, "cosh": 0.9, "sinh": 0.85, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 0.85, "log10": 1.0, "log1p": 0.95, "exp": 1.0, "expm1": 1.75, "exp2": 1.0, "log": 1.0, "log2": 1.0, "sin": 1.0, "cos": 1.0, "tan": 1.45, "atan": 1.1, "tanh": 1.3,
             "sigmoid": 1.75, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.1, "pow": 1.5},
     "fast": {name: 2.0 ** -16 for name in ["tan_turns", "cos_turns", "sin_turns", "exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid",
                                            "db_to_gain", "gain_to_db", "atan2", "pow"]},
@@ -106,6 +109,12 @@ def domain(fn, tier, rng, n):
         return np.concatenate([value_uniform(rng, fmt, -10.0, 10.0, half), bit_uniform(rng, fmt, tiny, huge, n - half, True)])
     if fn == "erf":
         return np.concatenate([value_uniform(rng, fmt, -6.5, 6.5, half), bit_uniform(rng, fmt, tiny, huge, n - half, True)])
+    if fn in ("midi_to_hz", "hz_to_midi", "ratio_from_cents"):
+        if fn == "midi_to_hz":
+            return np.concatenate([value_uniform(rng, fmt, -100.0, 250.0, half), value_uniform(rng, fmt, -1700.0 if f32 else -12900.0, 1600.0 if f32 else 12300.0, n - half)])
+        if fn == "ratio_from_cents":
+            return np.concatenate([value_uniform(rng, fmt, -2400.0, 2400.0, half), value_uniform(rng, fmt, -170000.0 if f32 else -1290000.0, 150000.0 if f32 else 1220000.0, n - half)])
+        return np.concatenate([np.exp(rng.uniform(np.log(1e-3), np.log(1e6), half)).astype(fmt["dtype"]), bit_uniform(rng, fmt, tiny, huge, n - half)])
     if fn == "exp2":
         lo, hi = ((-126.0, 127.0) if fast else (-149.9, 127.99)) if f32 else (-1074.9, 1023.99)
         return np.concatenate([value_uniform(rng, fmt, lo, hi, half), bit_uniform(rng, fmt, 1e-6, min(-lo, hi), n - half, True)])

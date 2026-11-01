@@ -542,7 +542,7 @@ namespace wray::math::detail
         const V near = x - (((((f - p.hi) - p.lo) + c * (f / u)) + q * q * V(S(0.5))) - xl);
         p.lo = p.lo + q;
         const V tiny(S(1) / (format<S>::two_mantissa * S(4)));
-        return select(abs(x) <= tiny, x, select(p.e == V(S(0)), near, log_combine(p)));
+        return select(abs(x) <= tiny, select(xl == V(S(0)), x, x + xl), select(p.e == V(S(0)), near, log_combine(p)));
     }
 
     template<class Tier, class V>
@@ -1282,6 +1282,65 @@ namespace wray::math::detail
         const V tiny = select(a < V(tiny_turn<S>), scaled, small);
         const V v = select(a < V(S(0.5)), keep_zero(x, tiny), outer);
         return select(isnan(x), x, v);
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V octaves(const V &d, const V &dl, scalar_t<V> steps, scalar_t<V> c_hi, scalar_t<V> c_lo, scalar_t<V> base) noexcept
+    {
+        using S = scalar_t<V>;
+        using C = typename table<Tier, S>::exp;
+        const V one(S(1));
+        const V limit(steps * (std::numeric_limits<S>::digits == 24 ? S(160) : S(1100)));
+        const V dc = simd::min(simd::max(d, -limit), limit);
+        const V dlc = select(dc == d, dl, V(S(0)));
+        const V q = round_nearest(dc * V(S(1) / steps));
+        const V r = dc - q * V(steps);
+        const auto t = two_product(r, V(c_hi));
+        const V tl = fma(dlc, V(c_hi), fma(r, V(c_lo), t.lo));
+        const V hi = one + t.hi;
+        const V small = fma(t.hi * t.hi, numerics::rational<C>(t.hi), t.hi - (hi - one));
+        const V p = hi + small;
+        const V pl = fma(p, tl, (hi - p) + small);
+        const V v = scale_split(fma(V(base), p, V(base) * pl), q);
+        return select(either(isnan(d), d == inf<V>()), d, select(d == -inf<V>(), V(S(0)), v));
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V midi_to_hz(const V &m) noexcept
+    {
+        using S = scalar_t<V>;
+        using K = constants<S>;
+        const auto d = two_sum(m, V(S(-69)));
+        return octaves<Tier>(d.hi, d.lo, S(12), K::ln2_per_semitone_hi, K::ln2_per_semitone_lo, S(440));
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V ratio_from_cents(const V &c) noexcept
+    {
+        using S = scalar_t<V>;
+        using K = constants<S>;
+        return octaves<Tier>(c, V(S(0)), S(1200), K::ln2_per_cent_hi, K::ln2_per_cent_lo, S(1));
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V hz_to_midi(const V &f) noexcept
+    {
+        using S = scalar_t<V>;
+        using K = constants<S>;
+        const V one(S(1));
+        const auto l = log2_pair_combine(log_reduce<Tier, true>(f));
+        const auto s = two_sum(l.hi, V(-K::log2_a4_hi));
+        const V sl = s.lo + (l.lo - V(K::log2_a4_lo));
+        const auto z12 = two_product(V(S(12)), s.hi);
+        const auto m = two_sum(V(S(69)), z12.hi);
+        const V far = m.hi + (m.lo + fma(V(S(12)), sl, z12.lo));
+        const V g = select(both(f > V(S(4)), f < V(S(16))), f, V(S(8)));
+        const V rh = g / V(K::midi_zero_hz_hi);
+        const V rl = fma(-rh, V(K::midi_zero_hz_lo), residual(rh, V(K::midi_zero_hz_hi), g)) / V(K::midi_zero_hz_hi);
+        const V ln = log1p_combine<Tier, false>(rh - one, rl, rh);
+        const auto z = two_product(ln, V(K::semitones_per_ln_hi));
+        const V near = z.hi + fma(ln, V(K::semitones_per_ln_lo), z.lo);
+        return log_specials(f, select(abs(far) < V(S(2)), near, far));
     }
 
     template<class V>

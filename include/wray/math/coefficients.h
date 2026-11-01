@@ -362,6 +362,16 @@ namespace wray::math
         static constexpr float erf_mid_lo = -0x1.4c5e34p-26f;
         static constexpr float erf_mid2_hi = 0x1.d8865ep-1f;
         static constexpr float erf_mid2_lo = -0x1.9d508p-27f;
+        static constexpr float ln2_per_semitone_hi = 0x1.d9304p-5f;
+        static constexpr float ln2_per_semitone_lo = -0x1.5d0816p-33f;
+        static constexpr float ln2_per_cent_hi = 0x1.2ed734p-11f;
+        static constexpr float ln2_per_cent_lo = -0x1.b585c4p-36f;
+        static constexpr float log2_a4_hi = 0x1.1900e6p+3f;
+        static constexpr float log2_a4_lo = 0x1.60002cp-25f;
+        static constexpr float midi_zero_hz_hi = 0x1.05a026p+3f;
+        static constexpr float midi_zero_hz_lo = -0x1.e7a8d6p-22f;
+        static constexpr float semitones_per_ln_hi = 0x1.14ff58p+4f;
+        static constexpr float semitones_per_ln_lo = 0x1.7c1448p-21f;
     };
 
     template <>
@@ -414,5 +424,15 @@ namespace wray::math
         static constexpr double erf_mid_lo = 0x1.b1432f2cbc455p-55;
         static constexpr double erf_mid2_hi = 0x1.d8865d98abe01p-1;
         static constexpr double erf_mid2_lo = -0x1.fcec4afb974d9p-55;
+        static constexpr double ln2_per_semitone_hi = 0x1.d9303fea2f7eap-5;
+        static constexpr double ln2_per_semitone_lo = -0x1.8d796832effd6p-59;
+        static constexpr double ln2_per_cent_hi = 0x1.2ed733253d1ddp-11;
+        static constexpr double ln2_per_cent_lo = 0x1.885a5be7c292cp-66;
+        static constexpr double log2_a4_hi = 0x1.1900e6160002dp+3;
+        static constexpr double log2_a4_lo = -0x1.80de057bdc174p-52;
+        static constexpr double midi_zero_hz_hi = 0x1.05a0250c2b956p+3;
+        static constexpr double midi_zero_hz_lo = 0x1.9ba0bcca28c7cp-52;
+        static constexpr double semitones_per_ln_hi = 0x1.14ff58be0a23fp+4;
+        static constexpr double semitones_per_ln_lo = -0x1.b9988d0071d89p-50;
     };
 }

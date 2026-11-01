@@ -84,6 +84,9 @@ namespace
         unary(x, [](auto v) { return wray::asinh(v); });
         unary(x, [](auto v) { return wray::cbrt(v); });
         unary(x, [](auto v) { return wray::erf(v); });
+        unary(x, [](auto v) { return wray::midi_to_hz(v); });
+        unary(x, [](auto v) { return wray::hz_to_midi(v); });
+        unary(x, [](auto v) { return wray::ratio_from_cents(v); });
         unary(x, [](auto v) { return wray::expm1(v); });
         unary(x, [](auto v) { return wray::exp2(v); });
         unary(x, [](auto v) { return wray::log(v); });

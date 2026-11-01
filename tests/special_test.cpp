@@ -135,6 +135,28 @@ namespace
             {[](T x) { return wray::erf(x); }, [](V x) { return wray::erf(x); }, T(-10), T(-1)},
             {[](T x) { return wray::erf(x); }, [](V x) { return wray::erf(x); }, huge, T(1)},
             {[](T x) { return wray::erf(x); }, [](V x) { return wray::erf(x); }, nan, nan},
+            {[](T x) { return wray::midi_to_hz(x); }, [](V x) { return wray::midi_to_hz(x); }, T(69), T(440)},
+            {[](T x) { return wray::midi_to_hz(x); }, [](V x) { return wray::midi_to_hz(x); }, T(81), T(880)},
+            {[](T x) { return wray::midi_to_hz(x); }, [](V x) { return wray::midi_to_hz(x); }, T(57), T(220)},
+            {[](T x) { return wray::midi_to_hz(x); }, [](V x) { return wray::midi_to_hz(x); }, T(21), T(27.5)},
+            {[](T x) { return wray::midi_to_hz(x); }, [](V x) { return wray::midi_to_hz(x); }, inf, inf},
+            {[](T x) { return wray::midi_to_hz(x); }, [](V x) { return wray::midi_to_hz(x); }, -inf, T(0)},
+            {[](T x) { return wray::midi_to_hz(x); }, [](V x) { return wray::midi_to_hz(x); }, nan, nan},
+            {[](T x) { return wray::hz_to_midi(x); }, [](V x) { return wray::hz_to_midi(x); }, T(440), T(69)},
+            {[](T x) { return wray::hz_to_midi(x); }, [](V x) { return wray::hz_to_midi(x); }, T(880), T(81)},
+            {[](T x) { return wray::hz_to_midi(x); }, [](V x) { return wray::hz_to_midi(x); }, T(220), T(57)},
+            {[](T x) { return wray::hz_to_midi(x); }, [](V x) { return wray::hz_to_midi(x); }, T(27.5), T(21)},
+            {[](T x) { return wray::hz_to_midi(x); }, [](V x) { return wray::hz_to_midi(x); }, T(0), -inf},
+            {[](T x) { return wray::hz_to_midi(x); }, [](V x) { return wray::hz_to_midi(x); }, T(-1), nan},
+            {[](T x) { return wray::hz_to_midi(x); }, [](V x) { return wray::hz_to_midi(x); }, inf, inf},
+            {[](T x) { return wray::hz_to_midi(x); }, [](V x) { return wray::hz_to_midi(x); }, nan, nan},
+            {[](T x) { return wray::ratio_from_cents(x); }, [](V x) { return wray::ratio_from_cents(x); }, T(0), T(1)},
+            {[](T x) { return wray::ratio_from_cents(x); }, [](V x) { return wray::ratio_from_cents(x); }, T(1200), T(2)},
+            {[](T x) { return wray::ratio_from_cents(x); }, [](V x) { return wray::ratio_from_cents(x); }, T(-2400), T(0.25)},
+            {[](T x) { return wray::ratio_from_cents(x); }, [](V x) { return wray::ratio_from_cents(x); }, T(3600), T(8)},
+            {[](T x) { return wray::ratio_from_cents(x); }, [](V x) { return wray::ratio_from_cents(x); }, inf, inf},
+            {[](T x) { return wray::ratio_from_cents(x); }, [](V x) { return wray::ratio_from_cents(x); }, -inf, T(0)},
+            {[](T x) { return wray::ratio_from_cents(x); }, [](V x) { return wray::ratio_from_cents(x); }, nan, nan},
             {[](T x) { return wray::expm1(x); }, [](V x) { return wray::expm1(x); }, T(0), T(0)},
             {[](T x) { return wray::expm1(x); }, [](V x) { return wray::expm1(x); }, -T(0), -T(0)},
             {[](T x) { return wray::expm1(x); }, [](V x) { return wray::expm1(x); }, tiny, tiny},
@@ -246,6 +268,18 @@ namespace
         CHECK(same(wray::pow(T(0.5), huge), T(0)));
     }
 
+    template <class T>
+    void octaves()
+    {
+        for (int k = -12; k <= 12; ++k)
+        {
+            const T p = std::ldexp(T(1), k);
+            CHECK(same(wray::midi_to_hz(T(69 + 12 * k)), T(440) * p));
+            CHECK(same(wray::hz_to_midi(T(440) * p), T(69 + 12 * k)));
+            CHECK(same(wray::ratio_from_cents(T(1200 * k)), p));
+        }
+    }
+
     void ranges()
     {
         std::vector<float> in(37);
@@ -280,6 +314,8 @@ int main()
     unary_specials<double>();
     binary_specials<float>();
     binary_specials<double>();
+    octaves<float>();
+    octaves<double>();
     ranges();
     return wray::test::finish("special");
 }

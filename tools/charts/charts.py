@@ -15,7 +15,7 @@ MUTED = "#6e7781"
 GRID = "#d0d7de"
 COLORS = {"std": "#8c959f", "wray": "#0969da", "wray fast": "#1a7f37",
           "f32": "#0969da", "f64": "#8250df", "fast": "#1a7f37", "contract": "#cf222e"}
-FUNCTIONS = ["erf", "cbrt", "asinh", "cosh", "sinh", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain", "gain_to_db"]
+FUNCTIONS = ["ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain", "gain_to_db"]
 TIER_LABEL = {"f32": "float precise", "f64": "double precise", "fast": "float fast"}
 
 

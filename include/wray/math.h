@@ -178,6 +178,15 @@ namespace wray
     WRAY_INLINE V erf(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::erf<math::precise>(v); }); }
 
     template<simd::real V>
+    WRAY_INLINE V midi_to_hz(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::midi_to_hz<math::precise>(v); }); }
+
+    template<simd::real V>
+    WRAY_INLINE V hz_to_midi(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::hz_to_midi<math::precise>(v); }); }
+
+    template<simd::real V>
+    WRAY_INLINE V ratio_from_cents(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::ratio_from_cents<math::precise>(v); }); }
+
+    template<simd::real V>
     WRAY_INLINE V tanh(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::tanh<math::precise>(v); }); }
 
     template<simd::real V>
@@ -251,6 +260,15 @@ namespace wray
 
     template<math::real_range In, class Out>
     void erf(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::erf(v); }); }
+
+    template<math::real_range In, class Out>
+    void midi_to_hz(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::midi_to_hz(v); }); }
+
+    template<math::real_range In, class Out>
+    void hz_to_midi(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::hz_to_midi(v); }); }
+
+    template<math::real_range In, class Out>
+    void ratio_from_cents(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::ratio_from_cents(v); }); }
 
     template<math::real_range In, class Out>
     void tanh(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::tanh(v); }); }
