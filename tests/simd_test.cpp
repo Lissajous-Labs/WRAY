@@ -1,11 +1,13 @@
 #include <wray/simd/vec.h>
 
 #include <bit>
+#include <cfenv>
 #include <cmath>
 #include <cstdint>
 #include <limits>
 #include <random>
 #include <type_traits>
+#include <vector>
 
 #include "check.h"
 
@@ -216,6 +218,37 @@ namespace
         CHECK(all(c != c));
         CHECK(!any(c == c));
     }
+
+    template <class T, int n>
+    void rounding_modes()
+    {
+        using V = vec<T, n>;
+        std::vector<T> v{T(0.5),  T(1.5),  T(2.5),  T(-0.5), T(-1.5), T(-2.5),         T(0.3),         T(-0.3),     T(0.7),
+                         T(-0.7), T(0.0),  T(-0.0), T(1e20), T(-1e20), T(4194303.5),   T(-4194303.5),  T(8388607.0), T(8388608.0),
+                         std::numeric_limits<T>::infinity(), -std::numeric_limits<T>::infinity(), std::numeric_limits<T>::quiet_NaN()};
+        if constexpr (std::is_same_v<T, double>)
+            v.insert(v.end(), {2147483648.5, -2147483649.5, 4503599627370495.5, -4503599627370494.5, 9007199254740991.0, 6755399441055744.5});
+        while (v.size() % std::size_t(n) != 0)
+            v.push_back(T(3.5));
+        std::vector<T> expect(v.size());
+        for (std::size_t i = 0; i < v.size(); ++i)
+            expect[i] = std::nearbyint(v[i]);
+        for (int mode : {FE_TONEAREST, FE_UPWARD, FE_DOWNWARD, FE_TOWARDZERO})
+        {
+            std::fesetround(mode);
+            std::vector<T> got(v.size()), scalar(v.size());
+            for (std::size_t i = 0; i < v.size(); i += std::size_t(n))
+                nearest(V::load(v.data() + i)).store(got.data() + i);
+            for (std::size_t i = 0; i < v.size(); ++i)
+                scalar[i] = nearest(v[i]);
+            std::fesetround(FE_TONEAREST);
+            for (std::size_t i = 0; i < v.size(); ++i)
+            {
+                CHECK((std::isnan(expect[i]) && std::isnan(got[i])) || same<T>(got[i], expect[i]));
+                CHECK((std::isnan(expect[i]) && std::isnan(scalar[i])) || same<T>(scalar[i], expect[i]));
+            }
+        }
+    }
 }
 
 int main()
@@ -234,5 +267,9 @@ int main()
     width<double, 8>(g);
     width<double, 16>(g);
     masks();
+    rounding_modes<float, 4>();
+    rounding_modes<float, 8>();
+    rounding_modes<double, 2>();
+    rounding_modes<double, 4>();
     return wray::test::finish("simd");
 }

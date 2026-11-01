@@ -46,6 +46,25 @@ namespace wray::simd
         static constexpr int width = 64;
     };
 
+    template<class T, class U>
+    WRAY_INLINE T round_even(T x) noexcept
+    {
+        constexpr T limit = std::numeric_limits<T>::digits == 24 ? T(0x1p23) : T(0x1p52);
+        if (!(std::fabs(x) < limit))
+            return x;
+        const T m = std::copysign(limit, x);
+        const T c = x + m;
+        const T r = c - m;
+        const T d = x - r;
+        const bool odd = (std::bit_cast<U>(c) & U(1)) != 0;
+        T step = T(0);
+        if (d > T(0.5) || (d == T(0.5) && odd))
+            step = T(1);
+        else if (d < T(-0.5) || (d == T(-0.5) && odd))
+            step = T(-1);
+        return std::copysign(r + step, x);
+    }
+
     WRAY_INLINE float nearest(float x) noexcept
     {
 #if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
@@ -53,9 +72,7 @@ namespace wray::simd
 #elif defined(__SSE4_1__) && !defined(WRAY_SIMD_SCALAR)
         return _mm_cvtss_f32(_mm_round_ss(_mm_setzero_ps(), _mm_set_ss(x), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
 #else
-        const float m = 0x1.8p23f;
-        const float y = x + m;
-        return y - m;
+        return round_even<float, std::uint32_t>(x);
 #endif
     }
 
@@ -66,9 +83,7 @@ namespace wray::simd
 #elif defined(__SSE4_1__) && !defined(WRAY_SIMD_SCALAR)
         return _mm_cvtsd_f64(_mm_round_sd(_mm_setzero_pd(), _mm_set_sd(x), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
 #else
-        const double m = 0x1.8p52;
-        const double y = x + m;
-        return y - m;
+        return round_even<double, std::uint64_t>(x);
 #endif
     }
 
@@ -801,8 +816,21 @@ namespace wray::simd
 #if defined(__SSE4_1__)
         return _mm_round_ps(a.v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
 #else
-        const __m128 m = _mm_set1_ps(0x1.8p23f);
-        return _mm_sub_ps(_mm_add_ps(a.v, m), m);
+        const __m128 sign = _mm_set1_ps(-0.0f);
+        const __m128 m = _mm_or_ps(_mm_set1_ps(0x1p23f), _mm_and_ps(a.v, sign));
+        const __m128 c = _mm_add_ps(a.v, m);
+        const __m128 r = _mm_sub_ps(c, m);
+        const __m128 d = _mm_sub_ps(a.v, r);
+        const __m128 odd = _mm_castsi128_ps(_mm_cmpeq_epi32(_mm_and_si128(_mm_castps_si128(c), _mm_set1_epi32(1)), _mm_set1_epi32(1)));
+        const __m128 half = _mm_set1_ps(0.5f);
+        const __m128 low = _mm_set1_ps(-0.5f);
+        const __m128 up = _mm_or_ps(_mm_cmpgt_ps(d, half), _mm_and_ps(_mm_cmpeq_ps(d, half), odd));
+        const __m128 down = _mm_or_ps(_mm_cmplt_ps(d, low), _mm_and_ps(_mm_cmpeq_ps(d, low), odd));
+        const __m128 step = _mm_or_ps(_mm_and_ps(up, _mm_set1_ps(1.0f)), _mm_and_ps(down, _mm_set1_ps(-1.0f)));
+        const __m128 v = _mm_add_ps(r, step);
+        const __m128 rounded = _mm_or_ps(_mm_andnot_ps(sign, v), _mm_and_ps(a.v, sign));
+        const __m128 keep = _mm_cmpnlt_ps(_mm_andnot_ps(sign, a.v), _mm_set1_ps(0x1p23f));
+        return _mm_or_ps(_mm_and_ps(keep, a.v), _mm_andnot_ps(keep, rounded));
 #endif
     }
     WRAY_INLINE float first(const f32x4 &a) noexcept { return _mm_cvtss_f32(a.v); }
@@ -864,8 +892,23 @@ namespace wray::simd
 #if defined(__SSE4_1__)
         return _mm_round_pd(a.v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
 #else
-        const __m128d m = _mm_set1_pd(0x1.8p52);
-        return _mm_sub_pd(_mm_add_pd(a.v, m), m);
+        const __m128d sign = _mm_set1_pd(-0.0);
+        const __m128d m = _mm_or_pd(_mm_set1_pd(0x1p52), _mm_and_pd(a.v, sign));
+        const __m128d c = _mm_add_pd(a.v, m);
+        const __m128d r = _mm_sub_pd(c, m);
+        const __m128d d = _mm_sub_pd(a.v, r);
+        const __m128i one = _mm_set_epi32(0, 1, 0, 1);
+        const __m128i low_bit = _mm_cmpeq_epi32(_mm_and_si128(_mm_castpd_si128(c), one), one);
+        const __m128d odd = _mm_castsi128_pd(_mm_shuffle_epi32(low_bit, _MM_SHUFFLE(2, 2, 0, 0)));
+        const __m128d half = _mm_set1_pd(0.5);
+        const __m128d low = _mm_set1_pd(-0.5);
+        const __m128d up = _mm_or_pd(_mm_cmpgt_pd(d, half), _mm_and_pd(_mm_cmpeq_pd(d, half), odd));
+        const __m128d down = _mm_or_pd(_mm_cmplt_pd(d, low), _mm_and_pd(_mm_cmpeq_pd(d, low), odd));
+        const __m128d step = _mm_or_pd(_mm_and_pd(up, _mm_set1_pd(1.0)), _mm_and_pd(down, _mm_set1_pd(-1.0)));
+        const __m128d v = _mm_add_pd(r, step);
+        const __m128d rounded = _mm_or_pd(_mm_andnot_pd(sign, v), _mm_and_pd(a.v, sign));
+        const __m128d keep = _mm_cmpnlt_pd(_mm_andnot_pd(sign, a.v), _mm_set1_pd(0x1p52));
+        return _mm_or_pd(_mm_and_pd(keep, a.v), _mm_andnot_pd(keep, rounded));
 #endif
     }
     WRAY_INLINE double first(const f64x2 &a) noexcept { return _mm_cvtsd_f64(a.v); }
