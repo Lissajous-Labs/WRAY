@@ -50,7 +50,35 @@ REFERENCE = {
     "pow": lambda x, y: mp.power(x, y),
 }
 
-UNARY = ["ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid", "db_to_gain", "gain_to_db"]
+
+def _series_or(x, small, exact, cut=mp.mpf("1e-6")):
+    return small(x) if abs(x) < cut else exact(x)
+
+
+ADAA = {
+    "hard_clip": (lambda x: max(-1, min(1, x)), lambda x: x * x / 2 if abs(x) <= 1 else abs(x) - mp.mpf(1) / 2),
+    "soft_clip": (lambda x: (lambda c: c - c ** 3 / 3)(max(-1, min(1, x))), lambda x: x * x / 2 - x ** 4 / 12 if abs(x) <= 1 else 2 * abs(x) / 3 - mp.mpf(1) / 4),
+    "tanh": (mp.tanh, lambda x: mp.log1p(2 * mp.sinh(x / 2) ** 2)),
+    "atan": (mp.atan, lambda x: _series_or(x, lambda y: y ** 2 / 2 - y ** 4 / 12 + y ** 6 / 30, lambda y: y * mp.atan(y) - mp.log1p(y * y) / 2)),
+    "algebraic": (lambda x: x / (1 + abs(x)), lambda x: _series_or(abs(x), lambda a: a ** 2 / 2 - a ** 3 / 3 + a ** 4 / 4 - a ** 5 / 5, lambda a: a - mp.log1p(a))),
+    "radical": (lambda x: x / mp.sqrt(1 + x * x), lambda x: x * x / (1 + mp.sqrt(1 + x * x))),
+}
+
+
+def _mean(f, F):
+    def g(a, b):
+        if a == b:
+            return f(a)
+        with mp.workdps(120):
+            return (F(b) - F(a)) / (b - a)
+    return g
+
+
+for _name, (_f, _F) in ADAA.items():
+    REFERENCE[f"adaa_{_name}_F1"] = _F
+    REFERENCE[f"adaa_{_name}_first"] = _mean(_f, _F)
+
+UNARY = ["ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid", "db_to_gain", "gain_to_db"] + [f"adaa_{n}_F1" for n in ADAA]
 
 CONTRACTS = {
     "f32": {"smoothing_coefficient": 2.0, "pole_from_cutoff": 2.0, "prewarp": 2.0, "ratio_from_cents": 0.85, "hz_to_midi": 1.25, "midi_to_hz": 1.4, "erf": 0.9, "cbrt": 0.55, "asinh": 0.9, "cosh": 0.9, "sinh": 0.85, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 1.0, "log10": 1.4, "log1p": 1.0, "exp": 1.0, "expm1": 2.0, "exp2": 1.0, "log": 1.0, "log2": 1.5, "sin": 1.0, "cos": 1.0, "tan": 1.75, "atan": 1.0, "tanh": 1.35,
@@ -60,7 +88,13 @@ CONTRACTS = {
     "fast": {name: 2.0 ** -16 for name in ["tan_turns", "cos_turns", "sin_turns", "exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid",
                                            "db_to_gain", "gain_to_db", "atan2", "pow"]},
 }
-BINARY = ["atan2", "pow", "smoothing_coefficient", "pole_from_cutoff", "prewarp"]
+ADAA_CONTRACTS = {"hard_clip": (0.75, 2.3), "soft_clip": (1.35, 3.2), "tanh": (2.75, 4.75), "atan": (3.35, 8.5), "algebraic": (5.25, 62.0),
+                  "radical": (2.85, 4.0)}
+for _tier in ("f32", "f64"):
+    for _name, (_f1, _first) in ADAA_CONTRACTS.items():
+        CONTRACTS[_tier][f"adaa_{_name}_F1"] = _f1
+        CONTRACTS[_tier][f"adaa_{_name}_first"] = _first
+BINARY = ["atan2", "pow", "smoothing_coefficient", "pole_from_cutoff", "prewarp"] + [f"adaa_{n}_first" for n in ADAA]
 NO_FMA_MARGIN = 0.5
 
 
@@ -150,6 +184,15 @@ def domain(fn, tier, rng, n):
         fs = np.where(rng.random(n) < 0.5, rng.choice([44100.0, 48000.0, 96000.0, 192000.0], n), rng.uniform(8000.0, 768000.0, n)).astype(fmt["dtype"])
         a = (1 / (r * fs.astype(np.float64))) if fn == "smoothing_coefficient" else r * fs.astype(np.float64)
         return (a.astype(fmt["dtype"]), fs)
+    if fn.startswith("adaa_") and fn.endswith("_F1"):
+        return np.concatenate([value_uniform(rng, fmt, -8.0, 8.0, half), bit_uniform(rng, fmt, tiny, huge, n - half, True)])
+    if fn.startswith("adaa_"):
+        q = n // 4
+        x0 = np.concatenate([value_uniform(rng, fmt, -8.0, 8.0, q), value_uniform(rng, fmt, -8.0, 8.0, q), value_uniform(rng, fmt, -8.0, 8.0, q),
+                             bit_uniform(rng, fmt, 1e-3, huge / 4, n - 3 * q, True)])
+        near = (x0[q:2 * q].astype(np.float64) * (1 + rng.uniform(-1e-6, 1e-6, q))).astype(fmt["dtype"])
+        x1 = np.concatenate([value_uniform(rng, fmt, -8.0, 8.0, q), near, x0[2 * q:3 * q], bit_uniform(rng, fmt, 1e-3, huge / 4, n - 3 * q, True)])
+        return (x0, x1)
     if fn == "pow":
         x = bit_uniform(rng, fmt, 1e-10, 1e10, n)
         y = value_uniform(rng, fmt, -3.0, 3.0, n)

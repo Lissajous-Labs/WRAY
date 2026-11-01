@@ -1,4 +1,4 @@
-foreach(name simd numerics special parity accuracy)
+foreach(name simd numerics special parity accuracy adaa)
     add_executable(wray_${name}_test ${name}_test.cpp)
     target_link_libraries(wray_${name}_test PRIVATE wray::wray wray_warnings)
     add_test(NAME ${name} COMMAND wray_${name}_test)

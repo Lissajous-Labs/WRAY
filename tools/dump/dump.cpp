@@ -141,6 +141,18 @@ namespace
                 add2("smoothing_coefficient", [](auto a, auto b) { return wray::smoothing_coefficient(a, b); });
                 add2("pole_from_cutoff", [](auto a, auto b) { return wray::pole_from_cutoff(a, b); });
                 add2("prewarp", [](auto a, auto b) { return wray::prewarp(a, b); });
+                add("adaa_hard_clip_F1", [](auto v) { return wray::adaa::hard_clip::F1(v); });
+                add2("adaa_hard_clip_first", [](auto a, auto b) { return wray::adaa::hard_clip::first(a, b); });
+                add("adaa_soft_clip_F1", [](auto v) { return wray::adaa::soft_clip::F1(v); });
+                add2("adaa_soft_clip_first", [](auto a, auto b) { return wray::adaa::soft_clip::first(a, b); });
+                add("adaa_tanh_F1", [](auto v) { return wray::adaa::tanh::F1(v); });
+                add2("adaa_tanh_first", [](auto a, auto b) { return wray::adaa::tanh::first(a, b); });
+                add("adaa_atan_F1", [](auto v) { return wray::adaa::atan::F1(v); });
+                add2("adaa_atan_first", [](auto a, auto b) { return wray::adaa::atan::first(a, b); });
+                add("adaa_algebraic_F1", [](auto v) { return wray::adaa::algebraic::F1(v); });
+                add2("adaa_algebraic_first", [](auto a, auto b) { return wray::adaa::algebraic::first(a, b); });
+                add("adaa_radical_F1", [](auto v) { return wray::adaa::radical::F1(v); });
+                add2("adaa_radical_first", [](auto a, auto b) { return wray::adaa::radical::first(a, b); });
                 add2("pow", [](auto a, auto b) { return wray::pow(a, b); });
             }
         }
