@@ -820,7 +820,7 @@ namespace wray::math::detail
     }
 
     template<class Tier, class V>
-    WRAY_INLINE V tan_turns(const V &x) noexcept
+    WRAY_INLINE V tan_turns(const V &x, const V &xl = V(scalar_t<V>(0))) noexcept
     {
         using S = scalar_t<V>;
         using K = constants<S>;
@@ -834,7 +834,7 @@ namespace wray::math::detail
             using C = typename table<Tier, S>::tan_turns;
             const V t = f * f;
             const auto p = two_product(f, V(K::pi_hi));
-            const V low = fma(f, V(K::pi_lo), p.lo) + (f * t) * numerics::rational<C>(t);
+            const V low = fma(xl, V(K::pi_hi), fma(f, V(K::pi_lo), p.lo) + (f * t) * numerics::rational<C>(t));
             v = p.hi + low;
             const V e = (p.hi - v) + low;
             const V q = V(S(-1)) / v;
@@ -1341,6 +1341,45 @@ namespace wray::math::detail
         const auto z = two_product(ln, V(K::semitones_per_ln_hi));
         const V near = z.hi + fma(ln, V(K::semitones_per_ln_lo), z.lo);
         return log_specials(f, select(abs(far) < V(S(2)), near, far));
+    }
+
+    template<class V>
+    WRAY_INLINE pair<V> quotient(const V &n, const V &d) noexcept
+    {
+        const V h = n / d;
+        return {h, residual(h, d, n) / d};
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V smoothing_coefficient(const V &seconds, const V &fs) noexcept
+    {
+        using S = scalar_t<V>;
+        const V one(S(1));
+        const auto p = two_product(seconds, fs);
+        const auto x = quotient(one, p.hi);
+        const V xl = finite_or_zero(p.hi, fma(-x.hi, p.lo / p.hi, x.lo));
+        const V e = expm1<Tier>(-x.hi);
+        return fma(xl, one + e, -e);
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V pole_from_cutoff(const V &hz, const V &fs) noexcept
+    {
+        using S = scalar_t<V>;
+        using K = constants<S>;
+        const auto x = quotient(hz, fs);
+        const V two_pi(S(2) * K::pi_hi);
+        const auto t = two_product(x.hi, two_pi);
+        const V tl = fma(x.lo, two_pi, fma(x.hi, V(S(2) * K::pi_lo), t.lo));
+        const V e = exp<Tier>(-t.hi);
+        return fma(-tl, e, e);
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V prewarp(const V &hz, const V &fs) noexcept
+    {
+        const auto x = quotient(hz, fs);
+        return tan_turns<Tier>(x.hi, x.lo);
     }
 
     template<class V>

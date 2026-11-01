@@ -44,20 +44,23 @@ REFERENCE = {
     "db_to_gain": lambda x: mp.power(10, x / 20),
     "gain_to_db": lambda x: 20 * mp.log10(x),
     "atan2": lambda y, x: mp.atan2(y, x),
+    "smoothing_coefficient": lambda s, fs: -mp.expm1(-1 / (s * fs)),
+    "pole_from_cutoff": lambda hz, fs: mp.exp(-2 * mp.pi * hz / fs),
+    "prewarp": lambda hz, fs: mp.tan(mp.pi * hz / fs),
     "pow": lambda x, y: mp.power(x, y),
 }
 
 UNARY = ["ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid", "db_to_gain", "gain_to_db"]
 
 CONTRACTS = {
-    "f32": {"ratio_from_cents": 0.85, "hz_to_midi": 1.25, "midi_to_hz": 1.4, "erf": 0.9, "cbrt": 0.55, "asinh": 0.9, "cosh": 0.9, "sinh": 0.85, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 1.0, "log10": 1.4, "log1p": 1.0, "exp": 1.0, "expm1": 2.0, "exp2": 1.0, "log": 1.0, "log2": 1.5, "sin": 1.0, "cos": 1.0, "tan": 1.75, "atan": 1.0, "tanh": 1.35,
+    "f32": {"smoothing_coefficient": 2.0, "pole_from_cutoff": 2.0, "prewarp": 2.0, "ratio_from_cents": 0.85, "hz_to_midi": 1.25, "midi_to_hz": 1.4, "erf": 0.9, "cbrt": 0.55, "asinh": 0.9, "cosh": 0.9, "sinh": 0.85, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 1.0, "log10": 1.4, "log1p": 1.0, "exp": 1.0, "expm1": 2.0, "exp2": 1.0, "log": 1.0, "log2": 1.5, "sin": 1.0, "cos": 1.0, "tan": 1.75, "atan": 1.0, "tanh": 1.35,
             "sigmoid": 2.0, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.0, "pow": 2.0},
-    "f64": {"ratio_from_cents": 0.75, "hz_to_midi": 1.0, "midi_to_hz": 0.75, "erf": 0.9, "cbrt": 0.55, "asinh": 0.85, "cosh": 0.9, "sinh": 0.85, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 0.85, "log10": 1.0, "log1p": 0.95, "exp": 1.0, "expm1": 1.75, "exp2": 1.0, "log": 1.0, "log2": 1.0, "sin": 1.0, "cos": 1.0, "tan": 1.45, "atan": 1.1, "tanh": 1.3,
+    "f64": {"smoothing_coefficient": 2.0, "pole_from_cutoff": 2.0, "prewarp": 2.0, "ratio_from_cents": 0.75, "hz_to_midi": 1.0, "midi_to_hz": 0.75, "erf": 0.9, "cbrt": 0.55, "asinh": 0.85, "cosh": 0.9, "sinh": 0.85, "tan_turns": 1.2, "cos_turns": 0.8, "sin_turns": 0.85, "log10": 1.0, "log1p": 0.95, "exp": 1.0, "expm1": 1.75, "exp2": 1.0, "log": 1.0, "log2": 1.0, "sin": 1.0, "cos": 1.0, "tan": 1.45, "atan": 1.1, "tanh": 1.3,
             "sigmoid": 1.75, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.1, "pow": 1.5},
     "fast": {name: 2.0 ** -16 for name in ["tan_turns", "cos_turns", "sin_turns", "exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid",
                                            "db_to_gain", "gain_to_db", "atan2", "pow"]},
 }
-BINARY = ["atan2", "pow"]
+BINARY = ["atan2", "pow", "smoothing_coefficient", "pole_from_cutoff", "prewarp"]
 NO_FMA_MARGIN = 0.5
 
 
@@ -142,6 +145,11 @@ def domain(fn, tier, rng, n):
     if fn == "atan2":
         return tuple(np.concatenate([bit_uniform(rng, fmt, tiny, huge, half, True), value_uniform(rng, fmt, -4.0, 4.0, n - half)])
                      for _ in range(2))
+    if fn in ("smoothing_coefficient", "pole_from_cutoff", "prewarp"):
+        r = np.exp(rng.uniform(np.log(1e-9), np.log(0.5), n))
+        fs = np.where(rng.random(n) < 0.5, rng.choice([44100.0, 48000.0, 96000.0, 192000.0], n), rng.uniform(8000.0, 768000.0, n)).astype(fmt["dtype"])
+        a = (1 / (r * fs.astype(np.float64))) if fn == "smoothing_coefficient" else r * fs.astype(np.float64)
+        return (a.astype(fmt["dtype"]), fs)
     if fn == "pow":
         x = bit_uniform(rng, fmt, 1e-10, 1e10, n)
         y = value_uniform(rng, fmt, -3.0, 3.0, n)

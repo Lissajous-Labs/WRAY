@@ -138,6 +138,9 @@ namespace
                 add("db_to_gain", [](auto v) { return wray::db_to_gain(v); });
                 add("gain_to_db", [](auto v) { return wray::gain_to_db(v); });
                 add2("atan2", [](auto a, auto b) { return wray::atan2(a, b); });
+                add2("smoothing_coefficient", [](auto a, auto b) { return wray::smoothing_coefficient(a, b); });
+                add2("pole_from_cutoff", [](auto a, auto b) { return wray::pole_from_cutoff(a, b); });
+                add2("prewarp", [](auto a, auto b) { return wray::prewarp(a, b); });
                 add2("pow", [](auto a, auto b) { return wray::pow(a, b); });
             }
         }

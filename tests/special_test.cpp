@@ -243,6 +243,11 @@ namespace
         CHECK(same(wray::atan2(T(1), -inf), pi));
         CHECK(same(wray::atan2(nan, T(1)), nan));
         CHECK(same(wray::atan2(T(1), nan), nan));
+        CHECK(same(wray::prewarp(T(12000), T(48000)), T(1)));
+        CHECK(same(wray::prewarp(T(0), T(48000)), T(0)));
+        CHECK(same(wray::pole_from_cutoff(T(0), T(48000)), T(1)));
+        CHECK(same(wray::smoothing_coefficient(inf, T(48000)), T(0)));
+        CHECK(same(wray::prewarp(nan, T(48000)), nan));
         CHECK(same(wray::pow(T(2), T(10)), T(1024)));
         CHECK(same(wray::pow(T(9), T(0.5)), T(3)));
         CHECK(same(wray::pow(T(0), T(2)), T(0)));

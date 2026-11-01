@@ -25,7 +25,10 @@ f32 tan b96dac8c26c6252a
 f32 tan_turns 5bfd6128cd6604fa
 f32 tanh 2cf6a38e7bdda16c
 f32 atan2 03405634ab361b13
+f32 pole_from_cutoff e82f733e4c115e3f
 f32 pow b9b658f91e6311f5
+f32 prewarp 023189a480588cef
+f32 smoothing_coefficient db995d09124120b2
 f64 asinh cbe4583cc3bc7cf7
 f64 atan 26f1349a977be3d9
 f64 cbrt 0bb5154efebe3c3f
@@ -53,7 +56,10 @@ f64 tan fdaec1abbdb7b22f
 f64 tan_turns 6eaed3cb656f4c5a
 f64 tanh ef513765bf0d9a0f
 f64 atan2 a5ef71f14b6477ef
+f64 pole_from_cutoff b460091a9f6bf809
 f64 pow 48c96b842ee35732
+f64 prewarp 0182812dfd476174
+f64 smoothing_coefficient 06cea959381d26e9
 fast atan d5e6a6944933cc7c
 fast cos b593f6ecc8f638c8
 fast cos_turns e69af60cddc9ad60

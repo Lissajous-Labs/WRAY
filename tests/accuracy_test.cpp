@@ -451,6 +451,53 @@ namespace
         }
     }
 
+    template <class F, class R, class N>
+    std::array<double, 2> parameter_map(F f, R reference, N naive, int kind)
+    {
+        std::mt19937_64 g(31 + std::uint64_t(kind));
+        const std::size_t n = 1u << 18;
+        const double rates[] = {44100.0, 48000.0, 96000.0, 192000.0};
+        std::vector<float> a(n), fs(n), out(n);
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            const double r = std::exp(uniform(g, std::log(1e-9), std::log(0.5)));
+            const double rate = (g() & 1) ? rates[g() % 4] : uniform(g, 8000.0, 768000.0);
+            fs[i] = float(rate);
+            a[i] = float(kind == 0 ? 1.0 / (r * double(fs[i])) : r * double(fs[i]));
+        }
+        wray::math::apply(a, fs, out, f);
+        std::array<double, 2> worst{};
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            const double ref = reference(double(a[i]), double(fs[i]));
+            worst[0] = std::max(worst[0], error_ulp(double(out[i]), ref, 24, -126));
+            worst[1] = std::max(worst[1], error_ulp(double(naive(a[i], fs[i])), ref, 24, -126));
+        }
+        return worst;
+    }
+
+    void parameter_maps(bool report)
+    {
+        constexpr float pi_f = 3.14159265f;
+        const auto smoothing = parameter_map([](auto s, auto fs) { return wray::smoothing_coefficient(s, fs); },
+                                             [](double s, double fs) { return -std::expm1(-1.0 / (s * fs)); },
+                                             [](float s, float fs) { return 1.0f - std::exp(-1.0f / (s * fs)); }, 0);
+        const auto pole = parameter_map([](auto hz, auto fs) { return wray::pole_from_cutoff(hz, fs); },
+                                        [](double hz, double fs) { return std::exp(-6.283185307179586 * (hz / fs)); },
+                                        [](float hz, float fs) { return std::exp(-2.0f * pi_f * hz / fs); }, 1);
+        const auto warp = parameter_map([](auto hz, auto fs) { return wray::prewarp(hz, fs); },
+                                        [](double hz, double fs) { return tan_turns_ref(hz / fs); },
+                                        [](float hz, float fs) { return std::tan(pi_f * hz / fs); }, 2);
+        if (report)
+            std::printf("parameter maps f32: smoothing %.3f ulp (naive %.3g)  pole %.3f ulp (naive %.3g)  prewarp %.3f ulp (naive %.3g)\n", smoothing[0],
+                        smoothing[1], pole[0], pole[1], warp[0], warp[1]);
+        for (const auto& m : {smoothing, pole, warp})
+        {
+            CHECK(m[0] <= 2.0 + margin);
+            CHECK(m[1] > 2.0);
+        }
+    }
+
     struct monotone
     {
         double lo;
@@ -883,6 +930,8 @@ int main(int argc, char** argv)
         CHECK(d <= c.contract_f64 + 2.0 + margin);
     }
     binary_checks(1u << 22, report, selected("atan2"), selected("pow"));
+    if (selected("parameter_maps"))
+        parameter_maps(report);
     shape_checks(selected, stride, samples64 / 16, report);
     binary_shape_checks(1u << 16, report, selected("atan2"), selected("pow"));
     host_checks(selected, stride == 1 ? 4 : stride * 16, stride == 1 ? samples64 / 8 : samples64 / 32, report);

@@ -160,6 +160,15 @@ namespace wray
     WRAY_INLINE V atan(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::atan<math::precise>(v); }); }
 
     template<simd::real V>
+    WRAY_INLINE V smoothing_coefficient(const V &seconds, const V &fs) noexcept { return math::lift(seconds, fs, [](const auto &a, const auto &b) { return math::detail::smoothing_coefficient<math::precise>(a, b); }); }
+
+    template<simd::real V>
+    WRAY_INLINE V pole_from_cutoff(const V &hz, const V &fs) noexcept { return math::lift(hz, fs, [](const auto &a, const auto &b) { return math::detail::pole_from_cutoff<math::precise>(a, b); }); }
+
+    template<simd::real V>
+    WRAY_INLINE V prewarp(const V &hz, const V &fs) noexcept { return math::lift(hz, fs, [](const auto &a, const auto &b) { return math::detail::prewarp<math::precise>(a, b); }); }
+
+    template<simd::real V>
     WRAY_INLINE V atan2(const V &y, const V &x) noexcept { return math::lift(y, x, [](const auto &a, const auto &b) { return math::detail::atan2<math::precise>(a, b); }); }
 
     template<simd::real V>
@@ -286,6 +295,24 @@ namespace wray
     void gain_to_db(const In &in, Out &&out) noexcept
     {
         math::apply(in, out, [](auto v) { return wray::gain_to_db(v); });
+    }
+
+    template<math::real_range A, math::real_range B, class Out>
+    void smoothing_coefficient(const A &a, const B &b, Out &&out) noexcept
+    {
+        math::apply(a, b, out, [](auto x, auto y) { return wray::smoothing_coefficient(x, y); });
+    }
+
+    template<math::real_range A, math::real_range B, class Out>
+    void pole_from_cutoff(const A &a, const B &b, Out &&out) noexcept
+    {
+        math::apply(a, b, out, [](auto x, auto y) { return wray::pole_from_cutoff(x, y); });
+    }
+
+    template<math::real_range A, math::real_range B, class Out>
+    void prewarp(const A &a, const B &b, Out &&out) noexcept
+    {
+        math::apply(a, b, out, [](auto x, auto y) { return wray::prewarp(x, y); });
     }
 
     template<math::real_range A, math::real_range B, class Out>

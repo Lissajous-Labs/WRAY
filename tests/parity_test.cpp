@@ -101,6 +101,9 @@ namespace
         unary(x, [](auto v) { return wray::gain_to_db(v); });
         binary(x, y, [](auto a, auto b) { return wray::atan2(a, b); });
         binary(x, y, [](auto a, auto b) { return wray::pow(a, b); });
+        binary(x, y, [](auto a, auto b) { return wray::smoothing_coefficient(a, b); });
+        binary(x, y, [](auto a, auto b) { return wray::pole_from_cutoff(a, b); });
+        binary(x, y, [](auto a, auto b) { return wray::prewarp(a, b); });
     }
 
     void fast(std::mt19937_64& g)

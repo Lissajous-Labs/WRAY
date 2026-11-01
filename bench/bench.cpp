@@ -76,7 +76,17 @@ namespace
     workload<T> make(const std::string& name, std::mt19937_64& rng)
     {
         workload<T> w;
-        if (name == "ratio_from_cents")
+        if (name == "smoothing_coefficient")
+        {
+            w.a = log_uniform<T>(rng, 1e-4, 10);
+            w.b = uniform<T>(rng, 44100, 192000);
+        }
+        else if (name == "pole_from_cutoff" || name == "prewarp")
+        {
+            w.a = log_uniform<T>(rng, 20, 20000);
+            w.b = uniform<T>(rng, 44100, 192000);
+        }
+        else if (name == "ratio_from_cents")
             w.a = uniform<T>(rng, -2400, 2400);
         else if (name == "hz_to_midi")
             w.a = log_uniform<T>(rng, 20, 20000);
@@ -314,6 +324,12 @@ namespace
             unary(s, [](T x) { return T(69) + T(12) * std::log2(x / T(440)); }, [](auto x) { return wray::hz_to_midi(x); }, none{});
         if (n == "ratio_from_cents")
             unary(s, [](T x) { return std::exp2(x / T(1200)); }, [](auto x) { return wray::ratio_from_cents(x); }, none{});
+        if (n == "smoothing_coefficient")
+            binary(s, [](T t, T fs) { return T(1) - std::exp(T(-1) / (t * fs)); }, [](auto t, auto fs) { return wray::smoothing_coefficient(t, fs); }, none{});
+        if (n == "pole_from_cutoff")
+            binary(s, [](T hz, T fs) { return std::exp(T(-2) * std::numbers::pi_v<T> * hz / fs); }, [](auto hz, auto fs) { return wray::pole_from_cutoff(hz, fs); }, none{});
+        if (n == "prewarp")
+            binary(s, [](T hz, T fs) { return std::tan(std::numbers::pi_v<T> * hz / fs); }, [](auto hz, auto fs) { return wray::prewarp(hz, fs); }, none{});
         if (n == "expm1")
             unary(s, [](T x) { return std::expm1(x); }, [](auto x) { return wray::expm1(x); }, none{});
         if (n == "exp2")
@@ -371,7 +387,7 @@ namespace
     template <class T>
     void run(const char* type, std::FILE* json, bool& first, const std::vector<std::string>& only)
     {
-        const char* names[] = {"ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "sincos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain",
+        const char* names[] = {"smoothing_coefficient", "pole_from_cutoff", "prewarp", "ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "sincos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain",
                                "gain_to_db"};
         std::mt19937_64 rng(7);
         std::mt19937_64 edge_rng(11);
@@ -380,7 +396,9 @@ namespace
         for (const char* n : names)
         {
             auto w = make<T>(n, rng);
-            const auto e = edge<T>(n, edge_rng);
+            auto e = edge<T>(n, edge_rng);
+            if (e.a.empty())
+                e = w;
             if (!only.empty() && std::find(only.begin(), only.end(), n) == only.end())
                 continue;
             auto s = variants<T>(n);
