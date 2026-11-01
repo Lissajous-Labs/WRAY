@@ -13,6 +13,7 @@ if(EXISTS "${WRAY_PYTHON}" AND WRAY_BUILD_TOOLS)
     add_test(NAME oracle COMMAND "${WRAY_PYTHON}" "${PROJECT_SOURCE_DIR}/tools/oracle/oracle.py"
              --dump $<TARGET_FILE:wray_dump> --out "${CMAKE_CURRENT_BINARY_DIR}/accuracy.json" --check)
     set_tests_properties(oracle PROPERTIES LABELS "oracle")
+    add_test(NAME readme COMMAND "${WRAY_PYTHON}" "${PROJECT_SOURCE_DIR}/tools/docs/check_readme.py" --dump $<TARGET_FILE:wray_dump>)
 endif()
 
 if(WRAY_BUILD_TOOLS)
