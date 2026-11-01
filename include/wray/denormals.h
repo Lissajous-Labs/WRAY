@@ -4,7 +4,10 @@
 
 #include "simd/config.h"
 
-#if defined(WRAY_SIMD_SSE2)
+#if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
+#define WRAY_FLUSH_AARCH64 1
+#elif defined(__x86_64__) || defined(_M_X64) || defined(__SSE__) || (defined(_M_IX86_FP) && _M_IX86_FP >= 1)
+#define WRAY_FLUSH_X86 1
 #include <xmmintrin.h>
 #endif
 
@@ -13,7 +16,7 @@ namespace wray
     class scoped_flush_denormals
     {
     public:
-#if defined(WRAY_SIMD_NEON)
+#if defined(WRAY_FLUSH_AARCH64)
         using state = std::uint64_t;
         static constexpr state flags = state(1) << 24;
 
@@ -25,7 +28,7 @@ namespace wray
         }
 
         static void write(state v) noexcept { asm volatile("msr fpcr, %0" : : "r"(v)); }
-#elif defined(WRAY_SIMD_SSE2)
+#elif defined(WRAY_FLUSH_X86)
         using state = unsigned int;
         static constexpr state flags = 0x8040u;
 
