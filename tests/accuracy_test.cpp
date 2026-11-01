@@ -1,6 +1,6 @@
 #include <wray/wray.h>
 
-#include <algorithm>
+#include <array>
 #include <bit>
 #include <cmath>
 #include <cstdint>
@@ -292,6 +292,399 @@ namespace
         CHECK(!with_pow || wf <= 0x1p-16);
         CHECK(!with_pow || w64 <= 2.5 + margin);
     }
+
+    struct monotone
+    {
+        double lo;
+        double hi;
+        int dir;
+    };
+
+    enum class parity
+    {
+        none,
+        odd,
+        even
+    };
+
+    enum expectation
+    {
+        any,
+        defined,
+        bounded
+    };
+
+    struct shape
+    {
+        const char* name;
+        parity symmetry;
+        std::vector<monotone> monotonic;
+        double lo;
+        double hi;
+        std::function<expectation(double, bool)> expect;
+        double core;
+        std::vector<double> edges;
+    };
+
+    constexpr double inf = std::numeric_limits<double>::infinity();
+    constexpr double half_pi = 1.5707963267948966;
+    constexpr double pi = 3.141592653589793;
+
+    expectation everywhere(double x, bool) { return std::isnan(x) ? any : bounded; }
+
+    expectation below(double x, double limit) { return std::isnan(x) ? any : x < limit ? bounded : defined; }
+
+    expectation logarithmic(double x, bool) { return x > 0.0 && x < inf ? bounded : x >= 0.0 ? defined : any; }
+
+    expectation periodic(double x, bool wide)
+    {
+        const double limit = wide ? wray::math::constants<double>::trig_arg_max : double(wray::math::constants<float>::trig_arg_max);
+        return std::fabs(x) <= limit ? bounded : any;
+    }
+
+    std::vector<double> multiples(double step, double offset, int count)
+    {
+        std::vector<double> v;
+        for (int k = -count; k <= count; ++k)
+            v.push_back((k + offset) * step);
+        return v;
+    }
+
+    std::vector<double> powers(double base)
+    {
+        std::vector<double> v{0x1p-1022, 0x1p-1074};
+        for (int k = -1020; k <= 1020; k += 17)
+            v.push_back(std::ldexp(base, k));
+        return v;
+    }
+
+    std::vector<double> joined(std::vector<double> a, const std::vector<double>& b)
+    {
+        a.insert(a.end(), b.begin(), b.end());
+        return a;
+    }
+
+    std::vector<shape> shapes()
+    {
+        constexpr double ln2 = 0.6931471805599453;
+        constexpr double db2 = 6.020599913279624;
+        const std::vector<double> trig = joined(multiples(pi / 4.0, 0.0, 40), {1e5 * half_pi, 0x1.921fb54442d18p+22, 6433.98, 102943.0, 1e6});
+        const std::vector<double> logs = joined(powers(1.0), powers(1.4142135623730951));
+        return {
+            {"exp", parity::none, {{-inf, inf, 1}}, 0.0, inf, [](double x, bool w) { return below(x, w ? 709.78 : 88.72); }, 20.0,
+             joined(multiples(ln2, 0.5, 60), {86.0, 707.0, 88.72, 709.78, 745.1, 708.39, 103.97, 87.0})},
+            {"exp2", parity::none, {{-inf, inf, 1}}, 0.0, inf, [](double x, bool w) { return below(x, w ? 1024.0 : 128.0); }, 20.0,
+             joined(multiples(1.0, 0.5, 60), {124.0, 1020.0, 1022.0, 1074.0, 126.0, 149.0})},
+            {"log", parity::none, {{0.0, inf, 1}}, -inf, inf, logarithmic, 4.0, logs},
+            {"log2", parity::none, {{0.0, inf, 1}}, -inf, inf, logarithmic, 4.0, logs},
+            {"sin", parity::odd, {{-half_pi, half_pi, 1}}, -1.0, 1.0, periodic, 10.0, trig},
+            {"cos", parity::even, {{-pi, 0.0, 1}, {0.0, pi, -1}}, -1.0, 1.0, periodic, 10.0, trig},
+            {"tan", parity::odd, {{-half_pi, half_pi, 1}}, -inf, inf, periodic, 10.0, trig},
+            {"atan", parity::odd, {{-inf, inf, 1}}, -half_pi, half_pi, everywhere, 4.0, {1.0, 0x1p-30, 0x1p30, 0x1p60, 1e300}},
+            {"tanh", parity::odd, {{-inf, inf, 1}}, -1.0, 1.0, everywhere, 4.0,
+             {double(wray::math::constants<double>::tanh_switch), double(wray::math::constants<float>::tanh_switch), 19.25, 9.01, 5.9, 0x1p-30}},
+            {"sigmoid", parity::none, {{-inf, inf, 1}}, 0.0, 1.0, everywhere, 20.0, joined(multiples(ln2, 0.5, 30), {86.0, 707.0, 745.1, 103.97})},
+            {"db_to_gain", parity::none, {{-inf, inf, 1}}, 0.0, inf, [](double x, bool w) { return below(x, w ? 6153.6 : 770.6); }, 120.0,
+             joined(multiples(db2, 0.5, 60), {124.0 * db2, 1020.0 * db2, 1074.0 * db2, 149.0 * db2})},
+            {"gain_to_db", parity::none, {{0.0, inf, 1}}, -inf, inf, logarithmic, 4.0, logs},
+        };
+    }
+
+    struct tally
+    {
+        static constexpr const char* kinds[4] = {"monotonic", "parity", "bounds", "finite"};
+        std::array<std::uint64_t, 4> count{};
+        std::array<double, 4> where{};
+
+        void add(std::size_t k, double x)
+        {
+            if (count[k]++ == 0)
+                where[k] = x;
+        }
+
+        void merge(const tally& o)
+        {
+            for (std::size_t k = 0; k < 4; ++k)
+            {
+                if (o.count[k] && !count[k])
+                    where[k] = o.where[k];
+                count[k] += o.count[k];
+            }
+        }
+
+        std::uint64_t total() const { return count[0] + count[1] + count[2] + count[3]; }
+    };
+
+    template <class T>
+    using bits_of = std::conditional_t<sizeof(T) == 4, std::uint32_t, std::uint64_t>;
+
+    template <class T>
+    struct shape_runner
+    {
+        const shape& s;
+        std::function<void(const std::vector<T>&, std::vector<T>&)> fn;
+        std::function<bool(T)> domain;
+        std::vector<T> xs, neg, ys, yn;
+
+        bool same(T a, T b) const { return (std::isnan(a) && std::isnan(b)) || std::bit_cast<bits_of<T>>(a) == std::bit_cast<bits_of<T>>(b); }
+
+        void point(T x, T y, tally& t) const
+        {
+            if (!domain(x))
+                return;
+            const expectation e = s.expect(double(x), sizeof(T) == 8);
+            if ((e != any && std::isnan(y)) || (e == bounded && !std::isfinite(y)))
+                t.add(3, double(x));
+            if (!std::isnan(y) && (y < T(s.lo) || y > T(s.hi)))
+                t.add(2, double(x));
+        }
+
+        void step(T a, T b, T fa, T fb, tally& t) const
+        {
+            if (!domain(a) || !domain(b))
+                return;
+            for (const auto& m : s.monotonic)
+                if (double(a) >= m.lo && double(b) <= m.hi && !(m.dir > 0 ? fb >= fa : fb <= fa))
+                    t.add(0, double(a));
+        }
+
+        void run(T start, std::size_t length, tally& t)
+        {
+            const bits_of<T> first = std::bit_cast<bits_of<T>>(start);
+            const bits_of<T> last = std::bit_cast<bits_of<T>>(std::numeric_limits<T>::infinity());
+            xs.clear();
+            for (bits_of<T> o = first; xs.size() < length && o <= last; ++o)
+                xs.push_back(std::bit_cast<T>(o));
+            const std::size_t n = xs.size();
+            neg.resize(n);
+            ys.resize(n);
+            yn.resize(n);
+            for (std::size_t i = 0; i < n; ++i)
+                neg[i] = -xs[i];
+            fn(xs, ys);
+            fn(neg, yn);
+            for (std::size_t i = 0; i < n; ++i)
+            {
+                point(xs[i], ys[i], t);
+                point(neg[i], yn[i], t);
+                if (domain(xs[i]) && ((s.symmetry == parity::odd && !same(yn[i], -ys[i])) || (s.symmetry == parity::even && !same(yn[i], ys[i]))))
+                    t.add(1, double(xs[i]));
+                if (i + 1 < n)
+                {
+                    step(xs[i], xs[i + 1], ys[i], ys[i + 1], t);
+                    step(neg[i + 1], neg[i], yn[i + 1], yn[i], t);
+                }
+            }
+            if (first == 0 && n > 0)
+                step(neg[0], xs[0], yn[0], ys[0], t);
+        }
+    };
+
+    template <class T, class Start>
+    tally shape_parallel(const shape& s, const std::function<void(const std::vector<T>&, std::vector<T>&)>& fn, const std::function<bool(T)>& domain,
+                         std::uint64_t runs, std::size_t length, Start start)
+    {
+        const unsigned threads = std::max(1u, std::thread::hardware_concurrency());
+        std::vector<tally> partial(threads);
+        std::vector<std::thread> pool;
+        for (unsigned t = 0; t < threads; ++t)
+            pool.emplace_back([&, t] {
+                shape_runner<T> r{s, fn, domain, {}, {}, {}, {}};
+                for (std::uint64_t i = t; i < runs; i += threads)
+                    r.run(start(i), length, partial[t]);
+            });
+        for (auto& th : pool)
+            th.join();
+        tally all;
+        for (const auto& p : partial)
+            all.merge(p);
+        return all;
+    }
+
+    tally shape_f32(const shape& s, const batch_f32& fn, const std::function<bool(float)>& domain, std::uint64_t stride)
+    {
+        constexpr std::size_t run = 4096;
+        const std::uint64_t runs = (0x7f800000ull / run + 1 + stride - 1) / stride;
+        return shape_parallel<float>(s, fn, domain, runs, run + 1,
+                                     [stride](std::uint64_t i) { return std::bit_cast<float>(static_cast<std::uint32_t>(i * stride * run)); });
+    }
+
+    double before(double x, int k)
+    {
+        const auto b = std::bit_cast<std::uint64_t>(std::fabs(x));
+        return std::bit_cast<double>(b > std::uint64_t(k) ? b - std::uint64_t(k) : 0);
+    }
+
+    tally shape_f64(const shape& s, const unary_case& c, std::size_t samples)
+    {
+        std::mt19937_64 g(17);
+        std::vector<double> starts;
+        for (std::size_t i = 0; i < samples; ++i)
+            starts.push_back(before(i % 2 ? c.sample64(g) : uniform(g, -s.core, s.core), 8));
+        const std::size_t sampled = starts.size();
+        for (double e : s.edges)
+            starts.push_back(before(e, 64));
+        const std::function<bool(double)> all64 = [](double) { return true; };
+        tally t = shape_parallel<double>(s, c.precise64, all64, sampled, 17, [&](std::uint64_t i) { return starts[i]; });
+        t.merge(shape_parallel<double>(s, c.precise64, all64, starts.size() - sampled, 129, [&](std::uint64_t i) { return starts[sampled + i]; }));
+        return t;
+    }
+
+    struct exemption
+    {
+        const char* name;
+        const char* tier;
+        const char* kind;
+        const char* reason;
+        bool without_fma = false;
+    };
+
+    constexpr exemption exemptions[] = {
+        {"exp", "f32", "monotonic", "the core rounds q(r) before 1 + r*q, so a plateau of equal results can step back one ulp"},
+        {"exp", "fast", "monotonic", "the core rounds q(r) before 1 + r*q, so a plateau of equal results can step back one ulp"},
+        {"exp", "f64", "monotonic", "the core rounds q(r) before 1 + r*q, so a plateau of equal results can step back one ulp"},
+        {"exp2", "f32", "monotonic", "shares the exp core"},
+        {"exp2", "fast", "monotonic", "shares the exp core"},
+        {"exp2", "f64", "monotonic", "shares the exp core"},
+        {"db_to_gain", "f32", "monotonic", "shares the exp core"},
+        {"db_to_gain", "fast", "monotonic", "shares the exp core"},
+        {"db_to_gain", "f64", "monotonic", "shares the exp core"},
+        {"pow", "f32", "monotonic", "shares the exp core"},
+        {"sigmoid", "f32", "monotonic", "e / (1 + e) rounds the denominator before the quotient"},
+        {"sigmoid", "fast", "monotonic", "e / (1 + e) rounds the denominator before the quotient"},
+        {"sigmoid", "f64", "monotonic", "e / (1 + e) rounds the denominator before the quotient"},
+        {"sin", "fast", "monotonic", "the sine and cosine fits disagree at the pi/4 junction"},
+        {"sin", "fast", "parity", "the reduction turns -0 into +0"},
+        {"cos", "fast", "monotonic", "1 - t/2 is rounded before the quartic term is added"},
+        {"tan", "fast", "monotonic", "numerator and denominator round independently"},
+        {"tan", "fast", "parity", "the reduction turns -0 into +0"},
+        {"atan", "f64", "monotonic", "the hi/lo carry rounds independently of the leading term"},
+        {"tanh", "fast", "monotonic", "a * R(t) rounds R before the product"},
+        {"tanh", "f64", "monotonic", "the small-argument quotient rounds numerator and denominator separately"},
+        {"pow", "f64", "monotonic", "shares the exp core"},
+        {"atan", "f32", "monotonic", "without FMA the core's fused steps round twice", true},
+        {"atan", "fast", "monotonic", "without FMA the core's fused steps round twice", true},
+        {"atan2", "f32", "monotonic", "without FMA the quotient residual is not exact", true},
+        {"atan2", "f64", "monotonic", "without FMA the quotient residual is not exact", true},
+    };
+
+    bool shape_report(const char* name, const char* tier, const tally& t, bool report)
+    {
+        bool ok = true;
+        if (report || t.total())
+            std::printf("%-11s %-4s shape%s\n", name, tier, t.total() ? "" : "  ok");
+        for (std::size_t k = 0; k < 4; ++k)
+        {
+            if (!t.count[k])
+                continue;
+            const auto e = std::ranges::find_if(exemptions, [&](const exemption& x) {
+                return std::strcmp(x.name, name) == 0 && std::strcmp(x.tier, tier) == 0 && std::strcmp(x.kind, tally::kinds[k]) == 0;
+            });
+            const bool exempt = e != std::end(exemptions) && (!e->without_fma || !WRAY_HAS_FMA);
+            ok = ok && exempt;
+            std::printf("    %s %llu @ %.17g%s%s\n", tally::kinds[k], static_cast<unsigned long long>(t.count[k]), t.where[k], exempt ? "  exempt: " : "",
+                        exempt ? e->reason : "");
+        }
+        return ok;
+    }
+
+    void shape_checks(const std::function<bool(const char*)>& selected, std::uint64_t stride, std::size_t samples, bool report)
+    {
+        const auto all_cases = cases();
+        for (const auto& s : shapes())
+        {
+            if (!selected(s.name))
+                continue;
+            const auto c = std::ranges::find_if(all_cases, [&](const unary_case& u) { return std::strcmp(u.name, s.name) == 0; });
+            CHECK(shape_report(s.name, "f32", shape_f32(s, c->precise, all, stride), report));
+            CHECK(shape_report(s.name, "fast", shape_f32(s, c->fast, c->fast_domain, stride), report));
+            CHECK(shape_report(s.name, "f64", shape_f64(s, *c, samples), report));
+        }
+    }
+
+    template <class T, class F>
+    tally binary_shape(F f, std::size_t samples, bool fast_tier)
+    {
+        std::mt19937_64 g(23);
+        const T top = std::numeric_limits<T>::max();
+        const T pi_t = T(pi);
+        tally t;
+        std::vector<T> y(16), x(16), ny(16), r(16), rn(16);
+        for (std::size_t i = 0; i < samples; ++i)
+        {
+            const T x0 = T(signed_bits(g, double(std::numeric_limits<T>::denorm_min()), double(top)));
+            T y0 = T(bit_uniform(g, double(std::numeric_limits<T>::denorm_min()), double(top)));
+            if (fast_tier)
+                y0 = T(bit_uniform(g, 0x1p-100, 0x1p100));
+            for (std::size_t k = 0; k < 16; ++k)
+            {
+                y[k] = std::bit_cast<T>(bits_of<T>(std::bit_cast<bits_of<T>>(y0) + bits_of<T>(k)));
+                ny[k] = -y[k];
+                x[k] = x0;
+            }
+            wray::math::apply(y, x, r, f);
+            wray::math::apply(ny, x, rn, f);
+            for (std::size_t k = 0; k < 16; ++k)
+            {
+                if (!std::isfinite(r[k]))
+                    t.add(3, double(y[k]));
+                if (std::fabs(r[k]) > pi_t)
+                    t.add(2, double(y[k]));
+                if (std::bit_cast<bits_of<T>>(rn[k]) != std::bit_cast<bits_of<T>>(T(-r[k])))
+                    t.add(1, double(y[k]));
+                if (k > 0 && (x0 > T(0) ? r[k] < r[k - 1] : r[k] > r[k - 1]))
+                    t.add(0, double(y[k]));
+            }
+        }
+        return t;
+    }
+
+    template <class T, class F>
+    tally power_shape(F f, std::size_t samples, bool fast_tier)
+    {
+        std::mt19937_64 g(29);
+        constexpr double top = sizeof(T) == 8 ? 1023.0 : 127.0;
+        tally t;
+        std::vector<T> x(16), y(16), r(16);
+        for (std::size_t i = 0; i < samples; ++i)
+        {
+            const T x0 = T(bit_uniform(g, fast_tier ? 0x1p-60 : double(std::numeric_limits<T>::denorm_min()), fast_tier ? 0x1p60 : double(std::numeric_limits<T>::max())));
+            const T y0 = T(uniform(g, -2.0 * top, 2.0 * top) / std::max(1.0, std::fabs(std::log2(double(x0)))));
+            for (std::size_t k = 0; k < 16; ++k)
+            {
+                x[k] = std::bit_cast<T>(bits_of<T>(std::bit_cast<bits_of<T>>(x0) + bits_of<T>(k)));
+                y[k] = y0;
+            }
+            wray::math::apply(x, y, r, f);
+            for (std::size_t k = 0; k < 16; ++k)
+            {
+                const double z = std::fabs(double(y0) * std::log2(double(x[k])));
+                if (std::isnan(r[k]) || (z < top - 1.0 && !std::isfinite(r[k])))
+                    t.add(3, double(x[k]));
+                if (r[k] < T(0))
+                    t.add(2, double(x[k]));
+                if (k > 0 && (y0 > T(0) ? r[k] < r[k - 1] : r[k] > r[k - 1]))
+                    t.add(0, double(x[k]));
+            }
+        }
+        return t;
+    }
+
+    void binary_shape_checks(std::size_t samples, bool report, bool with_atan2, bool with_pow)
+    {
+        if (with_atan2)
+        {
+            CHECK(shape_report("atan2", "f32", binary_shape<float>([](auto a, auto b) { return wray::atan2(a, b); }, samples, false), report));
+            CHECK(shape_report("atan2", "fast", binary_shape<float>([](auto a, auto b) { return wray::fast::atan2(a, b); }, samples, true), report));
+            CHECK(shape_report("atan2", "f64", binary_shape<double>([](auto a, auto b) { return wray::atan2(a, b); }, samples, false), report));
+        }
+        if (with_pow)
+        {
+            CHECK(shape_report("pow", "f32", power_shape<float>([](auto a, auto b) { return wray::pow(a, b); }, samples, false), report));
+            CHECK(shape_report("pow", "fast", power_shape<float>([](auto a, auto b) { return wray::fast::pow(a, b); }, samples, true), report));
+            CHECK(shape_report("pow", "f64", power_shape<double>([](auto a, auto b) { return wray::pow(a, b); }, samples, false), report));
+        }
+    }
 }
 
 int main(int argc, char** argv)
@@ -330,5 +723,7 @@ int main(int argc, char** argv)
         CHECK(d <= c.contract_f64 + 2.0 + margin);
     }
     binary_checks(1u << 22, report, selected("atan2"), selected("pow"));
+    shape_checks(selected, stride, samples64 / 16, report);
+    binary_shape_checks(1u << 16, report, selected("atan2"), selected("pow"));
     return wray::test::finish("accuracy");
 }
