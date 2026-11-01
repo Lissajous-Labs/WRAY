@@ -606,8 +606,11 @@ namespace wray::math::detail
         const V rt = r * t;
         if constexpr (full<Tier>)
         {
-            const V v = r + fma(rt, numerics::rational<C>(t), red.lo);
-            const V c = V(S(-1)) / v;
+            const V tail = fma(rt, numerics::rational<C>(t), fma(red.lo, t, red.lo));
+            const V v = r + tail;
+            const V e = (r - v) + tail;
+            const V q = V(S(-1)) / v;
+            const V c = fma(q, fma(q, e, fma(q, v, V(S(1)))), q);
             return keep_zero(x, select(odd, c, v) * trig_unit<Tier>(x));
         } else
         {
