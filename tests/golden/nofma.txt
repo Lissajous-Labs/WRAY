@@ -1,3 +1,4 @@
+f32 asinh 76abd9934068d18c
 f32 atan b0ad6709ed44704f
 f32 cos 8dd1c45768cf4f29
 f32 cos_turns aed3e4b695f14a0c
@@ -20,6 +21,7 @@ f32 tan_turns 5bfd6128cd6604fa
 f32 tanh 2cf6a38e7bdda16c
 f32 atan2 03405634ab361b13
 f32 pow b9b658f91e6311f5
+f64 asinh cbe4583cc3bc7cf7
 f64 atan 26f1349a977be3d9
 f64 cos 9f5c9f6e8df45e57
 f64 cos_turns 9559fc8b4483f173

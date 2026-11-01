@@ -149,6 +149,8 @@ namespace
         constexpr double trig32 = 0x1.921fb6p+12;
         constexpr double trig64 = 0x1.921fb54442d18p+22;
         return {
+            {"asinh", [](double x) { return std::asinh(x); }, all, batch32([](auto v) { return wray::asinh(v); }), {}, all,
+             batch64([](auto v) { return wray::asinh(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -4.0, 4.0) : signed_bits(g, 0x1p-1074, 0x1.fffffffffffffp+1023); }, 0.9, 0.0, 0.85},
             {"cosh", [](double x) { return std::cosh(x); }, all, batch32([](auto v) { return wray::cosh(v); }), {}, all,
              batch64([](auto v) { return wray::cosh(v); }), [](std::mt19937_64& g) { return g() & 1 ? uniform(g, -3.0, 3.0) : signed_bits(g, 0x1p-1074, 711.0); }, 0.9, 0.0, 0.9},
             {"sinh", [](double x) { return std::sinh(x); }, all, batch32([](auto v) { return wray::sinh(v); }), {}, all,
@@ -516,6 +518,7 @@ namespace
             {"tan_turns", parity::odd, {{-0.49999999999999994, 0.49999999999999994, 1}}, -inf, inf, [](double x, bool) { return std::isnan(x) || std::isinf(x) ? any : std::fabs(x - std::nearbyint(x)) == 0.5 ? defined : bounded; }, 1.0, joined(multiples(0.125, 0.0, 16), {0.25, 0.5, 1e6 + 0.25, 4194303.75, 0x1p-30})},
             {"sinh", parity::odd, {{-inf, inf, 1}}, -inf, inf, [](double x, bool w) { return std::fabs(x) < (w ? 710.47 : 89.41) ? bounded : std::isnan(x) ? any : defined; }, 3.0, {1.0, 0x1p-30, 86.0, 707.0, 88.72, 89.41, 709.78, 710.47, 0.3466, 1.0397}},
             {"cosh", parity::even, {{-inf, 0.0, -1}, {0.0, inf, 1}}, 1.0, inf, [](double x, bool w) { return std::fabs(x) < (w ? 710.47 : 89.41) ? bounded : std::isnan(x) ? any : defined; }, 3.0, {1.0, 0x1p-30, 86.0, 707.0, 88.72, 89.41, 709.78, 710.47, 0.3466, 1.0397}},
+            {"asinh", parity::odd, {{-inf, inf, 1}}, -inf, inf, finite_only, 4.0, {0.5, 0x1p-30, 0x1p13, 0x1p27, 1e300, 1.0, 2.0}},
             {"expm1", parity::none, {{-inf, inf, 1}}, -1.0, inf, [](double x, bool w) { return below(x, w ? 709.78 : 88.72); }, 2.0,
              joined(multiples(ln2, 0.5, 60), {86.0, 707.0, 88.72, 709.78, 0x1p-25, 0x1p-54, 17.3, 37.5})},
             {"exp2", parity::none, {{-inf, inf, 1}}, 0.0, inf, [](double x, bool w) { return below(x, w ? 1024.0 : 128.0); }, 20.0,

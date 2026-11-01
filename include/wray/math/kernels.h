@@ -36,6 +36,7 @@ namespace wray::math
         using tan_turns = coeff::tan_turns_f32;
         using sinh = coeff::sinh_f32;
         using cosh = coeff::cosh_f32;
+        using asinh = coeff::asinh_f32;
     };
 
     template<>
@@ -53,6 +54,7 @@ namespace wray::math
         using tan_turns = coeff::tan_turns_f64;
         using sinh = coeff::sinh_f64;
         using cosh = coeff::cosh_f64;
+        using asinh = coeff::asinh_f64;
     };
 
     template<>
@@ -520,14 +522,14 @@ namespace wray::math::detail
     }
 
     template<class Tier, bool Subnormal, class V>
-    WRAY_INLINE V log1p_combine(const V &x, const V &u) noexcept
+    WRAY_INLINE V log1p_combine(const V &x, const V &xl, const V &u) noexcept
     {
         using S = scalar_t<V>;
         auto p = log_reduce<Tier, Subnormal>(u);
         const V f = u - V(S(1));
-        const V c = x - f;
+        const V c = (x - f) + xl;
         const V q = c / u;
-        const V near = x - ((((f - p.hi) - p.lo) + c * (f / u)) + q * q * V(S(0.5)));
+        const V near = x - (((((f - p.hi) - p.lo) + c * (f / u)) + q * q * V(S(0.5))) - xl);
         p.lo = p.lo + q;
         const V tiny(S(1) / (format<S>::two_mantissa * S(4)));
         return select(abs(x) <= tiny, x, select(p.e == V(S(0)), near, log_combine(p)));
@@ -538,7 +540,7 @@ namespace wray::math::detail
     {
         using S = scalar_t<V>;
         const V u = V(S(1)) + x;
-        return log_specials(u, log1p_combine<Tier, true>(x, u));
+        return log_specials(u, log1p_combine<Tier, true>(x, V(S(0)), u));
     }
 
     template<class Tier, class V>
@@ -548,7 +550,7 @@ namespace wray::math::detail
         const V u = V(S(1)) + x;
         if (simd::any(!log_regular_mask(u)))
             return log1p_edge<Tier>(x);
-        return log1p_combine<Tier, false>(x, u);
+        return log1p_combine<Tier, false>(x, V(S(0)), u);
     }
 
     template<class Tier, class V>
@@ -1175,6 +1177,36 @@ namespace wray::math::detail
             const V l = log2<Tier>(gain);
             return l * V(K::db_per_log2);
         }
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V asinh(const V &x) noexcept
+    {
+        using S = scalar_t<V>;
+        using C = typename table<Tier, S>::asinh;
+        const V one(S(1));
+        const V a = abs(x);
+        const V t = a * a;
+        const V small = fma(a * t, numerics::rational<C>(t), a);
+        const V big(std::numeric_limits<S>::digits == 24 ? S(0x1p13) : S(0x1p27));
+        const V m = select(a < big, a, one);
+        const auto mm = two_product(m, m);
+        const V q = one + mm.hi;
+        const V qe = ((one - q) + mm.hi) + mm.lo;
+        const V root = simd::sqrt(q);
+        const V re = (residual(root, root, q) + qe) / (root + root);
+        const V d = root + one;
+        const V de = ((root - d) + one) + re;
+        const V fh = mm.hi / d;
+        const V fl = (residual(fh, d, mm.hi) + mm.lo - fh * de) / d;
+        const auto u = two_sum(m, fh);
+        const V ul = u.lo + fl;
+        const V medium = log1p_combine<Tier, false>(u.hi, ul, one + u.hi);
+        auto p = log_reduce<Tier, false>(select(a < inf<V>(), a, one));
+        p.e = p.e + one;
+        const V large = select(a < inf<V>(), log_combine(p), a);
+        const V v = select(a < V(S(0.5)), small, select(a < big, medium, large));
+        return select(isnan(x), x, copysign_from(v, x));
     }
 
     template<class V>

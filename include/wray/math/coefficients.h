@@ -4,6 +4,20 @@
 
 namespace wray::math::coeff
 {
+    struct asinh_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 5> p{ -0x1.555552p-3f, 0x1.332eecp-4f, -0x1.6c9ce8p-5f, 0x1.d7c9b8p-6f, -0x1.d4fd74p-7f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct asinh_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 12> p{ -0x1.5555555555555p-3, 0x1.3333333332f85p-4, -0x1.6db6db6d5e266p-5, 0x1.f1c71c3d5a0ccp-6, -0x1.6e8b9ae19ef2fp-6, 0x1.1c4e0a772cc29p-6, -0x1.c98404d52f6ddp-7, 0x1.79b311a393ca7p-7, -0x1.3a5580fcb9958p-7, 0x1.f3c7f212d135bp-8, -0x1.479d638593dd7p-8, 0x1.ef71f3e00880fp-10 };
+        static constexpr std::array<double, 1> q{ 0x1p+0 };
+    };
+
     struct atan_fast
     {
         using value_type = float;

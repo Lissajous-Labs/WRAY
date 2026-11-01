@@ -127,6 +127,7 @@ namespace
                 add("atan", [](auto v) { return wray::atan(v); });
                 add("sinh", [](auto v) { return wray::sinh(v); });
                 add("cosh", [](auto v) { return wray::cosh(v); });
+                add("asinh", [](auto v) { return wray::asinh(v); });
                 add("tanh", [](auto v) { return wray::tanh(v); });
                 add("sigmoid", [](auto v) { return wray::sigmoid(v); });
                 add("db_to_gain", [](auto v) { return wray::db_to_gain(v); });
