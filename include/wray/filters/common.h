@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <complex>
@@ -53,6 +54,40 @@ namespace wray::filters::detail
         const S hi = std::nextafter(S(1), S(0));
         const S value = static_cast<S>(c);
         return static_cast<double>(value > lo ? (value < hi ? value : hi) : lo);
+    }
+
+    template<class V>
+    WRAY_INLINE auto quiet(const V &a) noexcept
+    {
+        using S = simd::scalar_t<V>;
+        constexpr S threshold = sizeof(S) == 4 ? S(0x1p-80) : S(0x1p-200);
+        return simd::abs(a) < V(threshold);
+    }
+
+    template<class V>
+    WRAY_INLINE auto quiet(const V &a, const V &b) noexcept
+    {
+        return simd::both(quiet(a), quiet(b));
+    }
+
+    template<class V>
+    WRAY_INLINE auto quiet(const V &a, const V &b, const V &c) noexcept
+    {
+        return simd::both(quiet(a, b), quiet(c));
+    }
+
+    template<class V, class M>
+    WRAY_INLINE V awake(const M &quiet) noexcept
+    {
+        using S = simd::scalar_t<V>;
+        return simd::select(quiet, V(S(0)), V(S(1)));
+    }
+
+    template<class V>
+    WRAY_INLINE V settle(const V &hold, const V &x) noexcept
+    {
+        using S = simd::scalar_t<V>;
+        return simd::select(hold == V(S(0)), V(S(0)), x);
     }
 
     template<class V>

@@ -118,6 +118,7 @@ namespace wray::filters
         {
             ic1_ = V(simd::scalar_t<V>(0));
             ic2_ = V(simd::scalar_t<V>(0));
+            hold_ = V(simd::scalar_t<V>(1));
         }
 
         void set_type(svf_type t) noexcept
@@ -160,6 +161,8 @@ namespace wray::filters
         [[nodiscard]] double sample_rate() const noexcept { return fs_; }
         [[nodiscard]] const svf_coefficients &coefficients() const noexcept { return c_; }
 
+        [[nodiscard]] std::array<V, 2> state() const noexcept { return {ic1_, ic2_}; }
+
         WRAY_INLINE V tick(const V &x) noexcept
         {
             const V v3 = x - ic2_;
@@ -167,23 +170,30 @@ namespace wray::filters
             const V delta2 = simd::fma(a3_, v3, a2_ * ic1_);
             const V v1 = ic1_ + delta1;
             const V v2 = ic2_ + delta2;
-            ic1_ = simd::fma(V(simd::scalar_t<V>(2)), delta1, ic1_);
-            ic2_ = simd::fma(V(simd::scalar_t<V>(2)), delta2, ic2_);
+            const V k = simd::select(detail::quiet(x), hold_, V(simd::scalar_t<V>(1)));
+            hold_ = detail::awake<V>(detail::quiet(x, ic1_, ic2_));
+            const V next1 = simd::fma(a2x2_, v3, simd::fma(nd2_, ic1_, ic1_));
+            ic2_ = detail::settle(k, simd::fma(a3x2_, v3, simd::fma(a2x2_, ic1_, ic2_)));
+            ic1_ = detail::settle(k, next1);
             const V direct = m0_ * x;
             return simd::fma(m2_, v2, simd::fma(m1_, v1, direct));
         }
 
         void process(std::span<V> io) noexcept
         {
+            auto local = *this;
             for (V &x: io)
-                x = tick(x);
+                x = local.tick(x);
+            *this = local;
         }
 
         void process(std::span<const V> in, std::span<V> out) noexcept
         {
             const std::size_t n = in.size() < out.size() ? in.size() : out.size();
+            auto local = *this;
             for (std::size_t i = 0; i < n; ++i)
-                out[i] = tick(in[i]);
+                out[i] = local.tick(in[i]);
+            *this = local;
         }
 
         [[nodiscard]] std::complex<double> response(double hz) const noexcept
@@ -223,6 +233,9 @@ namespace wray::filters
             c_.m1 = detail::realise<V>(d.m1);
             c_.m2 = detail::realise<V>(d.m2);
             d_ = detail::splat<V>(c_.d);
+            nd2_ = detail::splat<V>(-2.0 * c_.d);
+            a2x2_ = detail::splat<V>(2.0 * c_.a2);
+            a3x2_ = detail::splat<V>(2.0 * c_.a3);
             a2_ = detail::splat<V>(c_.a2);
             a3_ = detail::splat<V>(c_.a3);
             m0_ = detail::splat<V>(c_.m0);
@@ -237,6 +250,9 @@ namespace wray::filters
         svf_type type_ = svf_type::lowpass;
         svf_coefficients c_{};
         V d_{};
+        V nd2_{};
+        V a2x2_{};
+        V a3x2_{};
         V a2_{};
         V a3_{};
         V m0_{};
@@ -244,5 +260,6 @@ namespace wray::filters
         V m2_{};
         V ic1_ = V(simd::scalar_t<V>(0));
         V ic2_ = V(simd::scalar_t<V>(0));
+        V hold_ = V(simd::scalar_t<V>(1));
     };
 }

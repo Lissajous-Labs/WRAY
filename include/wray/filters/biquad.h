@@ -143,6 +143,10 @@ namespace wray::filters
         {
             s1_ = P(simd::scalar_t<P>(0));
             s2_ = P(simd::scalar_t<P>(0));
+            hold_ = P(simd::scalar_t<P>(1));
+            next_ = hold_;
+            last_ = hold_;
+            recent_ = hold_;
         }
 
         void set_type(biquad_type t) noexcept
@@ -187,27 +191,38 @@ namespace wray::filters
         [[nodiscard]] double sample_rate() const noexcept { return fs_; }
         [[nodiscard]] const biquad_coefficients &coefficients() const noexcept { return c_; }
 
+        [[nodiscard]] std::array<P, 2> state() const noexcept { return {s1_, s2_}; }
+
         WRAY_INLINE V tick(const V &x) noexcept
         {
             const P u = detail::lane_cast<P>(x);
+            const P loud = detail::awake<P>(detail::quiet(u));
+            const P k = simd::max(simd::max(hold_, loud), recent_);
+            recent_ = simd::max(loud, last_);
+            last_ = loud;
+            hold_ = next_;
+            next_ = detail::awake<P>(detail::quiet(s1_, s2_));
             const P y = simd::fma(b0_, u, s1_);
-            s1_ = simd::fma(na1_, y, simd::fma(b1_, u, s2_));
-            const P f = b2_ * u;
-            s2_ = simd::fma(na2_, y, f);
+            s1_ = simd::fma(na1_ * k, y, simd::fma(b1_, u, s2_));
+            s2_ = simd::fma(na2_ * k, y, b2_ * u);
             return detail::lane_cast<V>(y);
         }
 
         void process(std::span<V> io) noexcept
         {
+            auto local = *this;
             for (V &x: io)
-                x = tick(x);
+                x = local.tick(x);
+            *this = local;
         }
 
         void process(std::span<const V> in, std::span<V> out) noexcept
         {
             const std::size_t n = in.size() < out.size() ? in.size() : out.size();
+            auto local = *this;
             for (std::size_t i = 0; i < n; ++i)
-                out[i] = tick(in[i]);
+                out[i] = local.tick(in[i]);
+            *this = local;
         }
 
         [[nodiscard]] std::complex<double> response(double hz) const noexcept
@@ -261,5 +276,9 @@ namespace wray::filters
         P na2_{};
         P s1_ = P(simd::scalar_t<P>(0));
         P s2_ = P(simd::scalar_t<P>(0));
+        P hold_ = P(simd::scalar_t<P>(1));
+        P next_ = P(simd::scalar_t<P>(1));
+        P last_ = P(simd::scalar_t<P>(1));
+        P recent_ = P(simd::scalar_t<P>(1));
     };
 }
