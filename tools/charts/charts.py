@@ -16,6 +16,7 @@ GRID = "#d0d7de"
 COLORS = {"std": "#8c959f", "wray": "#0969da", "wray fast": "#1a7f37",
           "f32": "#0969da", "f64": "#8250df", "fast": "#1a7f37", "contract": "#cf222e"}
 FUNCTIONS = ["product_log", "omega", "ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain", "gain_to_db"]
+NO_STD = {"omega", "product_log"}
 TIER_LABEL = {"f32": "float precise", "f64": "double precise", "fast": "float fast"}
 
 
@@ -153,12 +154,13 @@ def summary_chart(acc, out):
     left.set_title("Precise tier: worst error vs mpmath (50k samples per function)")
     left.legend(ncols=3, loc="upper left")
     rows = {r["function"]: r for r in acc if r["tier"] == "fast"}
-    vals = [rows[f]["score"] for f in FUNCTIONS]
-    right.barh(idx, vals, color=COLORS["fast"])
+    fast = [f for f in FUNCTIONS if f in rows]
+    fast_idx = np.arange(len(fast))
+    right.barh(fast_idx, [rows[f]["score"] for f in fast], color=COLORS["fast"])
     right.axvline(2.0 ** -16, color=COLORS["contract"], linestyle="--", linewidth=1)
-    right.text(2.0 ** -16, len(FUNCTIONS) - 0.4, "  2^-16", color=COLORS["contract"], va="center")
+    right.text(2.0 ** -16, len(fast) - 0.4, "  2^-16", color=COLORS["contract"], va="center")
     right.set_xscale("log")
-    right.set_yticks(idx, FUNCTIONS)
+    right.set_yticks(fast_idx, fast)
     right.invert_yaxis()
     right.set_xlabel("max relative error")
     right.set_title("Fast tier (float): worst relative error")
@@ -234,19 +236,20 @@ def throughput_chart(bench, machine, out):
 
 def speedup_chart(bench, machine, out):
     table = bench_table(bench)
+    names = [f for f in FUNCTIONS if f not in NO_STD]
     fig, ax = plt.subplots(figsize=(12, 4.2))
-    idx = np.arange(len(FUNCTIONS))
+    idx = np.arange(len(names))
     series = [("f32", "wray", "float precise"), ("f32", "wray fast", "float fast"), ("f64", "wray", "double precise")]
     width = 0.8 / len(series)
     colors = [COLORS["f32"], COLORS["fast"], COLORS["f64"]]
     for k, (kind, variant, label) in enumerate(series):
-        vals = [table[kind][f]["std"] / table[kind][f][variant] if variant in table[kind].get(f, {}) else np.nan for f in FUNCTIONS]
+        vals = [table[kind][f]["std"] / table[kind][f][variant] if variant in table[kind].get(f, {}) else np.nan for f in names]
         bars = ax.bar(idx + (k - 1) * width, vals, width, color=colors[k], label=label)
         for b, v in zip(bars, vals):
             if np.isfinite(v):
                 ax.text(b.get_x() + b.get_width() / 2, v + 0.15, f"{v:.1f}", ha="center", fontsize=6.5, color=MUTED)
     ax.axhline(1, color=MUTED, linewidth=0.8)
-    ax.set_xticks(idx, FUNCTIONS, rotation=35, ha="right")
+    ax.set_xticks(idx, names, rotation=35, ha="right")
     ax.set_ylabel("speedup over std:: (x)")
     ax.set_title(f"Speedup over the C++ standard library ({machine})")
     ax.legend(ncols=3, loc="upper left")
