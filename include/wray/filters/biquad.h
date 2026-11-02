@@ -178,9 +178,9 @@ namespace wray::inline WRAY_ABI::filters
         void set(biquad_type t, double hz, double q, double gain_db) noexcept
         {
             type_ = t;
-            hz_ = hz;
-            q_ = q;
-            gain_db_ = gain_db;
+            hz_ = detail::unless_nan(hz, hz_);
+            q_ = detail::unless_nan(q, q_);
+            gain_db_ = detail::unless_nan(gain_db, gain_db_);
             update();
         }
 

@@ -49,7 +49,7 @@ namespace wray::inline WRAY_ABI::filters
         void set(one_pole_type t, double hz) noexcept
         {
             type_ = t;
-            hz_ = hz;
+            hz_ = detail::unless_nan(hz, hz_);
             update();
         }
 

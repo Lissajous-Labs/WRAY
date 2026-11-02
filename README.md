@@ -103,11 +103,11 @@ Beyond the error bound, the precise tier keeps shape: every function is checked 
 
 ## Filters
 
-`wray::filters` has `tpt_one_pole`, `svf` and `biquad` (lowpass, highpass, bandpass, notch, peak, shelves, allpass, and tilt for the SVF), designed with half-angle formulas in double and run in `float`, `double` or any SIMD width. Parameters are clamped rather than trusted: cutoff to [1e-6, 0.4999] of the sample rate, Q to [1e-3, 1e3], gain to ±120 dB with NaN read as 0 dB, and a non-finite or non-positive sample rate falls back to 48 kHz. Realised coefficients are kept strictly stable in the processing precision, and state is flushed to exact zero once it falls below 2^-80 (float) or 2^-200 (double), so silence never produces subnormals.
+`wray::filters` has `tpt_one_pole`, `svf` and `biquad` (lowpass, highpass, bandpass, notch, peak, shelves, allpass, and tilt for the SVF), designed with half-angle formulas in double and run in `float`, `double` or any SIMD width. Parameters are clamped rather than trusted: cutoff to [1e-6, 0.4999] of the sample rate, Q to [1e-3, 1e3], gain to ±120 dB, and a non-finite or non-positive sample rate falls back to 48 kHz. A NaN cutoff, Q or gain leaves that parameter at its previous value; a new filter starts at 1 kHz, Q 0.7071 and 0 dB. With 0 dB gain, inputs up to an eighth of the format's maximum keep every filter's state and output finite. Realised coefficients are kept strictly stable in the processing precision, and state is flushed to exact zero once it falls below 2^-80 (float) or 2^-200 (double), so silence never produces subnormals.
 
 `biquad<float>` rounds its coefficients to float, which moves the poles of very low cutoffs: it holds DC and cutoff gain within 0.5% only for cutoffs of at least fs/1000, and at 768 kHz a 20 Hz lowpass has a DC gain of 0.22. For lower cutoffs use `biquad<float, double>`, which keeps double coefficients and state for float audio, or `svf<float>`; both stay within 1e-5 down to 1e-6 of the sample rate.
 
-A deep sweep checks random and edge parameters from 8 kHz to 768 kHz against the exact bilinear prototype, scaled by the condition of each response.
+A deep sweep checks 4000 random parameter sets per filter type and precision, plus edge parameters, from 8 kHz to 768 kHz against the exact bilinear prototype, scaled by the condition of each response. With the cutoff, Q and gain on a random walk across their whole ranges and changed every sample, `svf` stays below 1e8 and `tpt_one_pole` below 4 for inputs within ±1. `biquad` is a direct form: it is stable for fixed coefficients and slow changes, but per-sample modulation can make it grow without bound, so modulate an `svf` instead.
 
 ## Backends and determinism
 

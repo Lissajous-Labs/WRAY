@@ -212,6 +212,9 @@ def main():
     for text in ("at least fs/1000", "DC gain of 0.22", "`biquad<float, double>`", "within 1e-5 down to 1e-6 of the sample rate"):
         check(text in filters, f"filters section states {text}")
     tests_text = (ROOT / "tests/filters_test.cpp").read_text(encoding="utf-8")
+    check("std::size_t deep_cases = 4000;" in tests_text and "4000 random parameter sets" in filters, "deep sweep case count")
+    check("one_pole_kind> ? 4.0 : (std::is_same_v<K, biquad_kind> ? 1.0e4 : 1.0e8)" in tests_text and "below 1e8" in filters and "below 4 for inputs" in filters, "modulation bounds match the test")
+    check("std::numeric_limits<T>::max() / T(8)" in tests_text and "an eighth of the format's maximum" in filters, "full-scale headroom matches the test")
     check("if (ratio >= 1.0e-3)" in tests_text and "passband_ok(narrow, f0, 5e-3)" in tests_text and "passband_ok(mixed, f0, 1e-5)" in tests_text, "filter limits match the tests")
     for number in ("[1e-6, 0.4999]", "[1e-3, 1e3]", "±120 dB", "48 kHz", "2^-80", "2^-200"):
         check(number in filters, f"filters section states {number}")

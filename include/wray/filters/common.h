@@ -40,6 +40,8 @@ namespace wray::inline WRAY_ABI::filters::detail
         return hz > lo ? (hz < hi ? hz : hi) : lo;
     }
 
+    WRAY_INLINE double unless_nan(double value, double previous) noexcept { return std::isnan(value) ? previous : value; }
+
     WRAY_INLINE double clamp_q(double q) noexcept { return q > lowest_q ? (q < highest_q ? q : highest_q) : lowest_q; }
 
     WRAY_INLINE double prewarp(double hz, double fs) noexcept { return wray::tanpi(hz / fs); }

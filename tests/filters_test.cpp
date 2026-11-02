@@ -4,7 +4,6 @@
 #include <array>
 #include <atomic>
 #include <bit>
-#include <chrono>
 #include <cmath>
 #include <complex>
 #include <cstdint>
@@ -920,8 +919,8 @@ namespace
     {
         if (!std::isfinite(c.fs) || c.fs <= 0.0)
             c.fs = 48000.0;
-        c.f0 = std::isnan(c.f0) ? c.fs * 1.0e-6 : std::clamp(c.f0, c.fs * 1.0e-6, c.fs * 0.4999);
-        c.q = std::isnan(c.q) ? 1.0e-3 : std::clamp(c.q, 1.0e-3, 1.0e3);
+        c.f0 = std::clamp(std::isnan(c.f0) ? 1000.0 : c.f0, c.fs * 1.0e-6, c.fs * 0.4999);
+        c.q = std::clamp(std::isnan(c.q) ? 0.7071067811865476 : c.q, 1.0e-3, 1.0e3);
         c.gain = std::isnan(c.gain) ? 0.0 : std::clamp(c.gain, -120.0, 120.0);
         return c;
     }
@@ -1171,7 +1170,11 @@ namespace
     {
         typename K::template filter<V, P> f;
         f.prepare(48000);
-        constexpr int samples = 32768;
+        constexpr int samples = 65536;
+        std::mt19937_64 rng(0x6d0du + static_cast<unsigned>(type));
+        std::uniform_real_distribution<double> unit(0.0, 1.0);
+        double lf = unit(rng), lq = unit(rng), lg = unit(rng);
+        const auto walk = [&](double v) { return std::clamp(v + (unit(rng) - 0.5) * 0.02, 0.0, 1.0); };
         for (int n = 0; n < samples; ++n)
         {
             if constexpr (std::is_same_v<K, biquad_kind>)
@@ -1184,27 +1187,25 @@ namespace
                 }
             } else
             {
-                const double phase = static_cast<double>(n) * 0.007;
-                const double hz = 48000.0 * std::pow(10.0, -6.0 + 5.698883 * (0.5 + 0.5 * std::sin(phase)));
+                lf = walk(lf);
+                lq = walk(lq);
+                lg = walk(lg);
+                const double hz = 48000.0 * 1.0e-6 * std::pow(499900.0, lf);
                 if constexpr (std::is_same_v<K, one_pole_kind>)
                     f.set(static_cast<wf::one_pole_type>(type), hz);
                 else
-                    f.set(static_cast<wf::svf_type>(type), hz, std::pow(10.0, 3.0 * std::sin(phase * 0.23)),
-                          120.0 * std::sin(phase * 0.11));
+                    f.set(static_cast<wf::svf_type>(type), hz, std::pow(10.0, -3.0 + 6.0 * lq), -120.0 + 240.0 * lg);
             }
-            const double y = static_cast<double>(f.tick(V(std::sin(static_cast<double>(n) * 0.13))));
+            const double y = static_cast<double>(f.tick(V(unit(rng) * 2.0 - 1.0)));
             r.modulation_peak = std::max(r.modulation_peak, std::abs(y));
-            const double bound = std::is_same_v<K, one_pole_kind>
-                                     ? 3.000001
-                                     : (std::is_same_v<K, biquad_kind> ? 1.0e4 : 1.0e12);
+            const double bound = std::is_same_v<K, one_pole_kind> ? 4.0 : (std::is_same_v<K, biquad_kind> ? 1.0e4 : 1.0e8);
             r.modulation = r.modulation && std::isfinite(y) && std::abs(y) <= bound;
         }
     }
 
     template<class K, class V, class P>
-    void deep_type(deep_result &r, int type, std::chrono::steady_clock::duration budget)
+    void deep_type(deep_result &r, int type, std::size_t random_cases)
     {
-        const auto deadline = std::chrono::steady_clock::now() + budget;
         const double nan = std::numeric_limits<double>::quiet_NaN();
         const double inf = std::numeric_limits<double>::infinity();
         const std::array rates{
@@ -1245,14 +1246,14 @@ namespace
         for (const double fs: {0.0, -1.0, nan, inf, -inf})
             deep_case<K, V, P>(r, {type, fs, 1000, 0.7, 12}, unit(rng) * 0.5);
         modulation_check<K, V, P>(r, type);
-        do
+        for (std::size_t i = 0; i < random_cases; ++i)
         {
             const double fs = 8000.0 * std::pow(96.0, unit(rng));
             const double f0 = fs * 1.0e-6 * std::pow(499900.0, unit(rng));
             const double q = std::pow(10.0, -3.0 + 6.0 * unit(rng));
             const double gain = -120.0 + 240.0 * unit(rng);
             deep_case<K, V, P>(r, {type, fs, f0, q, gain}, unit(rng) * 0.5);
-        } while (std::chrono::steady_clock::now() < deadline);
+        }
     }
 
     template<class K>
@@ -1332,26 +1333,23 @@ namespace
         }
     }
 
-    void run_deep(double seconds)
+    void run_deep(std::size_t cases)
     {
-        const double threads = std::max(1u, std::thread::hardware_concurrency());
-        const auto deadline = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-            std::chrono::duration<double>(seconds * std::min(threads, 48.0) / 48.0));
         std::vector<deep_result> one_d(3), one_f(3), svf_d(9), svf_f(9), biquad_d(8), biquad_fd(8), biquad_f(8);
         parallel_for(48, [&](std::size_t index)
         {
-            if (index < 3) deep_type<one_pole_kind, double, double>(one_d[index], static_cast<int>(index), deadline);
+            if (index < 3) deep_type<one_pole_kind, double, double>(one_d[index], static_cast<int>(index), cases);
             else if (index < 6) deep_type<one_pole_kind, float, float>(one_f[index - 3], static_cast<int>(index - 3),
-                                                                       deadline);
+                                                                       cases);
             else if (index < 15) deep_type<svf_kind, double, double>(svf_d[index - 6], static_cast<int>(index - 6),
-                                                                     deadline);
+                                                                     cases);
             else if (index < 24) deep_type<svf_kind, float, float>(svf_f[index - 15], static_cast<int>(index - 15),
-                                                                   deadline);
+                                                                   cases);
             else if (index < 32) deep_type<biquad_kind, double, double>(
-                biquad_d[index - 24], static_cast<int>(index - 24), deadline);
+                biquad_d[index - 24], static_cast<int>(index - 24), cases);
             else if (index < 40) deep_type<biquad_kind, float, double>(biquad_fd[index - 32],
-                                                                       static_cast<int>(index - 32), deadline);
-            else deep_type<biquad_kind, float, float>(biquad_f[index - 40], static_cast<int>(index - 40), deadline);
+                                                                       static_cast<int>(index - 32), cases);
+            else deep_type<biquad_kind, float, float>(biquad_f[index - 40], static_cast<int>(index - 40), cases);
         });
         report_deep<one_pole_kind>("double", one_d);
         report_deep<one_pole_kind>("float", one_f);
@@ -1422,11 +1420,98 @@ namespace
     }
 }
 
+namespace
+{
+    template<class F>
+    void keeps_on_nan(F &f, double hz, double q, double gain)
+    {
+        const auto before = f.response(hz * 0.5);
+        if constexpr (requires { f.q(); })
+            f.set(f.type(), std::numeric_limits<double>::quiet_NaN(), q, gain);
+        else
+            f.set(f.type(), std::numeric_limits<double>::quiet_NaN());
+        CHECK(f.frequency() == hz && f.response(hz * 0.5) == before);
+        if constexpr (requires { f.q(); })
+        {
+            f.set(f.type(), hz, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN());
+            CHECK(f.q() == q && f.gain_db() == gain && f.response(hz * 0.5) == before);
+        }
+    }
+
+    template<class F, class T>
+    bool finite_run(F &f, T amplitude, std::uint64_t seed)
+    {
+        std::mt19937_64 rng(seed);
+        bool ok = true;
+        for (int n = 0; n < 20000; ++n)
+            ok = ok && std::isfinite(static_cast<double>(f.tick(T((rng() & 1) ? amplitude : -amplitude))));
+        return ok;
+    }
+
+    template<class T>
+    void edges()
+    {
+        const T eighth = std::numeric_limits<T>::max() / T(8);
+        for (int t = 0; t < 3; ++t)
+        {
+            wf::tpt_one_pole<T> f;
+            f.prepare(48000.0);
+            f.set(static_cast<wf::one_pole_type>(t), 2000.0);
+            keeps_on_nan(f, 2000.0, 0.0, 0.0);
+            f.set(static_cast<wf::one_pole_type>(t), 1000.0);
+            f.reset();
+            CHECK(finite_run(f, eighth, 1));
+        }
+        for (int t = 0; t < 9; ++t)
+        {
+            wf::svf<T> f;
+            f.prepare(48000.0);
+            f.set(static_cast<wf::svf_type>(t), 2000.0, 2.0, 6.0);
+            keeps_on_nan(f, 2000.0, 2.0, 6.0);
+            f.set(static_cast<wf::svf_type>(t), 1000.0, 0.7071067811865476, 0.0);
+            f.reset();
+            CHECK(finite_run(f, eighth, 2));
+        }
+        for (int t = 0; t < 8; ++t)
+        {
+            wf::biquad<T> f;
+            f.prepare(48000.0);
+            f.set(static_cast<wf::biquad_type>(t), 2000.0, 2.0, 6.0);
+            keeps_on_nan(f, 2000.0, 2.0, 6.0);
+            f.set(static_cast<wf::biquad_type>(t), 1000.0, 0.7071067811865476, 0.0);
+            f.reset();
+            CHECK(finite_run(f, eighth, 3));
+        }
+        for (const double fs: {std::numeric_limits<double>::denorm_min(), 1.0e-300, 1.0, 1.0e300, std::numeric_limits<double>::max()})
+        {
+            wf::svf<T> a;
+            a.prepare(fs);
+            a.set(wf::svf_type::lowpass, 1000.0, 0.7071067811865476, 0.0);
+            wf::biquad<T> b;
+            b.prepare(fs);
+            b.set(wf::biquad_type::lowpass, 1000.0, 0.7071067811865476, 0.0);
+            wf::tpt_one_pole<T> c;
+            c.prepare(fs);
+            c.set(wf::one_pole_type::lowpass, 1000.0);
+            CHECK(a.sample_rate() == fs && b.sample_rate() == fs && c.sample_rate() == fs);
+            bool ok = true;
+            std::mt19937_64 rng(4);
+            for (int n = 0; n < 4096; ++n)
+            {
+                const T x = T((rng() & 1) ? 1 : -1);
+                const double ya = static_cast<double>(a.tick(x)), yb = static_cast<double>(b.tick(x)), yc = static_cast<double>(c.tick(x));
+                ok = ok && std::abs(ya) <= 2.0 && std::abs(yb) <= 2.0 && std::abs(yc) <= 2.0;
+            }
+            CHECK(ok);
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
     const char *json = nullptr;
     bool deep_only = false;
-    double deep_seconds = 30.0;
+    std::size_t deep_cases = 4000;
     for (int i = 1; i < argc; ++i)
         if (std::strcmp(argv[i], "--json") == 0 && i + 1 < argc)
             json = argv[++i];
@@ -1434,20 +1519,22 @@ int main(int argc, char **argv)
             measure_limits = true;
         else if (std::strcmp(argv[i], "--deep-only") == 0)
             deep_only = true;
-        else if (std::strcmp(argv[i], "--deep-seconds") == 0 && i + 1 < argc)
+        else if (std::strcmp(argv[i], "--deep-cases") == 0 && i + 1 < argc)
         {
             char *end = nullptr;
-            const double requested = std::strtod(argv[++i], &end);
-            if (!end || *end != '\0' || !std::isfinite(requested) || requested <= 0.0)
+            const unsigned long long requested = std::strtoull(argv[++i], &end, 10);
+            if (!end || *end != '\0' || requested == 0)
             {
-                std::fprintf(stderr, "--deep-seconds requires a positive finite number\n");
+                std::fprintf(stderr, "--deep-cases requires a positive integer\n");
                 return 1;
             }
-            deep_seconds = requested;
+            deep_cases = static_cast<std::size_t>(requested);
         }
 
     low_cutoff();
-    run_deep(deep_seconds);
+    edges<float>();
+    edges<double>();
+    run_deep(deep_cases);
     silence_family<one_pole_kind>(0.035, 0.09);
     silence_family<svf_kind>(0.035, 0.09);
     silence_family<biquad_kind>(0.035, 0.09);
