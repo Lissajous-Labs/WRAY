@@ -111,6 +111,10 @@ namespace
                 add("gain_to_db", [](auto v) { return wray::fast::gain_to_db(v); });
                 add2("atan2", [](auto a, auto b) { return wray::fast::atan2(a, b); });
                 add2("pow", [](auto a, auto b) { return wray::fast::pow(a, b); });
+                add("sincos_sin", [](auto v) { return wray::fast::sincos(v).sin; });
+                add("sincos_cos", [](auto v) { return wray::fast::sincos(v).cos; });
+                add("sincos_turns_sin", [](auto v) { return wray::fast::sincos_turns(v).sin; });
+                add("sincos_turns_cos", [](auto v) { return wray::fast::sincos_turns(v).cos; });
             }
             else
             {
@@ -160,6 +164,11 @@ namespace
                 add("adaa_radical_F1", [](auto v) { return wray::adaa::radical::F1(v); });
                 add2("adaa_radical_first", [](auto a, auto b) { return wray::adaa::radical::first(a, b); });
                 add2("pow", [](auto a, auto b) { return wray::pow(a, b); });
+                add("wrap_turns", [](auto v) { return wray::wrap_turns(v); });
+                add("sincos_sin", [](auto v) { return wray::sincos(v).sin; });
+                add("sincos_cos", [](auto v) { return wray::sincos(v).cos; });
+                add("sincos_turns_sin", [](auto v) { return wray::sincos_turns(v).sin; });
+                add("sincos_turns_cos", [](auto v) { return wray::sincos_turns(v).cos; });
             }
         }
     };
@@ -241,6 +250,81 @@ namespace
     }
 }
 
+namespace
+{
+    template <class T, class V, class Process>
+    void stream(const char* tier, const std::string& name, Process process)
+    {
+        constexpr int width = V::size;
+        constexpr int samples = 4096;
+        std::mt19937_64 g(9);
+        std::vector<T> out;
+        out.reserve(static_cast<std::size_t>(samples * width));
+        for (int n = 0; n < samples; ++n)
+        {
+            T lanes[width];
+            for (auto& l : lanes)
+                l = static_cast<T>((static_cast<double>(g() >> 11) * 0x1p-53 - 0.5) * 4.0);
+            const V y = process(n, V::load(lanes));
+            for (int i = 0; i < width; ++i)
+                out.push_back(y[i]);
+        }
+        std::printf("%s %s %016llx\n", tier, name.c_str(), static_cast<unsigned long long>(hash(out)));
+    }
+
+    template <class T, class V, class Shape>
+    void shaped(const char* tier, const char* name)
+    {
+        wray::adaa::first_order<Shape, V> stage;
+        stream<T, V>(tier, std::string("adaa_first_order_") + name, [&](int, const V& x) { return stage(x * V(T(2))); });
+    }
+
+    template <class T, class V>
+    void stateful(const char* tier)
+    {
+        namespace wf = wray::filters;
+        for (int t = 0; t < 3; ++t)
+        {
+            wf::tpt_one_pole<V> f;
+            f.prepare(48000.0);
+            f.set(static_cast<wf::one_pole_type>(t), 1000.0);
+            stream<T, V>(tier, "one_pole_" + std::to_string(t), [&](int n, const V& x) {
+                if (n == 2048)
+                    f.set(static_cast<wf::one_pole_type>(t), 3000.0);
+                return f.tick(x);
+            });
+        }
+        for (int t = 0; t < 9; ++t)
+        {
+            wf::svf<V> f;
+            f.prepare(48000.0);
+            f.set(static_cast<wf::svf_type>(t), 1000.0, 0.7071067811865476, 6.0);
+            stream<T, V>(tier, "svf_" + std::to_string(t), [&](int n, const V& x) {
+                if (n == 2048)
+                    f.set(static_cast<wf::svf_type>(t), 3000.0, 2.0, -6.0);
+                return f.tick(x);
+            });
+        }
+        for (int t = 0; t < 8; ++t)
+        {
+            wf::biquad<V> f;
+            f.prepare(48000.0);
+            f.set(static_cast<wf::biquad_type>(t), 1000.0, 0.7071067811865476, 6.0);
+            stream<T, V>(tier, "biquad_" + std::to_string(t), [&](int n, const V& x) {
+                if (n == 2048)
+                    f.set(static_cast<wf::biquad_type>(t), 3000.0, 2.0, -6.0);
+                return f.tick(x);
+            });
+        }
+        shaped<T, V, wray::adaa::hard_clip>(tier, "hard_clip");
+        shaped<T, V, wray::adaa::soft_clip>(tier, "soft_clip");
+        shaped<T, V, wray::adaa::tanh>(tier, "tanh");
+        shaped<T, V, wray::adaa::atan>(tier, "atan");
+        shaped<T, V, wray::adaa::algebraic>(tier, "algebraic");
+        shaped<T, V, wray::adaa::radical>(tier, "radical");
+    }
+}
+
 int main(int argc, char** argv)
 {
     if (argc == 2 && std::strcmp(argv[1], "info") == 0)
@@ -253,6 +337,8 @@ int main(int argc, char** argv)
         digest<float, false>("f32");
         digest<double, false>("f64");
         digest<float, true>("fast");
+        stateful<float, wray::f32x4>("f32");
+        stateful<double, wray::f64x2>("f64");
         return 0;
     }
     if (argc != 6)

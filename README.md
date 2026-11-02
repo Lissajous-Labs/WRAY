@@ -123,7 +123,7 @@ Over buffers the SIMD loops are several times faster than the standard library. 
 - Dense: every function and tier against mpmath at 40 digits, `tools/oracle/oracle.py --check`.
 - Shape: monotonicity, symmetry, bounds and finiteness, exhaustive in `float` and sampled in `double`.
 - Host: every function again under flush-to-zero and in all four rounding modes.
-- Determinism: golden output digests per FMA class, and bit-identical scalar and SIMD results on every backend apart from NaN sign and payload.
+- Determinism: golden output digests per FMA class, covering every function, `sincos`, `wrap_turns`, every filter type with a parameter change mid-stream, and the stateful ADAA processors, and bit-identical scalar and SIMD results on every backend apart from NaN sign and payload.
 - Spectral: oscillator SFDR, ADAA aliasing and parameter-map precision each assert a recorded limit (`wray_spectral_test`).
 
 ```sh

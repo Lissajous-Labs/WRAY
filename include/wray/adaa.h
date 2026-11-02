@@ -89,13 +89,14 @@ namespace wray::inline WRAY_ABI::adaa::detail
         const mean_parts<V> mp = parts(g);
         const V m = mp.m;
         const V df = mp.df;
-        const V signed_m = select(q >= p, m, -m);
         const V signed_df = select(q >= p, df, -df);
         const V h = x1 * half - x0 * half;
         const V d = g.d * half;
         const auto same = either(both(x0 >= zero, x1 >= zero), both(x0 <= zero, x1 <= zero));
-        const V opposite = select(abs(signed_df) < inf<V>(), (signed_df * half) / h, signed_m * (d / h));
-        return settle(x0, x1, select(same, signed_m * (d / h), opposite), f);
+        const V opposite = select(abs(signed_df) < inf<V>(), (signed_df * half) / h, select(q >= p, m, -m) * (d / h));
+        const V inside = select(same, copysign_from(m, x0 + x1), opposite);
+        const V tiny = (x0 + x1) * half;
+        return settle(x0, x1, select(g.hi < V(std::numeric_limits<S>::min()), tiny, inside), f);
     }
 
     template<class V, class F, class D>

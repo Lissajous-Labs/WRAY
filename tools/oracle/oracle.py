@@ -246,6 +246,19 @@ def domain(fn, tier, rng, n):
         near = (x0[q:2 * q].astype(np.float64) * (1 + rng.uniform(-1e-6, 1e-6, q))).astype(fmt["dtype"])
         x1 = np.concatenate([value_uniform(rng, fmt, -8.0, 8.0, q), near, x0[2 * q:3 * q], mirror, bit_uniform(rng, fmt, 1e-3, huge, r - r // 2, True),
                              np.array([huge, huge, -huge], dtype=fmt["dtype"])])
+        e = max(n // 16, 8)
+        far = bit_uniform(rng, fmt, 1e10, huge, e)
+        opposite = (far, -bit_uniform(rng, fmt, 1e10, huge, e))
+        lopsided = (bit_uniform(rng, fmt, 1e10, huge, e, True), value_uniform(rng, fmt, -8.0, 8.0, e))
+        start = bit_uniform(rng, fmt, 1e3, huge, e, True)
+        adjacent = (start, np.nextafter(start, np.where(rng.random(e) < 0.5, -np.inf, np.inf).astype(fmt["dtype"])))
+        sub = (bit_uniform(rng, fmt, float(np.finfo(fmt["dtype"]).smallest_subnormal), float(np.finfo(fmt["dtype"]).tiny), e, True),
+               bit_uniform(rng, fmt, float(np.finfo(fmt["dtype"]).smallest_subnormal), float(np.finfo(fmt["dtype"]).tiny), e, True))
+        zeros = (np.array([0.0, -0.0, 0.0, -0.0, 0.0, -0.0, tiny, -tiny], dtype=fmt["dtype"]),
+                 np.array([0.0, 0.0, -0.0, -0.0, tiny, -tiny, 0.0, -0.0], dtype=fmt["dtype"]))
+        extra = [opposite, lopsided, adjacent, sub, zeros]
+        x0 = np.concatenate([x0] + [p[0] for p in extra]).astype(fmt["dtype"])
+        x1 = np.concatenate([x1] + [p[1] for p in extra]).astype(fmt["dtype"])
         return (x0, x1)
     if fn == "pow":
         q = n // 4

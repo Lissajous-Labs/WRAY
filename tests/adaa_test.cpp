@@ -6,6 +6,8 @@
 #include <cstdio>
 #include <limits>
 #include <numbers>
+#include <random>
+#include <type_traits>
 #include <vector>
 
 #include "check.h"
@@ -46,6 +48,14 @@ namespace
         CHECK(std::isfinite(Shape::first(-huge, huge)));
         CHECK(std::isfinite(Shape::first(huge, huge / T(2))));
         CHECK(std::isfinite(Shape::F1(huge / T(4))));
+        const T sub = std::numeric_limits<T>::denorm_min();
+        for (const T a : {T(0), -T(0), sub, -sub, T(3) * sub})
+            for (const T b : {sub, -sub, T(0), std::numeric_limits<T>::min()})
+            {
+                const T y = Shape::first(a, b);
+                CHECK(std::isfinite(y) && std::abs(y) <= std::max(std::abs(a), std::abs(b)));
+            }
+        CHECK(Shape::first(sub, -sub) == T(0));
         wray::adaa::first_order<Shape, T> stage;
         CHECK(stage(T(0.5)) == Shape::first(T(0), T(0.5)));
         CHECK(stage(T(0.75)) == Shape::first(T(0.5), T(0.75)));
@@ -177,6 +187,91 @@ namespace
     }
 }
 
+namespace
+{
+    template <class Shape, class V>
+    void stateful(std::uint64_t seed)
+    {
+        using T = wray::simd::scalar_t<V>;
+        constexpr int width = wray::simd::traits<V>::width;
+        std::mt19937_64 rng(seed);
+        std::uniform_real_distribution<double> u(-3.0, 3.0);
+        std::vector<V> block(257);
+        for (auto &v: block)
+        {
+            T lanes[width];
+            for (auto &l: lanes)
+                l = T(u(rng));
+            if constexpr (width == 1)
+                v = lanes[0];
+            else
+                v = V::load(lanes);
+        }
+        const auto lane = [](const V &v, int i) {
+            if constexpr (width == 1)
+                return v;
+            else
+                return v[i];
+        };
+        const auto bits_equal = [&](const V &a, const V &b) {
+            bool ok = true;
+            for (int i = 0; i < width; ++i)
+                ok = ok && std::bit_cast<std::conditional_t<sizeof(T) == 4, std::uint32_t, std::uint64_t> >(lane(a, i)) ==
+                           std::bit_cast<std::conditional_t<sizeof(T) == 4, std::uint32_t, std::uint64_t> >(lane(b, i));
+            return ok;
+        };
+        wray::adaa::first_order<Shape, V> stage;
+        V previous(T(0));
+        bool parity = true;
+        for (const V &x: block)
+        {
+            parity = parity && bits_equal(stage(x), Shape::first(previous, x));
+            previous = x;
+        }
+        CHECK(parity);
+
+        wray::adaa::first_order<Shape, V> fresh;
+        stage.reset();
+        bool same_as_fresh = true;
+        for (const V &x: block)
+            same_as_fresh = same_as_fresh && bits_equal(stage(x), fresh(x));
+        CHECK(same_as_fresh);
+
+        const V start(T(0.5));
+        wray::adaa::first_order<Shape, V> seeded(start);
+        stage.reset(start);
+        CHECK(bits_equal(stage(block[0]), seeded(block[0])) && bits_equal(seeded(block[1]), Shape::first(block[0], block[1])));
+
+        const V poison(std::numeric_limits<T>::quiet_NaN());
+        const V bad = stage(poison);
+        const V after = stage(block[2]);
+        bool poisoned = true;
+        for (int i = 0; i < width; ++i)
+            poisoned = poisoned && std::isnan(lane(bad, i)) && std::isnan(lane(after, i));
+        CHECK(poisoned);
+        stage.reset();
+        bool recovered = true;
+        for (const V &x: block)
+        {
+            const V y = stage(x);
+            for (int i = 0; i < width; ++i)
+                recovered = recovered && std::isfinite(lane(y, i)) && std::abs(lane(y, i)) <= T(2);
+        }
+        CHECK(recovered);
+    }
+
+    template <class Shape>
+    void stateful_all()
+    {
+        stateful<Shape, float>(11);
+        stateful<Shape, double>(12);
+        stateful<Shape, wray::f32x4>(13);
+        stateful<Shape, wray::f64x2>(14);
+        stateful<Shape, wray::simd::native<float> >(15);
+        stateful<Shape, wray::simd::native<double> >(16);
+    }
+}
+
 int main()
 {
     shape<wray::adaa::hard_clip>("hard_clip", 3.95);
@@ -188,5 +283,11 @@ int main()
     atan_limits<float>();
     atan_limits<double>();
     regression_pairs();
+    stateful_all<wray::adaa::hard_clip>();
+    stateful_all<wray::adaa::soft_clip>();
+    stateful_all<wray::adaa::tanh>();
+    stateful_all<wray::adaa::atan>();
+    stateful_all<wray::adaa::algebraic>();
+    stateful_all<wray::adaa::radical>();
     return wray::test::finish("adaa");
 }
