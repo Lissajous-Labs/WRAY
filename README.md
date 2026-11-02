@@ -20,14 +20,14 @@ wray::adaa::first_order<wray::adaa::tanh, float> drive;
 wray::filters::biquad<wray::f64x2> eq;
 ```
 
-Every function takes a scalar, a SIMD vector, or a contiguous range. A range call processes as many elements as the shorter of input and output holds, needs no alignment, and may write in place (output and input the same range):
+Every function takes a scalar, a SIMD vector, or a range (any length, no alignment needed, in place allowed):
 
-- elementary: `exp exp2 expm1 log log2 log10 log1p pow cbrt sin cos sincos tan tanpi atan atan2 sinh cosh tanh asinh erf sigmoid`, where `tanpi(x)` is tan(πx)
-- turns, where one turn is a full cycle: `sin_turns cos_turns sincos_turns tan_turns wrap_turns`, so `tan_turns(x)` is tan(2πx) and equals `sin_turns(x) / cos_turns(x)`
+- elementary: `exp exp2 expm1 log log2 log10 log1p pow cbrt sin cos sincos tan tanpi atan atan2 sinh cosh tanh asinh erf sigmoid`
+- turns (one turn is a full cycle): `sin_turns cos_turns sincos_turns tan_turns wrap_turns`
 - audio: `db_to_gain gain_to_db midi_to_hz hz_to_midi ratio_from_cents omega product_log`
-- parameter maps: `smoothing_coefficient(seconds, fs) pole_from_cutoff(hz, fs) prewarp(hz, fs)`
+- parameter maps: `smoothing_coefficient pole_from_cutoff prewarp`
 
-`wray::fast::` is the `float` tier with a 2^-16 relative-error contract for `exp exp2 log log2 sin cos sincos tan atan atan2 tanh sigmoid pow db_to_gain gain_to_db` and the turns, `omega` and `product_log` functions.
+`wray::fast::` is a quicker `float`-only tier, accurate to 2^-16 relative error.
 
 ![speedup](docs/charts/speedup.png)
 
@@ -55,7 +55,7 @@ target_link_libraries(your_target PRIVATE wray::wray)
 
 ## Accuracy contracts
 
-Measured maximum error in ulp. These are measured bounds, not proofs: one-argument `float` functions are checked on every input against a double-precision reference, and every function is sampled against 40-digit mpmath (50,000 points per function and tier in the published data). `double` and two-argument functions are only sampled; the `double` bounds come from 4×10^8 inputs per function against a quad-precision reference in both FMA classes, and a weekly run with a new seed checks them again.
+Maximum measured error in ulp (units in the last place). Every `float` input is tested for one-argument functions; the rest are densely sampled. `pow` loosens for very large results. [Details](docs/details.md#accuracy-contracts).
 
 | function | float | double | function | float | double |
 |---|---|---|---|---|---|
@@ -77,15 +77,11 @@ Measured maximum error in ulp. These are measured bounds, not proofs: one-argume
 | ratio_from_cents | 0.85 | 0.9 | pole_from_cutoff | 2.0 | 2.0 |
 | prewarp | 2.0 | 2.0 | tan_turns | 1.2 | 1.4 |
 
-`pow` meets its bound while |y·log₂|x|| ≤ 4; past that the bound scales with the product, to contract × |y·log₂|x|| / 4 ulp, because the error of log₂|x| is multiplied by y. Negative bases follow C: integer exponents give the signed power and other exponents give NaN. The fast tier's 2^-16 bound for `pow` is likewise relative to 1 + |y·log₂|x||.
-
-Beyond the error bound, the precise tier keeps shape: every function is checked for monotonicity on its monotone intervals, exact odd or even symmetry, range bounds, and finite outputs for finite inputs, over every `float` and a dense `double` sample. The few documented exceptions are listed in `tests/accuracy_test.cpp`. `midi_to_hz(69 + 12k)` is exactly `440 * 2^k`, and at multiples of 1/8 turn the turns functions return the correctly rounded value.
-
 ![accuracy](docs/charts/accuracy_summary.png)
 
 ## ADAA
 
-`wray::adaa` has first-order antiderivative antialiasing for `hard_clip`, `soft_clip` (cubic), `tanh`, `atan`, `algebraic` (x/(1+|x|)) and `radical` (x/sqrt(1+x^2)). Each shape has `f`, its antiderivative `F1`, and `first(x0, x1)`, the mean of `f` over `[x0, x1]`. `first` is accurate for every input pair, including `x0 == x1`, nearly equal inputs and huge inputs, with no ill-conditioned difference quotient.
+`wray::adaa` antialiases six waveshapers (`hard_clip`, `soft_clip`, `tanh`, `atan`, `algebraic`, `radical`) with first-order antiderivatives. It stays accurate for any pair of inputs, including equal ones.
 
 | shape | F1 (ulp) | first (ulp) | shape | F1 (ulp) | first (ulp) |
 |---|---|---|---|---|---|
@@ -97,35 +93,25 @@ Beyond the error bound, the precise tier keeps shape: every function is checked 
 
 ## Parameter maps
 
-`smoothing_coefficient`, `pole_from_cutoff` and `prewarp` stay within 2 ulp for every time constant and cutoff down to 1e-9 of the sample rate, where the textbook formulas lose every digit. Outside their domain they return safe values: a time constant or cutoff at or below 0 gives a coefficient of 1, a pole of 1 and a prewarp of 0; a sample rate at or below 0 acts as a vanishing sample rate (coefficient 1, pole 0, largest prewarp); `prewarp` clamps cutoffs at or above Nyquist to the ratio just below 0.5 (1.07e7 in float, 5.73e15 in double); NaN arguments give NaN. No input gives a pole above 1 or a coefficient outside [0, 1].
+`smoothing_coefficient`, `pole_from_cutoff` and `prewarp` stay within 2 ulp even at tiny cutoffs where the textbook formulas lose every digit, and return safe values for bad input. [Details](docs/details.md#parameter-maps).
 
 ![smoothing](docs/charts/smoothing_precision.png)
 
 ## Filters
 
-`wray::filters` has `tpt_one_pole`, `svf` and `biquad` (lowpass, highpass, bandpass, notch, peak, shelves, allpass, and tilt for the SVF), designed with half-angle formulas in double and run in `float`, `double` or any SIMD width. Parameters are clamped rather than trusted: cutoff to [1e-6, 0.4999] of the sample rate, Q to [1e-3, 1e3], gain to ±120 dB, and a non-finite or non-positive sample rate falls back to 48 kHz. A NaN cutoff, Q or gain leaves that parameter at its previous value; a new filter starts at 1 kHz, Q 0.7071 and 0 dB. With 0 dB gain, inputs up to an eighth of the format's maximum keep every filter's state and output finite. Realised coefficients are kept strictly stable in the processing precision, and state is flushed to exact zero once it falls below 2^-80 (float) or 2^-200 (double), so silence never produces subnormals.
-
-`biquad<float>` rounds its coefficients to float, which moves the poles of very low cutoffs: it holds DC and cutoff gain within 0.5% only for cutoffs of at least fs/1000, and at 768 kHz a 20 Hz lowpass has a DC gain of 0.22. For lower cutoffs use `biquad<float, double>`, which keeps double coefficients and state for float audio, or `svf<float>`; both stay within 1e-5 down to 1e-6 of the sample rate.
-
-A deep sweep checks 4000 random parameter sets per filter type and precision, plus edge parameters, from 8 kHz to 768 kHz against the exact bilinear prototype, scaled by the condition of each response. With the cutoff, Q and gain on a random walk across their whole ranges and changed every sample, `svf` stays below 1e8 and `tpt_one_pole` below 4 for inputs within ±1. `biquad` is a direct form: it is stable for fixed coefficients and slow changes, but per-sample modulation can make it grow without bound, so modulate an `svf` instead.
+`wray::filters` has `tpt_one_pole`, `svf` and `biquad`, in any precision or SIMD width. Bad parameters are clamped or ignored, and silence never produces subnormals. For very low cutoffs in `float`, use `svf<float>` or `biquad<float, double>`; for per-sample modulation, use `svf`. [Details](docs/details.md#filters).
 
 ## Backends and determinism
 
-NEON, SSE2, AVX2 (FMA), AVX-512 and a scalar backend. NEON covers arm64 with GCC, Clang and MSVC (Windows on ARM). The headers compile without warnings under `-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wdouble-promotion -Wold-style-cast -Wshadow` and MSVC `/W4`. Scalar and SIMD results are bit-identical apart from the sign and payload of NaN results. Results depend only on whether the build has FMA: golden digests in `tests/golden` pin every function's output for the FMA class (NEON, AVX2, AVX-512) and the no-FMA class (SSE2, and scalar on x86), across compilers. `WRAY_STRICT_FP` (on by default) stops consumers' compilers from contracting the library's arithmetic. Every header lives in an inline namespace named after its backend and FMA class (for example `wray::abi_avx2_fma`), so translation units compiled with different SIMD flags can share one program without the linker merging their code.
+NEON, SSE2, AVX2, AVX-512 and scalar backends. Scalar and SIMD code give bit-identical results, except for NaN sign and payload; only builds with and without FMA differ, slightly. [Details](docs/details.md#backends-and-determinism).
 
 ![latency](docs/charts/latency.png)
 
-Over buffers the SIMD loops are several times faster than the standard library. For a single value inside a dependency chain, such as a feedback loop, the precise tier is often slower than the platform libm: its compensated steps and special-value handling lengthen the chain, and evaluating scalars without the SIMD carrier made no consistent difference. `docs/data/bench.json` records the machine, compiler, flags and backend, the fastest, median and 90th-percentile round for every row, and block timings for the filters, coefficient updates and each ADAA shape against its pointwise version.
+Over buffers the SIMD loops are several times faster than the standard library. A single value in a feedback loop can be slower than libm.
 
 ## How it is verified
 
-- Exhaustive: every `float` input (all 2^32 bit patterns) for each unary function, `wray_accuracy_test --exhaustive`, weekly on NEON, SSE2, AVX2, AVX-512 and the scalar backend; the same run repeats every fourth input under flush-to-zero and each rounding mode, after reading back that the mode took effect.
-- Double: 10^8 inputs per `double` function weekly against a quad-precision reference (`tools/dense`, GCC on x86-64), with a rotating seed and the contracts above as the gate; the reference is itself checked against mpmath on every run.
-- Dense: every function and tier against mpmath at 40 digits, `tools/oracle/oracle.py --check`.
-- Shape: monotonicity, symmetry, bounds and finiteness, exhaustive in `float` and sampled in `double`.
-- Host: every function again under flush-to-zero and in all four rounding modes, after reading back that each mode took effect.
-- Determinism: golden output digests per FMA class, covering every function, `sincos`, `wrap_turns`, every filter type with a parameter change mid-stream, and the stateful ADAA processors, and bit-identical scalar and SIMD results on every backend apart from NaN sign and payload.
-- Spectral: oscillator SFDR, ADAA aliasing and parameter-map precision each assert a recorded limit (`wray_spectral_test`).
+Every `float` input, 10^8 `double` inputs per function, 40-digit reference checks, shape and determinism checks, and spectral tests. [Details](docs/details.md#how-it-is-verified).
 
 ```sh
 cmake -S . -B build -G Ninja && cmake --build build && ctest --test-dir build
@@ -135,18 +121,17 @@ cmake -S . -B build -G Ninja && cmake --build build && ctest --test-dir build
 
 ## Where it stops working
 
-- x86 builds without FMA (SSE2, and the scalar backend on x86) add 0.5 ulp to every precise contract; arm64 always has FMA, scalar backend included.
-- `sin`, `cos`, `sincos` and `tan` use a three-part reduction for |x| ≤ 6433.98 (2048π rounded to float) or 6588397.3 (2^22·π/2 rounded to double). Larger finite inputs take a slower exact reduction against a 1280-bit table of 2/π, lane by lane, so every finite input gets an accurate result and never NaN; only infinities and NaN return NaN. The fast tier uses the same reductions, so it stays finite and within its 2^-16 bound for every finite input. For oscillators and phase accumulators, keep the phase in turns and use `sin_turns`, `cos_turns` and `sincos_turns`: their reduction is exact and cheap at any magnitude, so a growing phase never reaches the slow path.
-- `exp` is finite up to 88.72 and infinite from 88.73 (float), or up to 709.78 and from 709.79 (double); it is nonzero down to -103.97 and 0 from -103.98 (float), or down to -745.13 and from -745.14 (double). `exp2` overflows at 128 (float) or 1024 (double) and returns 0 from -150 (float) or -1075 (double) down. `pow` overflows when y·log₂|x| reaches 128 (float) or 1024 (double). `db_to_gain` is finite up to 770.63 dB and infinite from 770.64 dB (float), or up to 6165.09 dB and from 6165.10 dB (double); it is nonzero down to -903.08 dB and 0 from -903.09 dB (float), or down to -6472.14 dB and from -6472.15 dB (double).
-- The fast tier exists for `float` only, so there are no double fast clamps. It clamps where the precise tier overflows: `exp` clamps its argument to [-87, 88], `exp2`, `pow` and `db_to_gain` clamp the base-2 exponent to [-126, 127], so these four never return infinities, zeros from underflow, or subnormals. Fast `tanh` is exactly ±1 from 5.9. The other fast functions do not clamp: fast `log` of 0 returns -88.03 rather than -infinity, and fast `sigmoid` can return subnormals for large negative inputs. Every fast function returns NaN for NaN input, and fast `sin`, `cos` and `tan` return NaN for infinities. Fast `log`, `log2` and `gain_to_db` return NaN below zero, give -0 the same result as 0, and read +infinity as 2^128 (`log` gives 88.72). Fast `pow` returns NaN when either argument is NaN, including `pow(x, 0)`, and NaN for a negative base with a non-integer exponent; it reads 0 as 2^-127 and infinity as 2^128 before clamping, so `pow(0, 2)` is the smallest normal float rather than 0.
-- The turns functions' reduction is exact for all inputs: whole turns are removed without rounding, and the result carries only the polynomial's error. For example, in double, `sin_turns(2^40 + 0.25)` is exactly 1; that input is not representable in float.
-- Filters clamp their parameters as described above and recover from NaN input after `reset()`.
-- Under flush-to-zero the measured errors stay within contract for normal inputs and outputs; subnormals read and write as zero. In the directed rounding modes the measured error grows by at most 1 ulp.
-- Fast floating-point models break the compensated arithmetic. The headers stop with `#error` when the compiler announces one: `-ffast-math` or clang's `-ffp-model=fast` (`__FAST_MATH__`), MSVC `/fp:fast` (`_M_FP_FAST`), `-ffinite-math-only`, and on GCC `-fassociative-math`, `-freciprocal-math` and `-fno-signed-zeros`. On clang the headers wrap their own code in `#pragma float_control(precise, on)` and `#pragma clang fp contract(off) reassociate(off)`, and do their vector arithmetic with operators inside that region, so clang's individual `-fassociative-math`, `-freciprocal-math`, `-fno-signed-zeros` and `-fapprox-func`, and its default contraction, leave wray's results unchanged; MSVC `/fp:contract` is switched off the same way. Clang ignores the contraction pragma under `-ffp-contract=fast`, and GCC has no such pragma for C++, so contraction there changes results: `wray::floating_point_ok()` reports it, with checks for rounding of sums and products, no reassociation, exact division, no contraction, NaN, infinity and signed zeros, run in wray's floating-point model. Clang's `-fno-honor-nans` and `-fno-honor-infinities` are unsupported: they make every NaN or infinity in the caller's own code undefined. Linking `wray::wray` adds `-ffp-contract=off`. Builds that evaluate float arithmetic in extended precision (`FLT_EVAL_METHOD` other than 0, as x87 on 32-bit x86) stop with `#error`. `tools/ci/hostile_flags.sh` checks each of these outcomes, and `tools/ci/header_only.sh` checks consumers that include the headers without the CMake target. Define `WRAY_ALLOW_FAST_MATH` to build anyway, at your own risk.
+- x86 without FMA (SSE2, scalar on x86) adds 0.5 ulp to every contract.
+- `sin`, `cos` and `tan` slow down for huge arguments but stay accurate. For oscillators, use the turns functions, which stay fast at any phase.
+- `exp`, `exp2`, `pow` and `db_to_gain` overflow and underflow where the format runs out.
+- The fast tier is `float` only and clamps instead of overflowing.
+- Fast-math compiler flags stop the build with `#error`.
+
+Exact thresholds and flag-by-flag behavior: [details](docs/details.md#where-it-stops-working).
 
 ## Rational minimax cores
 
-Each core is fitted by a rational Remez exchange on its reduced interval. `docs/data/cores.json` records, per core, whether the exchange levelled the weighted error to within 1e-9 of equioscillation; a fit that did not converge is kept as the best candidate found and marked `"converged": false`. Rational or polynomial is chosen per core by cost at the target accuracy.
+Each core is fitted by a rational Remez exchange; `docs/data/cores.json` records how well each fit converged. [Details](docs/details.md#rational-minimax-cores).
 
 ![remez](docs/charts/remez.png)
 

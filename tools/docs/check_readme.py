@@ -20,9 +20,14 @@ def check(ok, what):
 
 
 def section(text, title):
-    start = text.index(f"## {title}\n")
-    end = text.find("\n## ", start + 1)
-    return text[start:] if end < 0 else text[start:end]
+    heading = f"## {title}\n"
+    parts = []
+    start = text.index(heading)
+    while start >= 0:
+        end = text.find("\n## ", start + 1)
+        parts.append(text[start:] if end < 0 else text[start:end])
+        start = text.find(heading, start + 1)
+    return "\n".join(parts)
 
 
 def table_rows(block):
@@ -89,8 +94,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dump", required=True)
     parser.add_argument("--readme", default=str(ROOT / "README.md"))
+    parser.add_argument("--details", default=str(ROOT / "docs" / "details.md"))
     args = parser.parse_args()
-    text = pathlib.Path(args.readme).read_text(encoding="utf-8")
+    text = pathlib.Path(args.readme).read_text(encoding="utf-8") + "\n" + pathlib.Path(args.details).read_text(encoding="utf-8")
     dump = Dump(args.dump)
     coeff = (ROOT / "include/wray/math/coefficients.h").read_text(encoding="utf-8")
     kernels = (ROOT / "include/wray/math/kernels.h").read_text(encoding="utf-8")
