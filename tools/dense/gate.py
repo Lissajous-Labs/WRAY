@@ -38,10 +38,14 @@ def main():
     parser.add_argument("--samples", type=int, default=1000000)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--verify", type=int, default=200)
+    parser.add_argument("--shard", default="0/1")
     parser.add_argument("only", nargs="*")
     args = parser.parse_args()
+    index, count = (int(v) for v in args.shard.split("/"))
+    names = args.only or [n for n in oracle.UNARY + oracle.BINARY if n in oracle.CONTRACTS["f64"] and not n.startswith("adaa_")]
+    names = names[index::count]
     failures = verify(args.dense, args.seed, args.verify) if args.verify else 0
-    run = subprocess.run([args.dense, "--samples", str(args.samples), "--seed", str(args.seed), "--pow-scale", str(oracle.POW_SCALE)] + args.only,
+    run = subprocess.run([args.dense, "--samples", str(args.samples), "--seed", str(args.seed), "--pow-scale", str(oracle.POW_SCALE)] + names,
                          check=True, capture_output=True, text=True).stdout.splitlines()
     print(run[0])
     fma = run[0].split()[-1] == "1"

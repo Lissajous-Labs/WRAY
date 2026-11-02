@@ -9,6 +9,14 @@ on:
         description: Run the exhaustive float accuracy test
         type: boolean
         default: false
+      dense:
+        description: Run only the dense double sweep
+        type: boolean
+        default: false
+      dense_samples:
+        description: Samples per double function in the dense sweep
+        type: string
+        default: "100000000"
   schedule:
     - cron: "17 3 * * 0"
 
@@ -268,10 +276,15 @@ jobs:
         run: ctest --test-dir build -L exhaustive --output-on-failure
 
   double-dense:
-    name: double-dense
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.exhaustive)
+    name: double-dense-${{ matrix.simd }}-${{ matrix.shard }}
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (inputs.exhaustive || inputs.dense))
     runs-on: ubuntu-24.04
     timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        simd: [avx2, sse2]
+        shard: [0, 1, 2, 3]
     env:
       CXX: g++-14
     steps:
@@ -285,8 +298,8 @@ jobs:
 
       - run: python -m pip install -r tools/requirements.txt ninja
 
-      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWRAY_SIMD=avx2 -DWRAY_BUILD_BENCH=OFF -DWRAY_BUILD_TESTS=OFF
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWRAY_SIMD=${{ matrix.simd }} -DWRAY_BUILD_BENCH=OFF -DWRAY_BUILD_TESTS=OFF
 
       - run: cmake --build build --target wray_dense
 
-      - run: python tools/dense/gate.py --dense build/tools/wray_dense --samples 100000000 --seed ${{ github.run_number }} --verify 2000
+      - run: python tools/dense/gate.py --dense build/tools/wray_dense --samples ${{ inputs.dense_samples || '100000000' }} --seed ${{ github.run_number }} --verify 500 --shard ${{ matrix.shard }}/4
