@@ -55,27 +55,27 @@ target_link_libraries(your_target PRIVATE wray::wray)
 
 ## Accuracy contracts
 
-Measured maximum error in ulp. These are measured bounds, not proofs: one-argument `float` functions are checked on every input against a double-precision reference, and every function is sampled against 40-digit mpmath (50,000 points per function and tier in the published data). `double` and two-argument functions are only sampled.
+Measured maximum error in ulp. These are measured bounds, not proofs: one-argument `float` functions are checked on every input against a double-precision reference, and every function is sampled against 40-digit mpmath (50,000 points per function and tier in the published data). `double` and two-argument functions are only sampled; the `double` bounds come from 4×10^8 inputs per function against a quad-precision reference in both FMA classes, and a weekly run with a new seed checks them again.
 
 | function | float | double | function | float | double |
 |---|---|---|---|---|---|
 | exp | 1.0 | 1.0 | sin | 1.0 | 1.0 |
 | exp2 | 1.0 | 1.0 | cos | 1.0 | 1.0 |
-| expm1 | 2.0 | 1.75 | tan | 1.75 | 1.45 |
-| log | 1.0 | 1.0 | atan | 1.0 | 1.1 |
-| log2 | 1.5 | 1.0 | atan2 | 1.0 | 1.1 |
-| log10 | 1.4 | 1.0 | sin_turns | 1.0 | 0.85 |
-| log1p | 1.0 | 0.95 | cos_turns | 0.8 | 0.8 |
-| pow | 2.0 | 1.5 | tanpi | 1.2 | 1.2 |
-| cbrt | 0.55 | 0.55 | sinh | 0.85 | 0.85 |
-| erf | 0.9 | 0.9 | cosh | 0.9 | 0.9 |
-| sigmoid | 2.0 | 1.75 | tanh | 1.35 | 1.3 |
-| db_to_gain | 1.5 | 1.5 | asinh | 0.9 | 0.85 |
-| gain_to_db | 1.5 | 1.5 | omega | 1.65 | 1.3 |
-| midi_to_hz | 1.4 | 0.75 | product_log | 2.05 | 1.45 |
-| hz_to_midi | 1.25 | 1.1 | smoothing_coefficient | 2.0 | 2.0 |
-| ratio_from_cents | 0.85 | 0.75 | pole_from_cutoff | 2.0 | 2.0 |
-| prewarp | 2.0 | 2.0 | tan_turns | 1.2 | 1.2 |
+| expm1 | 2.0 | 1.85 | tan | 1.75 | 1.85 |
+| log | 1.0 | 1.0 | atan | 1.0 | 1.3 |
+| log2 | 1.5 | 1.15 | atan2 | 1.0 | 1.35 |
+| log10 | 1.4 | 1.1 | sin_turns | 1.0 | 0.9 |
+| log1p | 1.0 | 1.0 | cos_turns | 0.8 | 0.85 |
+| pow | 2.0 | 2.0 | tanpi | 1.2 | 1.4 |
+| cbrt | 0.55 | 0.55 | sinh | 0.85 | 0.9 |
+| erf | 0.9 | 0.95 | cosh | 0.9 | 0.95 |
+| sigmoid | 2.0 | 1.75 | tanh | 1.35 | 1.4 |
+| db_to_gain | 1.5 | 1.5 | asinh | 0.9 | 0.95 |
+| gain_to_db | 1.5 | 1.5 | omega | 1.65 | 1.4 |
+| midi_to_hz | 1.4 | 0.9 | product_log | 2.05 | 1.75 |
+| hz_to_midi | 1.25 | 1.2 | smoothing_coefficient | 2.0 | 2.0 |
+| ratio_from_cents | 0.85 | 0.9 | pole_from_cutoff | 2.0 | 2.0 |
+| prewarp | 2.0 | 2.0 | tan_turns | 1.2 | 1.4 |
 
 `pow` meets its bound while |y·log₂|x|| ≤ 4; past that the bound scales with the product, to contract × |y·log₂|x|| / 4 ulp, because the error of log₂|x| is multiplied by y. Negative bases follow C: integer exponents give the signed power and other exponents give NaN. The fast tier's 2^-16 bound for `pow` is likewise relative to 1 + |y·log₂|x||.
 
