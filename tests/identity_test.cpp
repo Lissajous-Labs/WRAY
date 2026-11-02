@@ -46,12 +46,12 @@ namespace
         {
             for (const T y: ys)
             {
-                const T want = std::pow(x, y);
+                const T want = static_cast<T>(std::pow(static_cast<long double>(x), static_cast<long double>(y)));
                 const T got = wray::pow(x, y);
                 const T lane = wray::pow(V(x), V(y))[V::size - 1];
                 CHECK(same(lane, got));
                 bool ok;
-                if (special(x) || special(y) || special(want))
+                if (special(x) || special(y) || !std::isfinite(want))
                     ok = same(got, want);
                 else
                     ok = std::signbit(got) == std::signbit(want) && std::isfinite(got) == std::isfinite(want) &&
