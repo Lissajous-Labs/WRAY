@@ -22,9 +22,10 @@ namespace
     }
 
     template <class T>
-    bool special(T v)
+    bool annex_f_case(T x, T y)
     {
-        return std::isnan(v) || std::isinf(v) || v == T(0) || std::fabs(v) == T(1);
+        const auto edge = [](T v) { return std::isnan(v) || std::isinf(v) || v == T(0); };
+        return edge(x) || edge(y) || std::fabs(x) == T(1);
     }
 
     template <class T>
@@ -51,7 +52,7 @@ namespace
                 const T lane = wray::pow(V(x), V(y))[V::size - 1];
                 CHECK(same(lane, got));
                 bool ok;
-                if (special(x) || special(y) || !std::isfinite(want))
+                if (annex_f_case(x, y) || !std::isfinite(want))
                     ok = same(got, want);
                 else
                     ok = std::signbit(got) == std::signbit(want) && std::isfinite(got) == std::isfinite(want) &&
