@@ -1705,7 +1705,7 @@ namespace wray::inline WRAY_ABI::math::detail
         if constexpr (full<Tier>)
         {
             const auto e = exp_half<Tier>(w);
-            const V f = fma(w + w, e.hi, -xn) + (w + w) * e.lo;
+            const V f = (w + w) * e.lo - residual(w + w, e.hi, xn);
             w = w - f / ((e.hi + e.hi) * (w + one));
         }
         const V lower = keep_zero(x, w);

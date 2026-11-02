@@ -235,6 +235,8 @@ jobs:
           - { name: macos-arm64-appleclang-neon, os: macos-15, cxx: clang++, simd: auto }
           - { name: linux-x64-gcc14-avx2, os: ubuntu-24.04, cxx: g++-14, simd: avx2 }
           - { name: linux-x64-gcc14-sse2, os: ubuntu-24.04, cxx: g++-14, simd: sse2 }
+          - { name: linux-x64-gcc14-scalar, os: ubuntu-24.04, cxx: g++-14, simd: scalar }
+          - { name: linux-x64-gcc14-avx512, os: ubuntu-24.04, cxx: g++-14, simd: avx512 }
     env:
       CXX: ${{ matrix.cxx }}
     steps:
@@ -246,8 +248,45 @@ jobs:
 
       - run: python -m pip install ninja
 
-      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWRAY_SIMD=${{ matrix.simd }} -DWRAY_BUILD_BENCH=OFF
+      - id: cpu
+        shell: bash
+        run: |
+          if [ "${{ matrix.simd }}" != avx512 ] || grep -qw avx512f /proc/cpuinfo; then
+            echo "runnable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "runnable=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::runner CPU lacks AVX-512F; ${{ matrix.name }} is skipped"
+          fi
 
-      - run: cmake --build build --target wray_accuracy_test
+      - if: steps.cpu.outputs.runnable == 'true'
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWRAY_SIMD=${{ matrix.simd }} -DWRAY_BUILD_BENCH=OFF
 
-      - run: ctest --test-dir build -L exhaustive --output-on-failure
+      - if: steps.cpu.outputs.runnable == 'true'
+        run: cmake --build build --target wray_accuracy_test
+
+      - if: steps.cpu.outputs.runnable == 'true'
+        run: ctest --test-dir build -L exhaustive --output-on-failure
+
+  double-dense:
+    name: double-dense
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.exhaustive)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      CXX: g++-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tools/requirements.txt
+
+      - run: python -m pip install -r tools/requirements.txt ninja
+
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWRAY_SIMD=avx2 -DWRAY_BUILD_BENCH=OFF -DWRAY_BUILD_TESTS=OFF
+
+      - run: cmake --build build --target wray_dense
+
+      - run: python tools/dense/gate.py --dense build/tools/wray_dense --samples 100000000 --seed ${{ github.run_number }} --verify 2000

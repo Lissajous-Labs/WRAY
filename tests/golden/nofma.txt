@@ -23,7 +23,7 @@ f32 log1p b1998fc8c02e94f0
 f32 log2 d513a96da16f0227
 f32 midi_to_hz f531f4db86f91764
 f32 omega 628f1864ad40e319
-f32 product_log c18bd0c61c708470
+f32 product_log e147d1d500d64e0f
 f32 ratio_from_cents 7b577db0641641e3
 f32 sigmoid 6ac533ed310330fd
 f32 sin 9fee988fc06de4f0
@@ -74,7 +74,7 @@ f64 log1p e32c657f3d65e8e2
 f64 log2 6d06c27ddd24262d
 f64 midi_to_hz 6ad65aea13d3a15b
 f64 omega 7aa76967b7ffb7cd
-f64 product_log d3d8fe720cce4d1f
+f64 product_log 2e7fb98891d5fcbd
 f64 ratio_from_cents 8d0b6d4c4ac8ea5e
 f64 sigmoid 20fc3a0c3fb759c4
 f64 sin 427a7bb5bd8f123a

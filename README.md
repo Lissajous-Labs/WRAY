@@ -119,10 +119,11 @@ Over buffers the SIMD loops are several times faster than the standard library. 
 
 ## How it is verified
 
-- Exhaustive: every `float` input (all 2^32 bit patterns) for each unary function, `wray_accuracy_test --exhaustive`.
+- Exhaustive: every `float` input (all 2^32 bit patterns) for each unary function, `wray_accuracy_test --exhaustive`, weekly on NEON, SSE2, AVX2, AVX-512 and the scalar backend; the same run repeats every fourth input under flush-to-zero and each rounding mode, after reading back that the mode took effect.
+- Double: 10^8 inputs per `double` function weekly against a quad-precision reference (`tools/dense`, GCC on x86-64), with a rotating seed and the contracts above as the gate; the reference is itself checked against mpmath on every run.
 - Dense: every function and tier against mpmath at 40 digits, `tools/oracle/oracle.py --check`.
 - Shape: monotonicity, symmetry, bounds and finiteness, exhaustive in `float` and sampled in `double`.
-- Host: every function again under flush-to-zero and in all four rounding modes.
+- Host: every function again under flush-to-zero and in all four rounding modes, after reading back that each mode took effect.
 - Determinism: golden output digests per FMA class, covering every function, `sincos`, `wrap_turns`, every filter type with a parameter change mid-stream, and the stateful ADAA processors, and bit-identical scalar and SIMD results on every backend apart from NaN sign and payload.
 - Spectral: oscillator SFDR, ADAA aliasing and parameter-map precision each assert a recorded limit (`wray_spectral_test`).
 

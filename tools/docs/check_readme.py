@@ -113,6 +113,8 @@ def main():
     claims("add 0.5 ulp", "arm64 always has FMA")
     check("bit-identical apart from the sign and payload of NaN results" in text, "README qualifies bit-identity for NaN")
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    check("--samples 100000000" in ci and "10^8 inputs per `double` function" in text, "dense double sample count")
+    check(all(f"simd: {s} }}" in ci.split("  exhaustive:")[1].split("  double-dense:")[0] for s in ("sse2", "avx2", "scalar", "avx512")), "exhaustive backends")
     hostile = (ROOT / "tools/ci/hostile_flags.sh").read_text(encoding="utf-8")
     for flag in re.findall(r'"[a-z/]+\|(-[a-z0-9=+-]+)', hostile):
         check(f"`{flag}`" in text, f"README states the outcome of {flag}")
