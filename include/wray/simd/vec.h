@@ -387,7 +387,7 @@ namespace wray::inline WRAY_ABI::simd
     WRAY_INLINE vec<T, N> abs(const vec<T, N> &a) noexcept { return map(a, [](T x) { return std::fabs(x); }); }
 
     template<class T, int N>
-    WRAY_INLINE vec<T, N> sqrt(const vec<T, N> &a) noexcept { return map(a, [](T x) { return std::sqrt(x); }); }
+    WRAY_INLINE vec<T, N> sqrt(const vec<T, N> &a) noexcept { return map(a, [](T x) { return WRAY_SQRT(x); }); }
 
     template<class T, int N>
     WRAY_INLINE vec<T, N> nearest(const vec<T, N> &a) noexcept { return map(a, [](T x) { return nearest(x); }); }
@@ -1819,8 +1819,8 @@ namespace wray::inline WRAY_ABI::simd
 
     WRAY_INLINE float abs(float a) noexcept { return std::fabs(a); }
     WRAY_INLINE double abs(double a) noexcept { return std::fabs(a); }
-    WRAY_INLINE float sqrt(float a) noexcept { return std::sqrt(a); }
-    WRAY_INLINE double sqrt(double a) noexcept { return std::sqrt(a); }
+    WRAY_INLINE float sqrt(float a) noexcept { return WRAY_SQRT(a); }
+    WRAY_INLINE double sqrt(double a) noexcept { return WRAY_SQRT(a); }
     WRAY_INLINE float min(float a, float b) noexcept { return b < a ? b : a; }
     WRAY_INLINE double min(double a, double b) noexcept { return b < a ? b : a; }
     WRAY_INLINE float max(float a, float b) noexcept { return a < b ? b : a; }

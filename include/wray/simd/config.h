@@ -79,9 +79,15 @@
 #if __has_builtin(__builtin_elementwise_fma)
 #define WRAY_FMA(a, b, c) __builtin_elementwise_fma(a, b, c)
 #endif
+#if __has_builtin(__builtin_elementwise_sqrt)
+#define WRAY_SQRT(a) __builtin_elementwise_sqrt(a)
+#endif
 #endif
 #ifndef WRAY_FMA
 #define WRAY_FMA(a, b, c) std::fma(a, b, c)
+#endif
+#ifndef WRAY_SQRT
+#define WRAY_SQRT(a) std::sqrt(a)
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
