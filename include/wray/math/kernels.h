@@ -1078,7 +1078,7 @@ namespace wray::inline WRAY_ABI::math::detail
         return {odd_zero(x, orient(p, r.q, V(S(1)))), even_zero(orient(p, r.q + I(1), V(S(1))))};
     }
 
-    template<class Tier, class V>
+    template<class Tier, bool MostlyEven = false, class V>
     WRAY_INLINE V tanpi(const V &x, const V &xl = V(scalar_t<V>(0))) noexcept
     {
         using S = scalar_t<V>;
@@ -1086,31 +1086,39 @@ namespace wray::inline WRAY_ABI::math::detail
         using I = integer_t<V>;
         const auto r = reduce_turns(x, S(2));
         const V f = r.f;
+        const auto odd = nonzero(r.q & I(1));
+        const auto quarter = abs(f) == V(S(0.25));
+        pair<V> w;
         V v;
-        V c;
         if constexpr (full<Tier>)
         {
             using C = typename table<Tier, S>::tanpi;
             const V t = f * f;
             const auto p = two_product(f, V(K::pi_hi));
             const V low = fma(xl, V(K::pi_hi), fma(f, V(K::pi_lo), p.lo) + (f * t) * numerics::rational<C>(t));
-            v = p.hi + low;
-            const V e = (p.hi - v) + low;
-            const V q = V(S(-1)) / v;
-            c = fma(q, fma(q, e, fma(q, v, V(S(1)))), q);
-            v = select(abs(f) < V(tiny_turn<S>), f * V(K::pi_hi), v);
+            w.hi = p.hi + low;
+            w.lo = (p.hi - w.hi) + low;
+            v = select(abs(f) < V(tiny_turn<S>), f * V(K::pi_hi), w.hi);
         } else
         {
             using C = typename table<Tier, S>::tan;
             const V theta = f * V(K::pi_hi);
             const V t = theta * theta;
-            v = fma(theta * t, numerics::rational<C>(t), theta);
-            c = V(S(-1)) / v;
+            w = {fma(theta * t, numerics::rational<C>(t), theta), V(S(0))};
+            v = w.hi;
         }
-        const auto quarter = abs(f) == V(S(0.25));
         v = select(quarter, copysign_from(V(S(1)), f), v);
+        if constexpr (MostlyEven)
+        {
+            if (!simd::any(odd))
+                return odd_zero(x, v);
+        }
+        const V q = V(S(-1)) / w.hi;
+        V c = q;
+        if constexpr (full<Tier>)
+            c = fma(q, fma(q, w.lo, fma(q, w.hi, V(S(1)))), q);
         c = select(quarter, -copysign_from(V(S(1)), f), select(v == V(S(0)), copysign_from(inf<V>(), x), c));
-        return odd_zero(x, select(nonzero(r.q & I(1)), c, v));
+        return odd_zero(x, select(odd, c, v));
     }
 
     template<class Tier, class V>
@@ -1786,30 +1794,62 @@ namespace wray::inline WRAY_ABI::math::detail
         return {hi, lo};
     }
 
+    template<class V>
+    WRAY_INLINE bool ordinary_ratio(const V &hz, const V &fs, const pair<V> &x, scalar_t<V> bound) noexcept
+    {
+        using S = scalar_t<V>;
+        return simd::all(both(both(hz > V(S(0)), fs > V(S(0))), both(x.hi < V(bound), abs(x.lo) < inf<V>())));
+    }
+
     template<class Tier, class V>
-    WRAY_INLINE V pole_from_cutoff(const V &hz, const V &fs) noexcept
+    WRAY_INLINE V pole_core(const V &xh, const V &xl) noexcept
     {
         using S = scalar_t<V>;
         using K = constants<S>;
-        const auto x = ratio_of(hz, fs);
-        const auto finite = x.hi < V(S(0x1p32));
-        const V xh = select(finite, x.hi, V(S(0x1p32)));
-        const V xl = select(finite, x.lo, V(S(0)));
         const V two_pi(S(2) * K::pi_hi);
         const auto t = two_product(xh, two_pi);
         const V tl = fma(xl, two_pi, fma(xh, V(S(2) * K::pi_lo), t.lo));
         const V e = exp<Tier>(-t.hi);
-        return either_nan(hz, fs, fma(-tl, e, e));
+        return fma(-tl, e, e);
     }
 
     template<class Tier, class V>
-    WRAY_INLINE V prewarp(const V &hz, const V &fs) noexcept
+    V pole_edge(V hz, V fs) noexcept
+    {
+        using S = scalar_t<V>;
+        const auto x = ratio_of(hz, fs);
+        const auto finite = x.hi < V(S(0x1p32));
+        return either_nan(hz, fs, pole_core<Tier>(select(finite, x.hi, V(S(0x1p32))), select(finite, x.lo, V(S(0)))));
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V pole_from_cutoff(const V &hz, const V &fs) noexcept
+    {
+        using S = scalar_t<V>;
+        const auto x = quotient(hz, fs);
+        if (ordinary_ratio(hz, fs, x, S(0x1p32))) [[likely]]
+            return pole_core<Tier>(x.hi, x.lo);
+        return pole_edge<Tier>(hz, fs);
+    }
+
+    template<class Tier, class V>
+    V prewarp_edge(V hz, V fs) noexcept
     {
         using S = scalar_t<V>;
         const auto x = ratio_of(hz, fs);
         const auto inside = x.hi < V(S(0.5));
         const V edge(S(0.5) - std::numeric_limits<S>::epsilon() / S(4));
         return either_nan(hz, fs, tanpi<Tier>(select(inside, x.hi, edge), select(inside, x.lo, V(S(0)))));
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V prewarp(const V &hz, const V &fs) noexcept
+    {
+        using S = scalar_t<V>;
+        const auto x = quotient(hz, fs);
+        if (ordinary_ratio(hz, fs, x, S(0.5))) [[likely]]
+            return tanpi<Tier, true>(x.hi, x.lo);
+        return prewarp_edge<Tier>(hz, fs);
     }
 
     template<class Tier, class V>
