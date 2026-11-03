@@ -1629,24 +1629,42 @@ namespace wray::inline WRAY_ABI::math::detail
     }
 
     template<class Tier, class V>
-    WRAY_INLINE V octaves(const V &d, const V &dl, scalar_t<V> steps, scalar_t<V> c_hi, scalar_t<V> c_lo, scalar_t<V> base) noexcept
+    WRAY_INLINE V octave_fraction(const V &r, const V &dl, scalar_t<V> c_hi, scalar_t<V> c_lo, scalar_t<V> base) noexcept
     {
         using S = scalar_t<V>;
         using C = typename table<Tier, S>::exp;
         const V one(S(1));
-        const V limit(steps * (std::numeric_limits<S>::digits == 24 ? S(160) : S(1100)));
-        const V dc = simd::min(simd::max(d, -limit), limit);
-        const V dlc = select(dc == d, dl, V(S(0)));
-        const V q = round_nearest(dc * V(S(1) / steps));
-        const V r = dc - q * V(steps);
         const auto t = two_product(r, V(c_hi));
-        const V tl = fma(dlc, V(c_hi), fma(r, V(c_lo), t.lo));
+        const V tl = fma(dl, V(c_hi), fma(r, V(c_lo), t.lo));
         const V hi = one + t.hi;
         const V small = fma(t.hi * t.hi, numerics::rational<C>(t.hi), t.hi - (hi - one));
         const V p = hi + small;
         const V pl = fma(p, tl, (hi - p) + small);
-        const V v = scale_split(fma(V(base), p, V(base) * pl), q);
+        return fma(V(base), p, V(base) * pl);
+    }
+
+    template<class Tier, class V>
+    V octaves_edge(V d, V dl, scalar_t<V> steps, scalar_t<V> c_hi, scalar_t<V> c_lo, scalar_t<V> base) noexcept
+    {
+        using S = scalar_t<V>;
+        const V limit(steps * (std::numeric_limits<S>::digits == 24 ? S(160) : S(1100)));
+        const V dc = simd::min(simd::max(d, -limit), limit);
+        const V dlc = select(dc == d, dl, V(S(0)));
+        const V q = round_nearest(dc * V(S(1) / steps));
+        const V v = scale_split(octave_fraction<Tier>(dc - q * V(steps), dlc, c_hi, c_lo, base), q);
         return select(either(isnan(d), d == inf<V>()), d, select(d == -inf<V>(), V(S(0)), v));
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V octaves(const V &d, const V &dl, scalar_t<V> steps, scalar_t<V> c_hi, scalar_t<V> c_lo, scalar_t<V> base) noexcept
+    {
+        using S = scalar_t<V>;
+        if (simd::all(abs(d) < V(steps * (std::numeric_limits<S>::digits == 24 ? S(100) : S(1000))))) [[likely]]
+        {
+            const V q = round_nearest(d * V(S(1) / steps));
+            return scale_by(octave_fraction<Tier>(d - q * V(steps), dl, c_hi, c_lo, base), q);
+        }
+        return octaves_edge<Tier>(d, dl, steps, c_hi, c_lo, base);
     }
 
     template<class Tier, class V>
