@@ -259,6 +259,8 @@ namespace
             {"balanced_cos", balanced_domain, vector_run([](auto v) { return wray::balanced::cos(v); }), [](double x) { return cosq(x); }},
             {"balanced_sincos_sin", balanced_domain, vector_run([](auto v) { return wray::balanced::sincos(v).sin; }), [](double x) { return sinq(x); }},
             {"balanced_sincos_cos", balanced_domain, vector_run([](auto v) { return wray::balanced::sincos(v).cos; }), [](double x) { return cosq(x); }},
+            {"balanced_tanh", {{p::values, -20, 20, false, 4}, {p::values, -1, 1, false, 2}, {p::bits, tiny, huge, true, 3}},
+             vector_run([](auto v) { return wray::balanced::tanh(v); }), [](double x) { return tanhq(x); }},
         };
     }
 

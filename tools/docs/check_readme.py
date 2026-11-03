@@ -106,7 +106,7 @@ def main():
         for fn in functions:
             check(float(f32) == oracle.CONTRACTS["balanced_f32"].get(fn)
                   and float(f64) == oracle.CONTRACTS["balanced_f64"].get(fn), f"balanced contract row {fn}")
-    check({r[0] for r in table_rows(section(text, "Balanced tier"))} == {"sin", "cos", "sincos"},
+    check({r[0] for r in table_rows(section(text, "Balanced tier"))} == {"sin", "cos", "sincos", "tanh"},
           "balanced contract table lists every function")
     for tier, dt in (("balanced_f32", np.float32), ("balanced_f64", np.float64)):
         probes = [0.0, -0.0, 0.5, -100.0, 2.0e7, -float(np.finfo(dt).max), float(np.finfo(dt).max)]
@@ -125,6 +125,19 @@ def main():
                       f"{fn} {tier} preserves signed zero")
             else:
                 check(bool(np.all(zeros == 1)), f"{fn} {tier} of zero is one")
+        probes = [0.0, -0.0, float(np.finfo(dt).tiny), -float(np.finfo(dt).tiny), 0.25, -0.25, 1.0, -1.0, 8.0, -8.0]
+        values = dump("tanh", tier, probes)
+        with mp.workdps(400):
+            want = [mp.tanh(mp.mpf(float(dt(v)))) for v in probes]
+            bound = oracle.CONTRACTS[tier]["tanh"] + margin
+            check(all(np.isfinite(g) and abs(mp.mpf(float(g)) - w) <= bound * ulp_of(w, dt)
+                      for g, w in zip(values, want)), f"tanh {tier} contract probes")
+        zeros = dump("tanh", tier, [0.0, -0.0])
+        check(bool(np.all(zeros == 0) and not np.signbit(zeros[0]) and np.signbit(zeros[1])),
+              f"tanh {tier} preserves signed zero")
+        special = dump("tanh", tier, [np.inf, -np.inf, np.nan, np.finfo(dt).max, -np.finfo(dt).max])
+        check(bool(special[0] == 1 and special[1] == -1 and np.isnan(special[2])
+                   and special[3] == 1 and special[4] == -1), f"tanh {tier} infinity, NaN and saturation")
 
     neg = dump("pow", "f64", [-2.0, -2.0, -2.0], [3.0, 2.0, 0.5])
     check(neg[0] == -8.0 and neg[1] == 4.0 and np.isnan(neg[2]), "pow negative bases follow C")

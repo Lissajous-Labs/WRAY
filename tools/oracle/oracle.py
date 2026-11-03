@@ -132,8 +132,8 @@ CONTRACTS = {
             "sigmoid": 1.75, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.35, "pow": 2.0},
     "fast": {name: 2.0 ** -16 for name in ["product_log", "omega", "tanpi", "tan_turns", "cos_turns", "sin_turns", "exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid",
                                            "db_to_gain", "gain_to_db", "atan2", "pow"]},
-    "balanced_f32": {name: 2.5 for name in ("sin", "cos", "sincos_sin", "sincos_cos")},
-    "balanced_f64": {name: 2.5 for name in ("sin", "cos", "sincos_sin", "sincos_cos")},
+    "balanced_f32": {**{name: 2.5 for name in ("sin", "cos", "sincos_sin", "sincos_cos")}, "tanh": 3.0},
+    "balanced_f64": {**{name: 2.5 for name in ("sin", "cos", "sincos_sin", "sincos_cos")}, "tanh": 3.0},
 }
 ADAA_CONTRACTS = {"hard_clip": (0.8, 1.0), "soft_clip": (1.5, 3.0), "tanh": (3.0, 10.0), "atan": (3.5, 15.0), "algebraic": (6.0, 62.0),
                   "radical": (3.0, 5.0)}
@@ -239,6 +239,17 @@ def domain(fn, tier, rng, n):
     if fn == "atan":
         return np.concatenate([bit_uniform(rng, fmt, tiny, huge, half, True), value_uniform(rng, fmt, -4.0, 4.0, n - half)])
     if fn == "tanh":
+        if tier.startswith("balanced_"):
+            dtype = fmt["dtype"]
+            boundaries = np.array([np.finfo(dtype).tiny, 0.25, 0.5, 1.0, 8.0, 9.0, 10.0, 18.0, 19.0, 20.0], dtype=dtype)
+            edges = np.concatenate([np.array([0.0, -0.0, tiny, -tiny, huge, -huge], dtype=dtype),
+                                    boundaries, -boundaries, np.nextafter(boundaries, dtype(0)),
+                                    np.nextafter(boundaries, dtype(huge)), -np.nextafter(boundaries, dtype(0)),
+                                    -np.nextafter(boundaries, dtype(huge))])
+            q = n // 4
+            return np.concatenate([value_uniform(rng, fmt, -20.0, 20.0, half),
+                                   bit_uniform(rng, fmt, tiny, 1.0, q, True),
+                                   bit_uniform(rng, fmt, tiny, huge, n - half - q, True), edges])
         return np.concatenate([value_uniform(rng, fmt, -20.0, 20.0, half), bit_uniform(rng, fmt, tiny, 30.0, n - half, True)])
     if fn == "sigmoid":
         lim = (87.0 if fast else 103.0) if f32 else 744.0

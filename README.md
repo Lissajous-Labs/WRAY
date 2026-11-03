@@ -45,7 +45,7 @@ Every function takes a scalar, a SIMD vector, or a range (any length, no alignme
 
 `sincos` and `sincos_turns` write both outputs in one pass, stopping at the shortest range. Their outputs must not overlap; either output can be the input itself.
 
-`wray::balanced::` provides `sin`, `cos` and `sincos` for `float` and `double`, trading precision for throughput: 2.5 ulp in round-to-nearest. It supports every finite input, scalar calls, SIMD and ranges. [Bounds and behavior](docs/details.md#balanced-tier).
+`wray::balanced::` provides `sin`, `cos`, `sincos` and `tanh` for `float` and `double`, scalar calls, SIMD and ranges. Round-to-nearest bounds are 2.5 ulp for trig and 3 ulp for `tanh`. [Bounds and behavior](docs/details.md#balanced-tier).
 
 `wray::fast::` is a quicker `float`-only tier, accurate to 2^-16 relative error.
 
@@ -85,7 +85,7 @@ target_link_libraries(your_target PRIVATE wray::wray)
 
 ### From C, Rust, Python or Swift
 
-`wray_c` is a compiled library with a C ABI for languages that cannot use C++ templates. It covers every range function above in `float` and `double`, the balanced trig tier in both precisions, and the `float` fast tier as buffer calls, with stable unmangled names:
+`wray_c` is a compiled library with a C ABI for languages that cannot use C++ templates. It covers every range function above in `float` and `double`, the balanced tier in both precisions, and the `float` fast tier as buffer calls, with stable unmangled names:
 
 ```c
 #include <wray/c/wray.h>
@@ -94,6 +94,7 @@ wray_sin_f32(in, out, n);
 wray_sincos_f64(in, sin_out, cos_out, n);
 wray_balanced_sin_f32(in, out, n);
 wray_balanced_sincos_f64(in, sin_out, cos_out, n);
+wray_balanced_tanh_f64(in, out, n);
 wray_pow_f32(x, y, out, n);
 wray_fast_tanh_f32(in, out, n);
 ```

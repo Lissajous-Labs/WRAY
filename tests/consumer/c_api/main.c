@@ -17,6 +17,11 @@ int main(void)
         return 1;
     if (s[0] != 0.0f || c[0] != 1.0f || e[0] != 1.0f || d[0] != 1.0 || d[4] != 16.0)
         return 1;
+    wray_balanced_tanh_f32(in, s, 5);
+    wray_balanced_tanh_f64(d, d, 5);
+    if (s[0] != 0.0f || s[1] <= 0.0f || s[1] >= 1.0f || s[4] >= 0.0f || s[4] < -1.0f ||
+        d[0] <= 0.0 || d[0] >= 1.0 || d[4] <= 0.0 || d[4] > 1.0)
+        return 1;
     printf("wray_c %s abi %d\n", wray_c_backend(), wray_c_abi_version());
     return 0;
 }

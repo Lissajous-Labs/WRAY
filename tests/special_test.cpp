@@ -1,5 +1,6 @@
 #include <wray/wray.h>
 
+#include <cfenv>
 #include <cmath>
 #include <limits>
 #include <vector>
@@ -251,6 +252,20 @@ namespace
         using V = wray::simd::native<T>;
         const T inf = std::numeric_limits<T>::infinity();
         const T nan = std::numeric_limits<T>::quiet_NaN();
+        for (const T x : {T(0), -T(0), std::numeric_limits<T>::denorm_min(), -std::numeric_limits<T>::denorm_min(),
+                          std::numeric_limits<T>::min(), -std::numeric_limits<T>::min(), inf, -inf, nan,
+                          std::numeric_limits<T>::max(), -std::numeric_limits<T>::max()})
+        {
+            const T expected = std::isnan(x) ? nan : std::fabs(x) > T(20) ? std::copysign(T(1), x) : x;
+            CHECK(same(wray::balanced::tanh(x), expected));
+            const V y = wray::balanced::tanh(V(x));
+            for (int i = 0; i < V::size; ++i)
+                CHECK(same(y[i], expected));
+        }
+        const T transition(0x1.1542e8p+3);
+        const T before = std::nextafter(transition, T(0));
+        CHECK(wray::balanced::tanh(before) <= wray::balanced::tanh(transition));
+        CHECK(wray::balanced::tanh(-transition) <= wray::balanced::tanh(-before));
         for (const T x : {T(0), -T(0)})
         {
             const auto sc = wray::balanced::sincos(x);
@@ -277,6 +292,15 @@ namespace
                 CHECK(std::isnan(vc.sin[i]) && std::isnan(vc.cos[i]));
             }
         }
+        const int saved_rounding = std::fegetround();
+        for (int mode : {FE_TONEAREST, FE_UPWARD, FE_DOWNWARD, FE_TOWARDZERO})
+        {
+            CHECK(std::fesetround(mode) == 0);
+            volatile T infinity = inf;
+            CHECK(same(wray::balanced::tanh(T(infinity)), T(1)));
+            CHECK(same(wray::balanced::tanh(-T(infinity)), T(-1)));
+        }
+        CHECK(std::fesetround(saved_rounding) == 0);
     }
 
 

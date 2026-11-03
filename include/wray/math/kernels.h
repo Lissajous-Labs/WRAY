@@ -1371,6 +1371,21 @@ namespace wray::inline WRAY_ABI::math::detail
         using K = constants<S>;
         using C = typename table<Tier, S>::tanh;
         const V a = abs(x);
+        if constexpr (std::is_same_v<Tier, balanced>)
+        {
+            using E = typename table<Tier, S>::exp;
+            const auto inside = a < V(K::tanh_clamp);
+            const V ac = select(inside, a, V(K::tanh_clamp));
+            const auto red = exp_reduce(ac + ac);
+            const V r = red.hi;
+            const V p = fma(r * r, numerics::rational<E>(r), r);
+            const V t = pow2(red.lo);
+            const V e = fma(t, p, t - V(S(1)));
+            const auto small = a < V(K::tanh_switch);
+            const V q = select(small, e, V(S(2))) / (e + V(S(2)));
+            const V v = select(small, q, V(S(1)) - q);
+            return select(isnan(x), x, copysign_from(select(inside, v, V(S(1))), x));
+        }
         if constexpr (full<Tier>)
         {
             const V c(K::tanh_clamp);

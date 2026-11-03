@@ -290,6 +290,7 @@ namespace
         batch_f32 precise;
         batch_f64 precise64;
         std::function<double(std::mt19937_64&)> sample64;
+        double nearest_bound = 2.5;
     };
 
     std::vector<balanced_case> balanced_cases()
@@ -306,6 +307,15 @@ namespace
                 return uniform(g, -0x1.921fb54442d18p+22, 0x1.921fb54442d18p+22);
             return signed_bits(g, 0x1p-1074, 0x1.fffffffffffffp+1023);
         };
+        const auto tanh_sample = [](std::mt19937_64& g) {
+            switch (g() % 4)
+            {
+            case 0: return uniform(g, -20.0, 20.0);
+            case 1: return signed_bits(g, 0x1p-1074, 1.0);
+            case 2: return uniform(g, -1.0, 1.0);
+            default: return signed_bits(g, 0x1p-1074, 0x1.fffffffffffffp+1023);
+            }
+        };
         return {
             {"sin", [](double x) { return std::sin(x); }, batch32([](auto v) { return wray::balanced::sin(v); }),
              batch64([](auto v) { return wray::balanced::sin(v); }), sample},
@@ -315,6 +325,8 @@ namespace
              batch64([](auto v) { return wray::balanced::sincos(v).sin; }), sample},
             {"sincos_cos", [](double x) { return std::cos(x); }, batch32([](auto v) { return wray::balanced::sincos(v).cos; }),
              batch64([](auto v) { return wray::balanced::sincos(v).cos; }), sample},
+            {"tanh", [](double x) { return std::tanh(x); }, batch32([](auto v) { return wray::balanced::tanh(v); }),
+             batch64([](auto v) { return wray::balanced::tanh(v); }), tanh_sample, 3.0},
         };
     }
 
@@ -467,7 +479,7 @@ namespace
             const auto p = sweep_f32(c, c.precise, false, stride, finite, h);
             double wx = 0.0;
             const double d = sweep_f64(c, samples, wx, h);
-            const double bound = (directed ? 8.0 : 2.5) + margin;
+            const double bound = (directed ? 8.0 : c.nearest_bound) + margin;
             const bool ok = p.worst <= bound && d <= bound + 2.0;
             if (report || !ok)
                 std::printf("%-11s balanced_f32 %8.3f ulp @ %-14.9g balanced_f64 %8.3f ulp @ %.17g (vs libm) %s\n",

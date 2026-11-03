@@ -12,7 +12,7 @@ Beyond the error bound, the precise tier keeps shape: every function is checked 
 
 ## Balanced tier
 
-Use `wray::balanced::sin`, `wray::balanced::cos` or `wray::balanced::sincos` when the precise tier's tighter error bounds are unnecessary. All three accept `float`, `double`, SIMD vectors and ranges, like their precise counterparts. Selecting this namespace is explicit; existing `wray::` and `wray::fast::` calls retain their behavior and contracts.
+Use `wray::balanced::sin`, `wray::balanced::cos`, `wray::balanced::sincos` or `wray::balanced::tanh` when the precise tier's tighter error bounds are unnecessary. All four accept `float`, `double`, SIMD vectors and ranges, like their precise counterparts. Selecting this namespace is explicit; existing `wray::` and `wray::fast::` calls retain their behavior and contracts.
 
 The bounds below apply in round-to-nearest with FMA. Add 0.5 ulp without FMA. Directed-rounding modes use an 8-ulp bound, plus the same no-FMA margin; uncompensated evaluation is more sensitive to rounding direction than the precise tier.
 
@@ -21,16 +21,21 @@ The bounds below apply in round-to-nearest with FMA. Add 0.5 ulp without FMA. Di
 | sin | 2.5 | 2.5 |
 | cos | 2.5 | 2.5 |
 | sincos | 2.5 | 2.5 |
+| tanh | 3.0 | 3.0 |
 
 - Each `sincos` output has its own bound against the corresponding exact sine or cosine. Scalar and SIMD `sincos` return an object with `.sin` and `.cos` members.
 - Paired `sincos` uses a different reduction and approximation from separate balanced `sin` and `cos` calls. Its outputs need not be bit-identical to those separate calls; the same accuracy bound applies to both forms.
-- Every finite input is supported, including the largest finite `float` and `double`. Huge arguments take a slower exact reduction rather than a clamped or missing result.
-- Infinity and NaN inputs return NaN in both separate and paired outputs. Sine preserves signed zero; cosine of either zero is exactly 1.
+- Every finite input is supported, including the largest finite `float` and `double`. Huge trig arguments take a slower exact reduction rather than a clamped or missing result.
+- Trig infinity and NaN inputs return NaN in both separate and paired outputs. Sine preserves signed zero; cosine of either zero is exactly 1.
+- Balanced `tanh` preserves signed zero, returns NaN for NaN, and returns signed 1 for infinities. It shares precise `tanh`'s saturation clamp and returns signed 1 at and beyond that magnitude. Its bounds are 3 ulp in round-to-nearest and 8 ulp in directed rounding, each plus 0.5 ulp without FMA.
+- The `tanh` core reconstructs `e = expm1(2*abs(x))` with FMA from the existing precise exponential cores. It uses `e/(e+2)` near zero to avoid cancellation and `1-2/(e+2)` above that region to avoid rounding-induced dips near saturation.
 - For the same function, input and FMA class, scalar and SIMD results are bit-identical apart from NaN sign and payload, including vectors mixing ordinary and huge arguments.
 - Range calls stop at the shortest input/output range, accept any length and alignment, and support exact in-place input/output aliasing. For `sincos(in, sin_out, cos_out)`, the output ranges must not overlap; either output may exactly alias the input. Partial overlap is not supported.
-- The C buffer entry points are `wray_balanced_sin_f32`, `wray_balanced_cos_f32`, `wray_balanced_sincos_f32` and the corresponding `_f64` names. Their argument layouts and aliasing rules are the same as the [C API](#c-api).
+- The C buffer entry points are `wray_balanced_sin_f32`, `wray_balanced_cos_f32`, `wray_balanced_sincos_f32`, `wray_balanced_tanh_f32` and the corresponding `_f64` names. Their argument layouts and aliasing rules are the same as the [C API](#c-api).
 
 Balanced trig has been checked over every finite `float` input on NEON and non-FMA SSE2 against double-precision libm: the worst error across all four outputs was 2.454 ulp, with no non-finite outputs. Separate and paired `double` outputs were checked on 160,000 inputs against 60-digit mpmath, including root neighborhoods, tiny values and huge arguments; the worst observed error was 2.270 ulp. The ordinary path uses four split π terms; separate calls use a half-period sine core, while paired calls retain quarter-period sine and cosine cores. Oracle checks additionally cover both FMA classes.
+
+Balanced `tanh` passed every finite `float` input on NEON (worst 2.457 ulp) and non-FMA SSE2 (2.533 ulp), with finite outputs inside [-1, 1]. High-precision sampling covered 200,000 inputs per type and FMA class. On M1 Max NEON, its paired buffer throughput measured 1.084× vForce for float and 0.935× for double; scalar-call latency remained slower than WRAY precise.
 
 ## Parameter maps
 
@@ -72,7 +77,7 @@ A deep sweep checks 4000 random parameter sets per filter type and precision, pl
 
 `include/wray/c/wray.h` declares a C99 interface, built as `wray_c` (static, or shared with `-DBUILD_SHARED_LIBS=ON`) and exported as `wray::c`. Build it with `-DWRAY_BUILD_C_API=ON`; it is off by default, so installing the headers needs no compiled library.
 
-- Every precise function is `void wray_<name>_<f32|f64>(...)`, with `wray_fast_<name>_f32` for the fast tier and `wray_balanced_<sin|cos|sincos>_<f32|f64>` for balanced trig. One-input functions take `(const T *in, T *out, size_t n)`; `sincos` and `sincos_turns` take `(const T *in, T *sin_out, T *cos_out, size_t n)`; two-input functions keep the C++ argument order, such as `wray_atan2_f64(y, x, out, n)` and `wray_pow_f32(x, y, out, n)`.
+- Every precise function is `void wray_<name>_<f32|f64>(...)`, with `wray_fast_<name>_f32` for the fast tier and `wray_balanced_<sin|cos|sincos|tanh>_<f32|f64>` for the balanced tier. One-input functions take `(const T *in, T *out, size_t n)`; `sincos` and `sincos_turns` take `(const T *in, T *sin_out, T *cos_out, size_t n)`; two-input functions keep the C++ argument order, such as `wray_atan2_f64(y, x, out, n)` and `wray_pow_f32(x, y, out, n)`.
 - Exactly `n` elements are read and written. An output may be the same buffer as an input; partially overlapping buffers are not supported. With `n == 0` nothing is touched.
 - Results are those of the matching C++ range function, bit for bit, for the backend and FMA class the library was compiled with. `wray_c_backend()` returns `"neon"`, `"sse2"`, `"avx2"`, `"avx512"` or `"scalar"`, and `wray_c_has_fma()` returns 1 or 0. Build `wray_c` with the most capable `WRAY_SIMD` your deployment targets support; one binary does not switch backends at run time.
 - No C++ symbols are exported, and no structs or callbacks cross the boundary, so Rust (`extern "C"`), Python (`ctypes` or `cffi`), Swift (a module map over the header), C# (`DllImport`) and LuaJIT FFI bind it directly.
@@ -102,6 +107,8 @@ Each math comparison uses 4096 inputs, 40 repetitions per sample and 25 paired r
 
 Balanced `sin`, `cos` and `sincos` have float and double throughput, edge-input throughput and dependent scalar latency rows under the variant name `wray balanced`. They use the same inputs, paired rounds, available competitors and output consumption as the other tiers. On M1 Max NEON, the published paired run measured 0.76–0.95× vForce throughput in float and 0.87–0.99× in double: substantially faster than WRAY precise, but not a win over vForce. Separate-call scalar latency regressed relative to WRAY precise. Charts omit unavailable balanced functions rather than substituting precise or fast results.
 
+Balanced `tanh` uses the same `wray balanced` throughput, edge-input and dependent scalar latency harness in float and double. No measured throughput or latency claim is made here for balanced `tanh`.
+
 For native x86 measurements, run `python tools/ci/benchmark.py --out benchmark-results` or dispatch CI with `benchmarks=true`. Each host runs its supported backends sequentially, never under an instruction emulator. CI collects Linux and Windows hosts and requires native results for SSE2, AVX2 and AVX-512 across the collected artifacts. Hosted-VM timings are not bare-metal measurements; CPU, compiler, flags and host manifests stay with the data.
 
 ## How it is verified
@@ -110,7 +117,7 @@ Pull requests run CI. `main` only advances by fast-forwarding to a pull request 
 
 Documentation-only pull requests run the README checks instead of the full matrix. A failed change comparison blocks CI rather than skipping the code checks.
 
-Balanced trig uses separate `balanced_f32` and `balanced_f64` accuracy and determinism tiers. Its exhaustive finite-float and sampled high-precision double measurements are described in [Balanced tier](#balanced-tier); the older quad-precision sweep counts below are not claims about this new tier.
+Balanced functions use separate `balanced_f32` and `balanced_f64` accuracy and determinism tiers. The exhaustive finite-float and sampled high-precision double measurements for balanced trig are described in [Balanced tier](#balanced-tier); they do not describe balanced `tanh`. The older quad-precision sweep counts below are not claims about this new tier.
 
 - Exhaustive: every `float` input (all 2^32 bit patterns) for each unary function, `wray_accuracy_test --exhaustive`, weekly on NEON, SSE2, AVX2, AVX-512 and the scalar backend; the same run repeats every fourth input under flush-to-zero and each rounding mode, after reading back that the mode took effect.
 - Double: 10^8 inputs per `double` function weekly against a quad-precision reference (`tools/dense`, GCC on x86-64), with a rotating seed and the contracts as the gate; the reference is itself checked against mpmath on every run.
@@ -127,7 +134,7 @@ Balanced trig uses separate `balanced_f32` and `balanced_f64` accuracy and deter
 
 - x86 builds without FMA (SSE2, and the scalar backend on x86) add 0.5 ulp to every precise and balanced contract; arm64 always has FMA, scalar backend included.
 - For the established precise and fast tiers, flush-to-zero measurements stay within contract for normal inputs and outputs; subnormals read and write as zero.
-- For those established tiers, directed-rounding measurements grow by at most 1 ulp. Balanced trig has a separate 8-ulp directed-rounding bound.
+- For those established tiers, directed-rounding measurements grow by at most 1 ulp. Balanced functions have a separate 8-ulp directed-rounding bound, with the no-FMA margin above; the `tanh` bound is a candidate.
 
 ### Large trig arguments
 

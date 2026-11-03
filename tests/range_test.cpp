@@ -210,6 +210,7 @@ namespace
                          [](T x) { return wray::balanced::sincos(x); });
         balanced_unary_ranges<T>([](auto in, auto out) { wray::balanced::sin(in, out); }, [](T x) { return wray::balanced::sin(x); });
         balanced_unary_ranges<T>([](auto in, auto out) { wray::balanced::cos(in, out); }, [](T x) { return wray::balanced::cos(x); });
+        balanced_unary_ranges<T>([](auto in, auto out) { wray::balanced::tanh(in, out); }, [](T x) { return wray::balanced::tanh(x); });
         if constexpr (std::is_same_v<T, float>)
         {
             paired_ranges<T>([](auto in, auto s, auto c) { wray::fast::sincos(in, s, c); },

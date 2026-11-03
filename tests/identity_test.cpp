@@ -104,7 +104,7 @@ namespace
     template <class T, class V>
     std::vector<named<T, V> > balanced_rows()
     {
-        return {WRAY_ROW(wray::balanced, sin), WRAY_ROW(wray::balanced, cos),
+        return {WRAY_ROW(wray::balanced, sin), WRAY_ROW(wray::balanced, cos), WRAY_ROW(wray::balanced, tanh),
                 named<T, V>{"balanced::sincos_sin", [](T x) { return wray::balanced::sincos(x).sin; }, [](V x) { return wray::balanced::sincos(x).sin; }},
                 named<T, V>{"balanced::sincos_cos", [](T x) { return wray::balanced::sincos(x).cos; }, [](V x) { return wray::balanced::sincos(x).cos; }}};
     }
@@ -166,6 +166,9 @@ namespace
             ok = ok && same(wray::balanced::sin(-x), -bs) && same(wray::balanced::cos(-x), bc);
             const auto negative_bsc = wray::balanced::sincos(-x);
             ok = ok && same(negative_bsc.sin, -scalar_bsc.sin) && same(negative_bsc.cos, scalar_bsc.cos);
+            const T bt = wray::balanced::tanh(x);
+            ok = ok && std::isfinite(bt) && bt >= T(-1) && bt <= T(1);
+            ok = ok && same(wray::balanced::tanh(-x), -bt) && same(wray::balanced::tanh(V(x))[0], bt);
             if constexpr (std::is_same_v<T, float>)
             {
                 const auto fsc = wray::fast::sincos(V(x));

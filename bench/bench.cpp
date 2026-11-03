@@ -394,7 +394,11 @@ namespace
             binary(s, [](T y, T x) { return std::atan2(y, x); }, [](auto y, auto x) { return wray::atan2(y, x); },
                    [](auto y, auto x) { return wray::fast::atan2(y, x); });
         if (n == "tanh")
+        {
             unary(s, [](T x) { return std::tanh(x); }, [](auto x) { return wray::tanh(x); }, [](auto x) { return wray::fast::tanh(x); });
+            s.throughput_rows.push_back(simd_loop<T>("wray balanced", [](auto x) { return wray::balanced::tanh(x); }));
+            s.latency_rows.push_back(chain<T>("wray balanced", [](T x) { return wray::balanced::tanh(x); }));
+        }
         if (n == "sigmoid")
             unary(s, [](T x) { return T(1) / (T(1) + std::exp(-x)); }, [](auto x) { return wray::sigmoid(x); },
                   [](auto x) { return wray::fast::sigmoid(x); });

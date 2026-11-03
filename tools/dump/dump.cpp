@@ -95,6 +95,7 @@ namespace
                 add("cos", [](auto v) { return wray::balanced::cos(v); });
                 add("sincos_sin", [](auto v) { return wray::balanced::sincos(v).sin; });
                 add("sincos_cos", [](auto v) { return wray::balanced::sincos(v).cos; });
+                add("tanh", [](auto v) { return wray::balanced::tanh(v); });
             }
             else if constexpr (Fast)
             {

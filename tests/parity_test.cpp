@@ -116,6 +116,14 @@ namespace
         unary(x, [](auto v) { return wray::balanced::cos(v); });
         unary(x, [](auto v) { return wray::balanced::sincos(v).sin; });
         unary(x, [](auto v) { return wray::balanced::sincos(v).cos; });
+        unary(x, [](auto v) { return wray::balanced::tanh(v); });
+        const T mixed[] = {T(0.25), std::numeric_limits<T>::max(), -T(0), std::numeric_limits<T>::infinity(),
+                           std::numeric_limits<T>::denorm_min(), T(-0.75), std::numeric_limits<T>::quiet_NaN(), T(-20)};
+        std::vector<T> lanes;
+        for (std::size_t offset = 0; offset < std::size(mixed); ++offset)
+            for (std::size_t i = 0; i < std::size_t(4 * wray::simd::native<T>::size); ++i)
+                lanes.push_back(mixed[(i + offset) % std::size(mixed)]);
+        unary(lanes, [](auto v) { return wray::balanced::tanh(v); });
     }
 
 

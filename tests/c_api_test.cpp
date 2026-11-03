@@ -89,7 +89,7 @@ namespace
         }
     }
     template <class T, class Unary, class Pair>
-    void balanced_abi(std::mt19937_64& g, Unary sine, Unary cosine, Pair paired)
+    void balanced_abi(std::mt19937_64& g, Unary sine, Unary cosine, Pair paired, Unary hyperbolic)
     {
         constexpr std::size_t w = std::size_t(wray::simd::native<T>::size);
         for (std::size_t n = 0; n <= 4 * w + 1; ++n)
@@ -98,13 +98,14 @@ namespace
             for (std::size_t i = 0; i < n; ++i)
                 if (i % 4 == 1)
                     x[i] = std::copysign(std::numeric_limits<T>::max(), T(i % 3 ? 1 : -1));
-            for (const auto fn : {sine, cosine})
+            for (const auto fn : {sine, cosine, hyperbolic})
             {
                 std::vector<T> got(n + 2, T(7));
                 fn(x.data(), got.data() + 1, n);
                 bool ok = got.front() == T(7) && got.back() == T(7);
                 for (std::size_t i = 0; i < n; ++i)
-                    ok = ok && same(got[i + 1], fn == sine ? wray::balanced::sin(x[i]) : wray::balanced::cos(x[i]));
+                    ok = ok && same(got[i + 1], fn == sine ? wray::balanced::sin(x[i]) :
+                                              fn == cosine ? wray::balanced::cos(x[i]) : wray::balanced::tanh(x[i]));
                 auto io = x;
                 fn(io.data(), io.data(), n);
                 for (std::size_t i = 0; i < n; ++i)
@@ -140,6 +141,9 @@ namespace
         cosine(edge, c, std::size(edge));
         for (std::size_t i = 0; i < std::size(edge); ++i)
             CHECK(same(s[i], wray::balanced::sin(edge[i])) && same(c[i], wray::balanced::cos(edge[i])));
+        hyperbolic(edge, s, std::size(edge));
+        for (std::size_t i = 0; i < std::size(edge); ++i)
+            CHECK(same(s[i], wray::balanced::tanh(edge[i])));
     }
 
 
@@ -245,8 +249,8 @@ namespace
         WRAY_C_PAIR(wray::fast, fast_, sincos_turns, float, f32)
         WRAY_C_BINARY(wray::fast, fast_, atan2, float, f32)
         WRAY_C_BINARY(wray::fast, fast_, pow, float, f32)
-        balanced_abi<float>(g, wray_balanced_sin_f32, wray_balanced_cos_f32, wray_balanced_sincos_f32);
-        balanced_abi<double>(g, wray_balanced_sin_f64, wray_balanced_cos_f64, wray_balanced_sincos_f64);
+        balanced_abi<float>(g, wray_balanced_sin_f32, wray_balanced_cos_f32, wray_balanced_sincos_f32, wray_balanced_tanh_f32);
+        balanced_abi<double>(g, wray_balanced_sin_f64, wray_balanced_cos_f64, wray_balanced_sincos_f64, wray_balanced_tanh_f64);
     }
 
 #undef WRAY_C_UNARY
