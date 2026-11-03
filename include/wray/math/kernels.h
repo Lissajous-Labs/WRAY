@@ -1564,7 +1564,7 @@ namespace wray::inline WRAY_ABI::math::detail
     }
 
     template<class Tier, class V>
-    WRAY_INLINE V smoothing_coefficient(const V &seconds, const V &fs) noexcept
+    V smoothing_coefficient_edge(const V &seconds, const V &fs) noexcept
     {
         using S = scalar_t<V>;
         const V one(S(1));
@@ -1577,6 +1577,20 @@ namespace wray::inline WRAY_ABI::math::detail
         const V e = expm1<Tier>(-u);
         const V r = fma(xl, one + e, -e);
         return either_nan(seconds, fs, select(either(seconds <= V(S(0)), fs <= V(S(0))), one, r));
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V smoothing_coefficient(const V &seconds, const V &fs) noexcept
+    {
+        using S = scalar_t<V>;
+        const V one(S(1));
+        const auto p = two_product(seconds, fs);
+        if (simd::any(!both(both(seconds > V(S(0)), fs > V(S(0))), both(p.hi >= V(format<S>::min_normal), p.hi < inf<V>()))))
+            return smoothing_coefficient_edge<Tier>(seconds, fs);
+        const auto x = quotient(one, p.hi);
+        const V xl = fma(-x.hi, p.lo / p.hi, x.lo);
+        const V e = expm1<Tier>(-x.hi);
+        return fma(xl, one + e, -e);
     }
 
     template<class V>
