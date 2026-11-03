@@ -4,6 +4,10 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+### Changed
+
+- `hz_to_midi` skips its near-zero path when no lane is within 4–16 Hz and folds the A4 offset into one exactly summed double-word step: float throughput goes from 0.6× to 1.6× of `std`, double from 0.4× to 0.86× on an M1 Max, with the same contracts (#9).
+
 ## [1.0.2] - 2026-11-03
 
 ### Added
