@@ -305,9 +305,32 @@ jobs:
 
       - run: python tools/dense/gate.py --dense build/tools/wray_dense --samples ${{ inputs.dense_samples || '100000000' }} --seed ${{ github.run_number }} --verify 500 --shard ${{ matrix.shard }}/4
 
+  docs:
+    name: docs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CXX: g++-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tools/requirements.txt
+
+      - run: python -m pip install -r tools/requirements.txt ninja
+
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWRAY_SIMD=avx2 -DWRAY_BUILD_TESTS=OFF -DWRAY_BUILD_BENCH=OFF
+
+      - run: cmake --build build --target wray_dump
+
+      - run: python tools/docs/check_readme.py --dump build/tools/wray_dump
+
   ci-pass:
     if: always()
-    needs: [test, strict-warnings, hostility, hostility-windows, debug, exhaustive, double-dense]
+    needs: [test, strict-warnings, hostility, hostility-windows, debug, docs, exhaustive, double-dense]
     runs-on: ubuntu-24.04
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
