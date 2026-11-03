@@ -7,6 +7,7 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 ### Changed
 
 - `sin`, `cos`, `sincos` and `tan` reduce huge arguments with word-level bit extraction and 64-bit limb products: about 110 ns to 16 ns per element on an M1 Max, with bit-identical results (#39).
+- Scalar multiply-adds use `__builtin_elementwise_fma` under clang, so the scalar backend and the huge-argument reduction no longer call libm `fma` (#41).
 
 ## [1.0.4] - 2026-11-03
 
