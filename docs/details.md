@@ -131,3 +131,19 @@ Fast floating-point models break the compensated arithmetic.
 ## Rational minimax cores
 
 Each core is fitted by a rational Remez exchange on its reduced interval. `docs/data/cores.json` records, per core, whether the exchange levelled the weighted error to within 1e-9 of equioscillation; a fit that did not converge is kept as the best candidate found and marked `"converged": false`. Rational or polynomial is chosen per core by cost at the target accuracy.
+
+## Stability
+
+WRAY uses semantic versioning, read as follows.
+
+| change | version |
+|---|---|
+| removing or renaming a public function, type or header, or changing what a call computes | major |
+| raising (loosening) any accuracy contract in the README tables | major |
+| dropping a backend, compiler or C++ standard that a release supported | major |
+| new functions, shapes, filters, backends or tiers; lowering (tightening) a contract | minor |
+| bug fixes, speedups and documentation, including output changes within the contracts | patch |
+
+- Golden digests in `tests/golden` pin output bits for one version and FMA class. They are not covered by this policy: a patch may change them as long as every contract still holds.
+- The inline ABI namespace (`wray::abi_avx2_fma` and the like) is not stable. Code that names it directly may break in any release, and every translation unit in one program must use the same WRAY version.
+- `find_package(wray X.Y)` accepts any later release with the same major version.
