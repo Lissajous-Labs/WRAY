@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <limits>
 #include <type_traits>
+#include <utility>
 
 #include "config.h"
 
@@ -107,11 +108,7 @@ namespace wray::inline WRAY_ABI::simd
 
         vec() = default;
 
-        WRAY_INLINE vec(T s) noexcept
-        {
-            for (int i = 0; i < N; ++i)
-                v[i] = s;
-        }
+        WRAY_INLINE vec(T s) noexcept : vec(s, std::make_integer_sequence<int, N>{}) {}
 
         WRAY_INLINE static vec load(const T *p) noexcept
         {
@@ -128,6 +125,10 @@ namespace wray::inline WRAY_ABI::simd
         }
 
         WRAY_INLINE T operator[](int i) const noexcept { return v[i]; }
+
+    private:
+        template<int... I>
+        WRAY_INLINE vec(T s, std::integer_sequence<int, I...>) noexcept : v{((void)I, s)...} {}
     };
 
     template<class T, int N>
