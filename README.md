@@ -47,7 +47,7 @@ cmake -S WRAY -B build -DCMAKE_INSTALL_PREFIX=/your/prefix && cmake --install bu
 ```
 
 ```cmake
-find_package(wray 0.1 REQUIRED)
+find_package(wray 1.0 REQUIRED)
 target_link_libraries(your_target PRIVATE wray::wray)
 ```
 
