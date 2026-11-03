@@ -4,6 +4,8 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-11-03
+
 ### Changed
 
 - `smoothing_coefficient` skips its overflow and domain handling when every lane has a positive, normal, finite product: float throughput goes from 0.9× to 1.13× of `std`, double from 0.53× to 0.68× on an M1 Max, with the same contract (#10).
@@ -47,7 +49,8 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 - Filters: `tpt_one_pole`, `svf`, `biquad`.
 - Backends: NEON, SSE2, AVX2, AVX-512 and scalar, for `float` and `double`.
 
-[Unreleased]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.4...HEAD
+[1.0.4]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.0...v1.0.1
