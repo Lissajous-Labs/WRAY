@@ -195,6 +195,23 @@ namespace wray::inline WRAY_ABI::math::detail
         return simd::nearest(x);
     }
 
+#if defined(_MSC_VER) && defined(_M_ARM64) && !defined(__clang__)
+    inline constexpr bool offset_log_reduction = false;
+#else
+    inline constexpr bool offset_log_reduction = true;
+#endif
+
+    template<class I>
+    WRAY_INLINE I wrap_add(const I &a, const I &b) noexcept
+    {
+        if constexpr (std::is_arithmetic_v<I>)
+        {
+            using U = std::make_unsigned_t<I>;
+            return static_cast<I>(static_cast<U>(a) + static_cast<U>(b));
+        } else
+            return a + b;
+    }
+
     template<class V>
     WRAY_INLINE integer_t<V> to_integer(const V &integral) noexcept
     {
@@ -469,16 +486,26 @@ namespace wray::inline WRAY_ABI::math::detail
             xs = select(sub, scaled, x);
             adjust = select(sub, V(-F::subnormal_exponent), V(S(0)));
         }
-        const I bits = as_bits(xs);
-        const I biased = shift_right_logical(bits, F::mantissa) | as_bits(V(F::two_mantissa));
-        V e = from_bits<V>(biased) - V(F::exponent_offset);
-        V m = from_bits<V>((bits & I(F::mantissa_mask)) | I(F::one_bits));
-        const auto big = m > V(K::sqrt2);
-
-        const V half = m * V(S(0.5));
-        m = select(big, half, m);
-        const V e1 = e + V(S(1));
-        e = select(big, e1, e);
+        V e;
+        V m;
+        if constexpr (offset_log_reduction)
+        {
+            using J = typename F::integer;
+            constexpr J low = std::bit_cast<J>(K::sqrt2) - (J(1) << F::mantissa) + J(1);
+            constexpr J shift = (J(F::bias) << F::mantissa) - low;
+            const I offset = wrap_add(as_bits(xs), I(shift));
+            e = from_bits<V>(shift_right_logical(offset, F::mantissa) | as_bits(V(F::two_mantissa))) - V(F::exponent_offset);
+            m = from_bits<V>(wrap_add(offset & I(F::mantissa_mask), I(low)));
+        } else
+        {
+            const I bits = as_bits(xs);
+            const I biased = shift_right_logical(bits, F::mantissa) | as_bits(V(F::two_mantissa));
+            e = from_bits<V>(biased) - V(F::exponent_offset);
+            m = from_bits<V>((bits & I(F::mantissa_mask)) | I(F::one_bits));
+            const auto big = m > V(K::sqrt2);
+            m = select(big, m * V(S(0.5)), m);
+            e = select(big, e + V(S(1)), e);
+        }
 
         if constexpr (Subnormal) e = e + adjust;
 
