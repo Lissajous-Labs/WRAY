@@ -7,6 +7,7 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 ### Added
 
 - `adaa::first_order<Shape, T>::process(in, out)` and `process(io)` for scalar `T` run consecutive mono samples in parallel lanes and match per-sample calls bit for bit: 2.9–4.3× faster in float and 1.5–2.1× in double on an M1 Max (#49).
+- `sincos(in, sin_out, cos_out)` and `sincos_turns(in, sin_out, cos_out)` produce both range outputs in one SIMD pass, including the float-only fast tier. They stop at the shortest range and support exact input aliasing with either disjoint output (#53).
 
 ## [1.0.5] - 2026-11-03
 

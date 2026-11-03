@@ -71,6 +71,40 @@ namespace wray::inline WRAY_ABI::math
                      std::span<T>(std::ranges::data(out), std::ranges::size(out)), f);
     }
 
+    template<class In, class SinOut, class CosOut, class F>
+    void apply_pair(const In &in, SinOut &&sin_out, CosOut &&cos_out, F f) noexcept
+    {
+        using T = std::ranges::range_value_t<In>;
+        using V = simd::native<T>;
+        constexpr std::size_t w = V::size;
+        const std::size_t n = std::min({std::ranges::size(in), std::ranges::size(sin_out), std::ranges::size(cos_out)});
+        const T *src = std::ranges::data(in);
+        T *s = std::ranges::data(sin_out);
+        T *c = std::ranges::data(cos_out);
+        std::size_t i = 0;
+        for (; i + 2 * w <= n; i += 2 * w)
+        {
+            const auto a = f(V::load(src + i));
+            const auto b = f(V::load(src + i + w));
+            a.sin.store(s + i);
+            a.cos.store(c + i);
+            b.sin.store(s + i + w);
+            b.cos.store(c + i + w);
+        }
+        for (; i + w <= n; i += w)
+        {
+            const auto a = f(V::load(src + i));
+            a.sin.store(s + i);
+            a.cos.store(c + i);
+        }
+        for (; i < n; ++i)
+        {
+            const auto a = f(src[i]);
+            s[i] = a.sin;
+            c[i] = a.cos;
+        }
+    }
+
     template<class T>
     using carrier = std::conditional_t<(simd::register_bytes >= 16), simd::vec<T, 16 / static_cast<int>(sizeof(T))>, T>;
 
@@ -257,6 +291,18 @@ namespace wray::inline WRAY_ABI
     template<math::real_range In, class Out>
     void cos(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::cos(v); }); }
 
+    template<math::real_range In, class SinOut, class CosOut>
+    void sincos(const In &in, SinOut &&sin_out, CosOut &&cos_out) noexcept
+    {
+        math::apply_pair(in, sin_out, cos_out, [](auto v) { return wray::sincos(v); });
+    }
+
+    template<math::real_range In, class SinOut, class CosOut>
+    void sincos_turns(const In &in, SinOut &&sin_out, CosOut &&cos_out) noexcept
+    {
+        math::apply_pair(in, sin_out, cos_out, [](auto v) { return wray::sincos_turns(v); });
+    }
+
     template<math::real_range In, class Out>
     void tanpi(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return wray::tanpi(v); }); }
 
@@ -442,6 +488,20 @@ namespace wray::inline WRAY_ABI::fast
 
     template<math::real_range In, class Out>
     void cos(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return fast::cos(v); }); }
+
+    template<math::real_range In, class SinOut, class CosOut>
+        requires std::is_same_v<std::ranges::range_value_t<In>, float>
+    void sincos(const In &in, SinOut &&sin_out, CosOut &&cos_out) noexcept
+    {
+        math::apply_pair(in, sin_out, cos_out, [](auto v) { return fast::sincos(v); });
+    }
+
+    template<math::real_range In, class SinOut, class CosOut>
+        requires std::is_same_v<std::ranges::range_value_t<In>, float>
+    void sincos_turns(const In &in, SinOut &&sin_out, CosOut &&cos_out) noexcept
+    {
+        math::apply_pair(in, sin_out, cos_out, [](auto v) { return fast::sincos_turns(v); });
+    }
 
     template<math::real_range In, class Out>
     void tanpi(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return fast::tanpi(v); }); }
