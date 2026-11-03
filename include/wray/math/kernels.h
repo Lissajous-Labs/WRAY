@@ -5,6 +5,10 @@
 #include <limits>
 #include <type_traits>
 
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
+
 #include "../numerics/polynomial.h"
 #include "../simd/vec.h"
 #include "coefficients.h"
@@ -625,18 +629,38 @@ namespace wray::inline WRAY_ABI::math::detail
         int q;
     };
 
-    inline std::uint32_t limb_at(const std::uint32_t *limbs, int count, int index) noexcept
+    inline void wide_product(std::uint64_t a, std::uint64_t b, std::uint64_t &hi, std::uint64_t &lo) noexcept
+    {
+#if defined(__SIZEOF_INT128__)
+        __extension__ typedef unsigned __int128 wide;
+        const wide p = static_cast<wide>(a) * b;
+        hi = static_cast<std::uint64_t>(p >> 64);
+        lo = static_cast<std::uint64_t>(p);
+#elif defined(_MSC_VER) && defined(_M_X64)
+        lo = _umul128(a, b, &hi);
+#elif defined(_MSC_VER) && defined(_M_ARM64)
+        lo = a * b;
+        hi = __umulh(a, b);
+#else
+        const std::uint64_t a0 = a & 0xffffffffu, a1 = a >> 32, b0 = b & 0xffffffffu, b1 = b >> 32;
+        const std::uint64_t p00 = a0 * b0, p01 = a0 * b1, p10 = a1 * b0;
+        const std::uint64_t mid = (p00 >> 32) + (p01 & 0xffffffffu) + (p10 & 0xffffffffu);
+        hi = a1 * b1 + (p01 >> 32) + (p10 >> 32) + (mid >> 32);
+        lo = (mid << 32) | (p00 & 0xffffffffu);
+#endif
+    }
+
+    inline std::uint64_t limb_at(const std::uint64_t *limbs, int count, int index) noexcept
     {
         return index >= 0 && index < count ? limbs[index] : 0u;
     }
 
-    inline std::uint64_t bits_at(const std::uint32_t *limbs, int count, int position, int width) noexcept
+    inline std::uint64_t bits_at(const std::uint64_t *limbs, int count, int position, int width) noexcept
     {
-        const int word = position >= 0 ? position / 32 : -((31 - position) / 32);
-        const int shift = position - 32 * word;
-        const std::uint64_t low = limb_at(limbs, count, word) | (std::uint64_t(limb_at(limbs, count, word + 1)) << 32);
-        const std::uint64_t high = limb_at(limbs, count, word + 2);
-        const std::uint64_t v = shift == 0 ? low : (low >> shift) | (high << (64 - shift));
+        const int word = position >= 0 ? position / 64 : -((63 - position) / 64);
+        const int shift = position - 64 * word;
+        const std::uint64_t low = limb_at(limbs, count, word);
+        const std::uint64_t v = shift == 0 ? low : (low >> shift) | (limb_at(limbs, count, word + 1) << (64 - shift));
         return width == 64 ? v : v & ((std::uint64_t(1) << width) - 1);
     }
 
@@ -644,36 +668,29 @@ namespace wray::inline WRAY_ABI::math::detail
     {
         using K = constants<double>;
         constexpr int window = 6;
+        constexpr int words = window / 2;
         const std::uint64_t bits = std::bit_cast<std::uint64_t>(x);
         const int biased = static_cast<int>((bits >> 52) & 0x7ffu);
         const std::uint64_t m = (bits & ((std::uint64_t(1) << 52) - 1)) | (biased != 0 ? std::uint64_t(1) << 52 : 0);
         const int e = (biased != 0 ? biased : 1) - 1075;
         const int k0 = e > 2 ? (e - 2) / 32 : 0;
-        std::uint32_t w[window];
-        for (int i = 0; i < window; ++i)
-            w[i] = coeff::two_over_pi_words[static_cast<std::size_t>(k0 + window - 1 - i)];
-        std::uint32_t product[window + 2] = {};
-        const std::uint32_t half[2] = {static_cast<std::uint32_t>(m), static_cast<std::uint32_t>(m >> 32)};
-        for (int a = 0; a < 2; ++a)
+        std::uint64_t product[words + 1];
+        std::uint64_t carry = 0;
+        for (int j = 0; j < words; ++j)
         {
-            std::uint64_t carry = 0;
-            for (int j = 0; j < window; ++j)
-            {
-                const std::uint64_t t = std::uint64_t(w[j]) * half[a] + product[j + a] + carry;
-                product[j + a] = static_cast<std::uint32_t>(t);
-                carry = t >> 32;
-            }
-            for (int j = window + a; j < window + 2 && carry != 0; ++j)
-            {
-                const std::uint64_t t = std::uint64_t(product[j]) + carry;
-                product[j] = static_cast<std::uint32_t>(t);
-                carry = t >> 32;
-            }
+            const auto top = static_cast<std::size_t>(k0 + window - 1 - 2 * j);
+            const std::uint64_t w = coeff::two_over_pi_words[top] | (std::uint64_t(coeff::two_over_pi_words[top - 1]) << 32);
+            std::uint64_t hi, lo;
+            wide_product(w, m, hi, lo);
+            lo += carry;
+            product[j] = lo;
+            carry = hi + (lo < carry ? 1u : 0u);
         }
+        product[words] = carry;
         const int s = 32 * (k0 + window) - e;
-        int q = static_cast<int>(bits_at(product, window + 2, s, 2));
-        std::uint64_t f_hi = bits_at(product, window + 2, s - 64, 64);
-        std::uint64_t f_lo = bits_at(product, window + 2, s - 128, 64);
+        int q = static_cast<int>(bits_at(product, words + 1, s, 2));
+        std::uint64_t f_hi = bits_at(product, words + 1, s - 64, 64);
+        std::uint64_t f_lo = bits_at(product, words + 1, s - 128, 64);
         double sign = 1.0;
         if ((f_hi >> 63) != 0)
         {
