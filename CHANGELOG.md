@@ -10,6 +10,7 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 - Scalar multiply-adds use `__builtin_elementwise_fma` under clang, so the scalar backend and the huge-argument reduction no longer call libm `fma` (#41).
 - Scalar-backend lane broadcasts no longer compile to `memset_pattern16` calls on macOS: scalar-backend float `exp` over a buffer goes from 4.15 ns to 0.87 ns per element on an M1 Max, with bit-identical results (#42).
 - NEON `any` and `all` on double masks reduce with one `umaxv`/`uminv`, about 3–5% off double `exp` and `log` (#43).
+- `erf` evaluates only the regions some lane needs: buffer throughput 13% faster in float and 22% in double, latency 20% lower, and inputs below 0.5 about 4.5× faster on an M1 Max, with bit-identical results (#44).
 
 ## [1.0.4] - 2026-11-03
 
