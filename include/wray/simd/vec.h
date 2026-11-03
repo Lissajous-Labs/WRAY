@@ -361,7 +361,7 @@ namespace wray::inline WRAY_ABI::simd
         for (int i = 0; i < N; ++i)
         {
 #if WRAY_HAS_FMA
-            r.v[i] = std::fma(a.v[i], b.v[i], c.v[i]);
+            r.v[i] = WRAY_FMA(a.v[i], b.v[i], c.v[i]);
 #else
             T p = a.v[i] * b.v[i];
             r.v[i] = p + c.v[i];
@@ -1799,7 +1799,7 @@ namespace wray::inline WRAY_ABI::simd
     WRAY_INLINE float fma(float a, float b, float c) noexcept
     {
 #if WRAY_HAS_FMA
-        return std::fma(a, b, c);
+        return WRAY_FMA(a, b, c);
 #else
         float p = a * b;
         return p + c;
@@ -1809,7 +1809,7 @@ namespace wray::inline WRAY_ABI::simd
     WRAY_INLINE double fma(double a, double b, double c) noexcept
     {
 #if WRAY_HAS_FMA
-        return std::fma(a, b, c);
+        return WRAY_FMA(a, b, c);
 #else
         double p = a * b;
         return p + c;
