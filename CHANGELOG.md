@@ -4,6 +4,8 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-03
+
 ### Added
 
 - This changelog (#6) and a [stability policy](docs/details.md#stability) (#7).
@@ -34,6 +36,7 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 - Filters: `tpt_one_pole`, `svf`, `biquad`.
 - Backends: NEON, SSE2, AVX2, AVX-512 and scalar, for `float` and `double`.
 
-[Unreleased]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/Lissajous-Labs/WRAY/releases/tag/v1.0.0
