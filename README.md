@@ -45,11 +45,16 @@ Every function takes a scalar, a SIMD vector, or a range (any length, no alignme
 
 `wray::fast::` is a quicker `float`-only tier, accurate to 2^-16 relative error.
 
-**Buffer throughput, not scalar-call latency.** On Apple, compare with vForce—not just scalar libm. Precise `sincos` is slower than vForce on the M1 Max. A dependent scalar call can also be slower than libm. Results apply only to the named machine and backend. [Method and platform results](docs/details.md#performance).
+**Buffer throughput, not scalar-call latency.** On geometric mean, the precise tier is faster than SLEEF's 1-ulp tier on every platform measured. glibc libmvec (up to 4 ulp) and Apple vForce are faster than it; the fast tier is level with vForce and ahead of libmvec with AVX2 and AVX-512. A dependent scalar call can also be slower than libm. Results apply only to the named machine and backend. [Method and platform results](docs/details.md#performance).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/charts/speedup-dark.png">
   <img alt="speedup" src="docs/charts/speedup-light.png">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/charts/speedup-linux-avx2-dark.png">
+  <img alt="speedup on Linux x86 AVX2" src="docs/charts/speedup-linux-avx2-light.png">
 </picture>
 
 ## Use it
@@ -209,7 +214,7 @@ build/tests/wray_spectral_test --json docs/data/spectral.json
 .venv/bin/python tools/brand/logo.py --font path/to/ClashGrotesk-Semibold.ttf
 ```
 
-Use `--baseline libm` on Windows and Linux. On macOS both baselines are recorded side by side; the switch selects the primary denominator.
+`--baseline libm|vforce|sleef_u10|sleef_u35|libmvec` selects the primary denominator; every baseline the build found is recorded side by side. CMake picks up SLEEF 3.9 or newer through `CMAKE_PREFIX_PATH`, and glibc libmvec on Linux x86-64.
 
 ## License
 

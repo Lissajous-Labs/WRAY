@@ -16,14 +16,14 @@ from matplotlib.transforms import offset_copy
 THEMES = {
     "dark": {
         "ink": "#e6edf3", "muted": "#9198a1", "grid": "#3d444d", "surface": "#161b22",
-        "colors": {"libm": "#848d97", "vforce": "#79c0ff", "wray": "#ff6a57", "wray fast": "#ffb340",
+        "colors": {"libm": "#848d97", "vforce": "#79c0ff", "sleef_u10": "#56d4c1", "sleef_u35": "#2ab3a0", "libmvec": "#7ee787", "wray": "#ff6a57", "wray fast": "#ffb340",
                    "f32": "#ff6a57", "f64": "#bc9cff", "fast": "#ffb340", "contract": "#e6edf3"},
         "spectra": ["#ff6a57", "#ffb340", "#bc9cff", "#848d97"],
         "ramp": ["#161b22", "#3d2a6e", "#9b2f6d", "#ff5c4a", "#ffd166"],
     },
     "light": {
         "ink": "#1f2328", "muted": "#59636e", "grid": "#d1d9e0", "surface": "#f6f8fa",
-        "colors": {"libm": "#6e7781", "vforce": "#0969da", "wray": "#cf2e1c", "wray fast": "#9a6700",
+        "colors": {"libm": "#6e7781", "vforce": "#0969da", "sleef_u10": "#0f766e", "sleef_u35": "#279185", "libmvec": "#1a7f37", "wray": "#cf2e1c", "wray fast": "#9a6700",
                    "f32": "#cf2e1c", "f64": "#7c3aed", "fast": "#9a6700", "contract": "#1f2328"},
         "spectra": ["#cf2e1c", "#9a6700", "#7c3aed", "#6e7781"],
         "ramp": ["#f6f8fa", "#d9c8f5", "#c86aa8", "#e5432f", "#ffb02e"],
@@ -31,7 +31,9 @@ THEMES = {
 }
 SANS = ["Avenir Next", "Helvetica Neue", "Inter", "Arial", "DejaVu Sans"]
 MONO = ["Menlo", "SF Mono", "JetBrains Mono", "DejaVu Sans Mono"]
-LABELS = {"libm": "scalar libm", "vforce": "Apple vForce", "wray": "WRAY precise", "wray fast": "WRAY fast"}
+LABELS = {"libm": "scalar libm", "vforce": "Apple vForce", "sleef_u10": "SLEEF 1.0 ulp", "sleef_u35": "SLEEF 3.5 ulp",
+          "libmvec": "glibc libmvec", "wray": "WRAY precise", "wray fast": "WRAY fast"}
+REFERENCES = ["libm", "vforce", "sleef_u10", "sleef_u35", "libmvec"]
 FUNCTIONS = ["product_log", "omega", "ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tanpi", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain", "gain_to_db"]
 BENCH_FUNCTIONS = ["product_log", "omega", "smoothing_coefficient", "pole_from_cutoff", "prewarp", "ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tanpi", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "sincos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain", "gain_to_db"]
 SPEEDUP_FUNCTIONS = ["exp", "log", "sin", "cos", "sincos", "tanh", "pow", "db_to_gain"]
@@ -336,7 +338,7 @@ def throughput_chart(bench, machine, out):
     for kind in ["f32", "f64"]:
         data = table[kind]
         names = [f for f in BENCH_FUNCTIONS if f in data]
-        variants = [v for v in ["libm", "vforce", "wray", "wray fast"] if any(v in data[f] for f in names)]
+        variants = [v for v in REFERENCES + ["wray", "wray fast"] if any(v in data[f] for f in names)]
         fig, ax = plt.subplots(figsize=(13, 4.6))
         grouped_bars(ax, data, names, variants)
         ax.set_ylabel("ns per input, log scale")
@@ -347,19 +349,21 @@ def throughput_chart(bench, machine, out):
         save(fig, out, f"throughput_{kind}")
 
 
-def speedup_chart(bench, machine, out):
+def speedup_chart(bench, machine, out, name="speedup"):
     names = [f for f in SPEEDUP_FUNCTIONS if any(r["function"] == f for r in bench["rows"])]
-    baselines = ["libm"]
-    if any(r["variant"] == "vforce" for r in bench["rows"]):
-        baselines.append("vforce")
+    baselines = [b for b in REFERENCES if any(r["variant"] == b for r in bench["rows"])]
     ratios = {(r["type"], r["function"], r["variant"], c["baseline"]): c
               for r in bench["rows"] if r["mode"] == "throughput" for c in r["comparisons"]}
-    fig, axes = plt.subplots(1, len(baselines), figsize=(6 * len(baselines), 6.4), sharey=True, squeeze=False)
+    cols = min(len(baselines), 2)
+    rows_n = math.ceil(len(baselines) / cols)
+    fig, axes = plt.subplots(rows_n, cols, figsize=(6 * cols, 6.4 * rows_n), squeeze=False)
+    for ax in axes.ravel()[len(baselines):]:
+        ax.axis("off")
     series = [("f32", "wray", "float precise", COLORS["f32"]), ("f32", "wray fast", "float fast", COLORS["fast"]),
               ("f64", "wray", "double precise", COLORS["f64"])]
     idx = np.arange(len(names))
     width = 0.25
-    for ax, baseline in zip(axes[0], baselines):
+    for ax, baseline in zip(axes.ravel(), baselines):
         top = 1.0
         for k, (kind, variant, label, color) in enumerate(series):
             points = [ratios.get((kind, f, variant, baseline)) for f in names]
@@ -372,6 +376,9 @@ def speedup_chart(bench, machine, out):
                     ax.annotate(f"{point['speedup']:.2f}×", (point["ci_high"], position), xytext=(5, 0),
                                 textcoords="offset points", va="center", fontsize=8.5, color=color, fontweight="semibold")
                     top = max(top, point["ci_high"])
+        for position, f in zip(idx, names):
+            if not any(ratios.get((kind, f, variant, baseline)) for kind, variant, _, _ in series):
+                ax.text(0.01, position, "not offered", transform=ax.get_yaxis_transform(), color=T["muted"], fontsize=8.5, va="center")
         ax.axvline(1, color=T["muted"], linewidth=0.9, linestyle=(0, (2, 3)))
         ax.text(1, -0.75, " parity", color=T["muted"], fontsize=8.5, va="center")
         ax.set_yticks(idx, names)
@@ -384,10 +391,10 @@ def speedup_chart(bench, machine, out):
         ax.set_title(f"vs {LABELS[baseline]}", fontsize=12)
         value_axis(ax, "x")
     axes[0, -1].legend(ncols=3, loc="lower right", bbox_to_anchor=(1, 1.06))
-    fig.tight_layout(w_pad=3)
+    fig.tight_layout(w_pad=3, h_pad=3)
     header(fig, "Buffer throughput", machine)
     footer(fig, "Bars are medians of paired rounds; whiskers are 95% bootstrap intervals. Contracts and domains differ by library; scalar latency can be slower.")
-    save(fig, out, "speedup")
+    save(fig, out, name)
 
 
 def spectral_charts(spec, out):
@@ -462,6 +469,10 @@ def main():
         throughput_chart(bench, machine, out)
         latency_chart(bench, machine, out)
         speedup_chart(bench, machine, out)
+        for path in sorted(data.glob("bench-*.json")):
+            host = json.loads(path.read_text())
+            meta = host["meta"]
+            speedup_chart(host, f"{meta['cpu'].strip()} · {meta['backend'].upper()} · {meta['platform']} · {meta['compiler']}", out, "speedup-" + path.stem[len("bench-"):])
         if spec:
             spectral_charts(spec, out)
 
