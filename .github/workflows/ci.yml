@@ -94,6 +94,8 @@ jobs:
           - { name: linux-x64-gcc14-avx2, os: ubuntu-24.04, cxx: g++-14, simd: avx2 }
           - { name: linux-x64-clang18-avx2, os: ubuntu-24.04, cxx: clang++-18, simd: avx2 }
           - { name: linux-x64-gcc14-avx512, os: ubuntu-24.04, cxx: g++-14, simd: avx512 }
+          - { name: linux-x64-clang18-avx512, os: ubuntu-24.04, cxx: clang++-18, simd: avx512 }
+          - { name: windows-x64-msvc-avx512, os: windows-2022, cxx: cl, simd: avx512 }
           - { name: linux-x64-gcc14-scalar, os: ubuntu-24.04, cxx: g++-14, simd: scalar }
           - { name: linux-arm64-gcc14-neon, os: ubuntu-24.04-arm, cxx: g++-14, simd: auto }
           - { name: macos-arm64-appleclang-neon-cxx20, os: macos-15, cxx: clang++, simd: auto, std: 20 }
@@ -129,17 +131,38 @@ jobs:
 
       - run: cmake --build build
 
-      - if: matrix.simd == 'avx512'
+      - id: native
         shell: bash
         run: |
-          if ! grep -qw avx512f /proc/cpuinfo; then
-            echo "::error::runner CPU lacks AVX-512F; re-run ${{ matrix.name }}"
-            exit 1
+          native=true
+          if [ "${{ matrix.simd }}" = avx512 ]; then
+            if [ "$RUNNER_OS" = Windows ]; then
+              supported=$(pwsh -NoProfile -Command '[System.Runtime.Intrinsics.X86.Avx512F]::IsSupported -and [System.Runtime.Intrinsics.X86.Avx512BW]::IsSupported -and [System.Runtime.Intrinsics.X86.Avx512DQ]::IsSupported')
+            else
+              supported=$(grep -qw avx512f /proc/cpuinfo && echo True || echo False)
+            fi
+            if [ "$supported" != True ]; then
+              native=false
+              echo "::notice::runner CPU lacks AVX-512; ${{ matrix.name }} is compile-only and avx512-coverage requires another AVX-512 job to run"
+            fi
           fi
+          echo "native=$native" >> "$GITHUB_OUTPUT"
 
-      - run: ctest --test-dir build -LE "exhaustive|oracle" --output-on-failure
+      - if: steps.native.outputs.native == 'true'
+        run: ctest --test-dir build -LE "exhaustive|oracle" --output-on-failure
 
-      - run: python tools/oracle/oracle.py --dump build/tools/wray_dump --out build/accuracy.json --check
+      - if: steps.native.outputs.native == 'true'
+        run: python tools/oracle/oracle.py --dump build/tools/wray_dump --out build/accuracy.json --check
+
+      - if: matrix.simd == 'avx512' && steps.native.outputs.native == 'true'
+        shell: bash
+        run: echo "${{ matrix.name }}" > avx512-native.txt
+
+      - if: matrix.simd == 'avx512' && steps.native.outputs.native == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: avx512-native-${{ matrix.name }}
+          path: avx512-native.txt
 
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -375,9 +398,28 @@ jobs:
 
       - run: python tools/ci/mutants.py
 
+  avx512-coverage:
+    needs: [changes, test]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh run download "${{ github.run_id }}" --repo "${{ github.repository }}" --pattern "avx512-native-*" --dir avx512 || true
+          if ! ls avx512/*/avx512-native.txt >/dev/null 2>&1; then
+            echo "::error::no AVX-512 job ran on AVX-512 hardware; re-run the failed jobs"
+            exit 1
+          fi
+          cat avx512/*/avx512-native.txt
+
   ci-pass:
     if: always()
-    needs: [changes, docs, test, strict-warnings, hostility, hostility-windows, debug, mutants, exhaustive, double-dense]
+    needs: [changes, docs, test, avx512-coverage, strict-warnings, hostility, hostility-windows, debug, mutants, exhaustive, double-dense]
     runs-on: ubuntu-24.04
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
