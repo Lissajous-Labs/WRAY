@@ -7,6 +7,7 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 ### Added
 
 - This changelog (#6) and a [stability policy](docs/details.md#stability) (#7).
+- Pushing a `vX.Y.Z` tag publishes a GitHub release with that version's changelog entry, and fails if the tag does not match `CMakeLists.txt` (#8).
 
 ## [1.0.1] - 2026-11-03
 
