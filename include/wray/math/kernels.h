@@ -1736,12 +1736,18 @@ namespace wray::inline WRAY_ABI::math::detail
         using S = scalar_t<V>;
         using C = typename table<Tier, S>::omega;
         const V one(S(1));
-        const V z = exp<Tier>(simd::min(x, V(S(-2))));
-        const V series = z * fma(z, fma(z, fma(z, fma(z, V(S(125) / S(24)), V(S(-8) / S(3))), V(S(1.5))), V(S(-1))), one);
-        const V xs = simd::max(x, V(S(3)));
-        const V l = log<Tier>(xs);
-        const V big = xs - l + (l / xs) * fma(l - V(S(2)), V(S(0.5)) / xs, one);
-        V y = select(x < V(S(-2)), series, select(x < V(S(3)), numerics::rational<C>(simd::min(simd::max(x, V(S(-2))), V(S(3)))), big));
+        V y = numerics::rational<C>(simd::min(simd::max(x, V(S(-2))), V(S(3))));
+        if (simd::any(!(x < V(S(3)))))
+        {
+            const V xs = simd::max(x, V(S(3)));
+            const V l = log<Tier>(xs);
+            y = select(x < V(S(3)), y, xs - l + (l / xs) * fma(l - V(S(2)), V(S(0.5)) / xs, one));
+        }
+        if (simd::any(x < V(S(-2))))
+        {
+            const V z = exp<Tier>(simd::min(x, V(S(-2))));
+            y = select(x < V(S(-2)), z * fma(z, fma(z, fma(z, fma(z, V(S(125) / S(24)), V(S(-8) / S(3))), V(S(1.5))), V(S(-1))), one), y);
+        }
         constexpr int steps = full<Tier> ? (std::is_same_v<S, float> ? 2 : 3) : 1;
         for (int i = 0; i < steps; ++i)
             y = fma(-(y + log<Tier>(y) - x - xl), y / (one + y), y);
@@ -1751,13 +1757,18 @@ namespace wray::inline WRAY_ABI::math::detail
             const V r = (((x - lp.hi) - lp.lo) + xl) - y;
             y = fma(r, y / (one + y), y);
             const auto t = two_sum(x, -y);
-            const V e = exp<Tier>(t.hi);
-            y = select(x < V(S(0)), fma(e, t.lo + xl, e), y);
+            if (simd::any(x < V(S(0))))
+            {
+                const V e = exp<Tier>(t.hi);
+                y = select(x < V(S(0)), fma(e, t.lo + xl, e), y);
+            }
         }
         const V tiny(std::numeric_limits<S>::digits == 24 ? S(-104) : S(-746));
         const V huge(S(1) / format<S>::min_normal);
-        y = select(x < V(S(-40)), exp<Tier>(x), y);
-        y = select(x > huge, x - log<Tier>(simd::min(x, V(std::numeric_limits<S>::max()))), y);
+        if (simd::any(x < V(S(-40))))
+            y = select(x < V(S(-40)), exp<Tier>(x), y);
+        if (simd::any(x > huge))
+            y = select(x > huge, x - log<Tier>(simd::min(x, V(std::numeric_limits<S>::max()))), y);
         y = select(x < tiny, V(S(0)), y);
         return select(isnan(x), x, select(x == inf<V>(), x, y));
     }
@@ -1792,37 +1803,45 @@ namespace wray::inline WRAY_ABI::math::detail
         using S = scalar_t<V>;
         using K = constants<S>;
         const V one(S(1));
-        const V lp_x = simd::max(x, V(S(0.5)));
-        const auto lp = log_pair<Tier>(lp_x);
-        const V upper = omega_pair<Tier>(lp.hi, lp.lo);
         const auto ex = two_product(x, V(K::e_hi));
         const V gap = ((one + ex.hi) + ex.lo) + x * V(K::e_lo);
-        const V g = simd::max(gap, V(S(0)));
-        const V p = simd::sqrt(V(S(2)) * g);
-        V v = p * fma(p, fma(p, fma(p, V(S(-43) / S(540)), V(S(11) / S(72))), V(S(-1) / S(3))), one);
-        constexpr int branch_steps = full<Tier> ? (std::is_same_v<S, float> ? 2 : 3) : 1;
-        for (int i = 0; i < branch_steps; ++i)
-            v = select(v > V(S(0)), v - (branch_gap(v) - g) / (v * exp<Tier>(v)), v);
-        const V branch = v - one;
-        const V xn = simd::min(simd::max(x, V(S(-0.32))), V(S(0.5)));
-        V w = log1p<Tier>(xn);
-        constexpr int steps = full<Tier> ? 3 : 2;
-        for (int i = 0; i < steps; ++i)
+        V v2 = x;
+        if (simd::any(!(x < V(S(0.5)))))
         {
-            const V e = exp<Tier>(w);
-            const V f = fma(w, e, -xn);
-            const V w1 = w + one;
-            const V d = fma(-(w + V(S(2))) / (w1 + w1), f, e * w1);
-            w = select(f == V(S(0)), w, w - f / d);
+            const auto lp = log_pair<Tier>(simd::max(x, V(S(0.5))));
+            v2 = omega_pair<Tier>(lp.hi, lp.lo);
         }
-        if constexpr (full<Tier>)
+        if (simd::any(both(!(x < V(S(-0.32))), x < V(S(0.5)))))
         {
-            const auto e = exp_half<Tier>(w);
-            const V f = (w + w) * e.lo - residual(w + w, e.hi, xn);
-            w = w - f / ((e.hi + e.hi) * (w + one));
+            const V xn = simd::min(simd::max(x, V(S(-0.32))), V(S(0.5)));
+            V w = log1p<Tier>(xn);
+            constexpr int steps = full<Tier> ? 3 : 2;
+            for (int i = 0; i < steps; ++i)
+            {
+                const V e = exp<Tier>(w);
+                const V f = fma(w, e, -xn);
+                const V w1 = w + one;
+                const V d = fma(-(w + V(S(2))) / (w1 + w1), f, e * w1);
+                w = select(f == V(S(0)), w, w - f / d);
+            }
+            if constexpr (full<Tier>)
+            {
+                const auto e = exp_half<Tier>(w);
+                const V f = (w + w) * e.lo - residual(w + w, e.hi, xn);
+                w = w - f / ((e.hi + e.hi) * (w + one));
+            }
+            v2 = select(x < V(S(0.5)), keep_zero(x, w), v2);
         }
-        const V lower = keep_zero(x, w);
-        const V v2 = select(x < V(S(-0.32)), branch, select(x < V(S(0.5)), lower, upper));
+        if (simd::any(x < V(S(-0.32))))
+        {
+            const V g = simd::max(gap, V(S(0)));
+            const V p = simd::sqrt(V(S(2)) * g);
+            V v = p * fma(p, fma(p, fma(p, V(S(-43) / S(540)), V(S(11) / S(72))), V(S(-1) / S(3))), one);
+            constexpr int branch_steps = full<Tier> ? (std::is_same_v<S, float> ? 2 : 3) : 1;
+            for (int i = 0; i < branch_steps; ++i)
+                v = select(v > V(S(0)), v - (branch_gap(v) - g) / (v * exp<Tier>(v)), v);
+            v2 = select(x < V(S(-0.32)), v - one, v2);
+        }
         return select(either(isnan(x), either(gap < V(S(0)), x < V(S(-0.5)))), select(isnan(x), x, nan<V>()), select(x == inf<V>(), x, v2));
     }
 
