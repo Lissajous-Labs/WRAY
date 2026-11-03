@@ -304,3 +304,11 @@ jobs:
       - run: cmake --build build --target wray_dense
 
       - run: python tools/dense/gate.py --dense build/tools/wray_dense --samples ${{ inputs.dense_samples || '100000000' }} --seed ${{ github.run_number }} --verify 500 --shard ${{ matrix.shard }}/4
+
+  ci-pass:
+    if: always()
+    needs: [test, strict-warnings, hostility, hostility-windows, debug, exhaustive, double-dense]
+    runs-on: ubuntu-24.04
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
