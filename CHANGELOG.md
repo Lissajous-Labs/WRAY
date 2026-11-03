@@ -17,6 +17,7 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 - CI no longer reruns the full matrix on pushes to `main`: `main` only fast-forwards to pull request heads that already passed, and the duplicate runs were starving the macOS arm64 runner pool (#79).
 - Positive-base `pow` skips sign/parity work when no lane needs it and uses the bounded log mantissa to shorten an exact compensated sum. Twelve paired ABBA rounds on an M1 Max show 22% higher float throughput, 19% higher double throughput and 5–6% lower dependency-chain cost; the precise contracts and golden outputs are unchanged (#55).
 - `sin`, `cos`, `sincos` and `tan` test for huge or non-finite lanes before reduction and keep the ordinary path in registers. Twelve paired ABBA rounds on an M1 Max show 5–15% higher throughput and 9–15% lower dependency-chain cost across float and double, with bit-identical results (#57).
+- Regular-range `exp`, `exp2`, `pow` and `db_to_gain` scale their polynomial by adding the shifted exponent to its bits instead of multiplying by a constructed power of two. Eight paired ABBA rounds on an M1 Max show 2–5% higher precise throughput for `exp`, `exp2`, `tanh`, `sigmoid`, `pow` and `db_to_gain`, with bit-identical results (#60).
 
 ## [1.0.5] - 2026-11-03
 

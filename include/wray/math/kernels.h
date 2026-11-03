@@ -219,6 +219,13 @@ namespace wray::inline WRAY_ABI::math::detail
     }
 
     template<class V>
+    WRAY_INLINE V scale_by(const V &p, const V &integral) noexcept
+    {
+        using F = format<scalar_t<V> >;
+        return from_bits<V>(as_bits(p) + shift_left(as_bits(integral + V(F::magic)), F::mantissa));
+    }
+
+    template<class V>
     WRAY_INLINE V copysign_from(const V &magnitude, const V &sign) noexcept
     {
         using F = format<scalar_t<V> >;
@@ -318,7 +325,7 @@ namespace wray::inline WRAY_ABI::math::detail
     WRAY_INLINE V exp_regular(const V &x) noexcept
     {
         const auto red = exp_reduce(x);
-        return exp_poly<Tier>(red.hi) * pow2(red.lo);
+        return scale_by(exp_poly<Tier>(red.hi), red.lo);
     }
 
     template<class Tier, class V>
@@ -416,7 +423,7 @@ namespace wray::inline WRAY_ABI::math::detail
             if (simd::any(!(abs(hi) < V(format<S>::exp2_safe))))
                 return exp2_edge<Tier>(hi, lo);
             const auto red = exp2_reduce<Tier>(hi, lo);
-            return exp_poly<Tier>(red.hi) * pow2(red.lo);
+            return scale_by(exp_poly<Tier>(red.hi), red.lo);
         } else
         {
             const V xc = clamp(hi, V(format<S>::fast_exp2_min), V(format<S>::fast_exp2_max));
@@ -1334,7 +1341,7 @@ namespace wray::inline WRAY_ABI::math::detail
     WRAY_INLINE V exp2_pair_regular(const V &hi, const V &lo) noexcept
     {
         const auto red = exp2_reduce<Tier>(hi, lo);
-        return exp_poly<Tier>(red.hi) * pow2(red.lo);
+        return scale_by(exp_poly<Tier>(red.hi), red.lo);
     }
 
     template<class Tier, class V>
