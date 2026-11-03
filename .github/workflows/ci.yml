@@ -42,8 +42,15 @@ jobs:
         shell: bash
         run: |
           code=true
-          if [ "${{ github.event_name }}" = pull_request ] && ! git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD | grep -qvE '^(.*\.md|LICENSE|docs/.*)$'; then
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD > "$RUNNER_TEMP/wray-changes"
             code=false
+            while IFS= read -r path; do
+              case "$path" in
+                *.md|LICENSE|docs/*) ;;
+                *) code=true; break ;;
+              esac
+            done < "$RUNNER_TEMP/wray-changes"
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
