@@ -12,6 +12,7 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 ### Changed
 
 - CI runs AVX-512 tests in three jobs (GCC, Clang, MSVC); each runs natively when its runner has AVX-512 and is compile-only otherwise, and an `avx512-coverage` gate requires at least one native run, so a runner without AVX-512 no longer fails `main` on its own (#71).
+- CI no longer reruns the full matrix on pushes to `main`: `main` only fast-forwards to pull request heads that already passed, and the duplicate runs were starving the macOS arm64 runner pool (#79).
 - Positive-base `pow` skips sign/parity work when no lane needs it and uses the bounded log mantissa to shorten an exact compensated sum. Twelve paired ABBA rounds on an M1 Max show 22% higher float throughput, 19% higher double throughput and 5–6% lower dependency-chain cost; the precise contracts and golden outputs are unchanged (#55).
 
 ## [1.0.5] - 2026-11-03
