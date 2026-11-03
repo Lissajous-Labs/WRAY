@@ -791,21 +791,13 @@ namespace wray::inline WRAY_ABI::math::detail
     }
 
     template<class Tier, class V>
-    WRAY_INLINE reduced<V> reduce_pio2(const V &input) noexcept
-    {
-        using S = scalar_t<V>;
-        if (simd::all(abs(input) <= V(constants<S>::trig_arg_max))) [[likely]]
-            return reduce_pio2_inside<Tier>(input);
-        return reduce_pio2_edge<Tier>(input);
-    }
-
-    template<class Tier, class V>
     WRAY_INLINE reduced<V> reduce_pio2_inside(const V &x) noexcept
     {
         using S = scalar_t<V>;
         using K = constants<S>;
         const V y = x * V(K::two_over_pi);
         const V kf = round_nearest(y);
+        const integer_t<V> q = to_integer(kf);
         constexpr bool four = std::is_same_v<S, float>;
         const V r1 = fma(-kf, V(K::pio2_1), x);
         const V c1 = kf * V(K::pio2_2);
@@ -819,11 +811,11 @@ namespace wray::inline WRAY_ABI::math::detail
                 e1 = fma(-kf, V(K::pio2_4), e1);
             const V back = hi - mid;
             const V e2 = (mid - (hi - back)) - (c2 + back);
-            return {hi, e1 + e2, to_integer(kf)};
+            return {hi, e1 + e2, q};
         } else if constexpr (four)
-            return {fma(-kf, V(K::pio2_4), hi), V(S(0)), to_integer(kf)};
+            return {fma(-kf, V(K::pio2_4), hi), V(S(0)), q};
         else
-            return {hi, V(S(0)), to_integer(kf)};
+            return {hi, V(S(0)), q};
     }
 
     template<class Tier, class V>
@@ -870,38 +862,87 @@ namespace wray::inline WRAY_ABI::math::detail
         return v * sign;
     }
 
-    template<class Tier, class V>
-    WRAY_INLINE V sin(const V &x) noexcept
+    template<class V>
+    WRAY_INLINE V orient_finite(const sincos_result<V> &p, const integer_t<V> &q) noexcept
     {
-        const auto red = reduce_pio2<Tier>(x);
+        using I = integer_t<V>;
+        const V v = select(nonzero(q & I(1)), p.cos, p.sin);
+        return from_bits<V>(as_bits(v) ^ shift_left(q & I(2), format<scalar_t<V> >::width - 2));
+    }
+
+    template<class V>
+    WRAY_INLINE bool trig_ordinary(const V &x) noexcept
+    {
+        return simd::all(abs(x) <= V(constants<scalar_t<V> >::trig_arg_max));
+    }
+
+    template<class Tier, class V>
+    V sin_edge(V x) noexcept
+    {
+        const auto red = reduce_pio2_edge<Tier>(x);
         return keep_zero(x, orient(trig_core<Tier>(red), red.q, trig_unit<Tier>(x)));
     }
 
     template<class Tier, class V>
-    WRAY_INLINE V cos(const V &x) noexcept
+    V cos_edge(V x) noexcept
     {
         using I = integer_t<V>;
-        const auto red = reduce_pio2<Tier>(x);
+        const auto red = reduce_pio2_edge<Tier>(x);
         return orient(trig_core<Tier>(red), red.q + I(1), trig_unit<Tier>(x));
     }
 
     template<class Tier, class V>
-    WRAY_INLINE sincos_result<V> sincos(const V &x) noexcept
+    sincos_result<V> sincos_edge(V x) noexcept
     {
         using I = integer_t<V>;
-        const auto red = reduce_pio2<Tier>(x);
+        const auto red = reduce_pio2_edge<Tier>(x);
         const auto p = trig_core<Tier>(red);
         const V unit = trig_unit<Tier>(x);
         return {keep_zero(x, orient(p, red.q, unit)), orient(p, red.q + I(1), unit)};
     }
 
     template<class Tier, class V>
-    WRAY_INLINE V tan(const V &x) noexcept
+    WRAY_INLINE V sin(const V &x) noexcept
+    {
+        if (trig_ordinary(x)) [[likely]]
+        {
+            const auto red = reduce_pio2_inside<Tier>(x);
+            return keep_zero(x, orient_finite(trig_core<Tier>(red), red.q));
+        }
+        return sin_edge<Tier>(x);
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V cos(const V &x) noexcept
+    {
+        using I = integer_t<V>;
+        if (trig_ordinary(x)) [[likely]]
+        {
+            const auto red = reduce_pio2_inside<Tier>(x);
+            return orient_finite(trig_core<Tier>(red), red.q + I(1));
+        }
+        return cos_edge<Tier>(x);
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE sincos_result<V> sincos(const V &x) noexcept
+    {
+        using I = integer_t<V>;
+        if (trig_ordinary(x)) [[likely]]
+        {
+            const auto red = reduce_pio2_inside<Tier>(x);
+            const auto p = trig_core<Tier>(red);
+            return {keep_zero(x, orient_finite(p, red.q)), orient_finite(p, red.q + I(1))};
+        }
+        return sincos_edge<Tier>(x);
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V tan_reduced(const reduced<V> &red) noexcept
     {
         using S = scalar_t<V>;
         using I = integer_t<V>;
         using C = typename table<Tier, S>::tan;
-        const auto red = reduce_pio2<Tier>(x);
         const V r = red.hi;
         const V t = r * r;
         const auto odd = nonzero(red.q & I(1));
@@ -913,13 +954,27 @@ namespace wray::inline WRAY_ABI::math::detail
             const V e = (r - v) + tail;
             const V q = V(S(-1)) / v;
             const V c = fma(q, fma(q, e, fma(q, v, V(S(1)))), q);
-            return keep_zero(x, select(odd, c, v) * trig_unit<Tier>(x));
+            return select(odd, c, v);
         } else
         {
             const V v = fma(rt, numerics::rational<C>(t), r);
             const V c = V(S(-1)) / v;
-            return keep_zero(x, select(odd, c, v) * trig_unit<Tier>(x));
+            return select(odd, c, v);
         }
+    }
+
+    template<class Tier, class V>
+    V tan_edge(V x) noexcept
+    {
+        return keep_zero(x, tan_reduced<Tier>(reduce_pio2_edge<Tier>(x)) * trig_unit<Tier>(x));
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V tan(const V &x) noexcept
+    {
+        if (trig_ordinary(x)) [[likely]]
+            return keep_zero(x, tan_reduced<Tier>(reduce_pio2_inside<Tier>(x)));
+        return tan_edge<Tier>(x);
     }
 
     template<class V>

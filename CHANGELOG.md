@@ -18,6 +18,7 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 - Positive-base `pow` skips sign/parity work when no lane needs it and uses the bounded log mantissa to shorten an exact compensated sum. Twelve paired ABBA rounds on an M1 Max show 22% higher float throughput, 19% higher double throughput and 5–6% lower dependency-chain cost; the precise contracts and golden outputs are unchanged (#55).
 - `sin`, `cos`, `sincos` and `tan` test for huge or non-finite lanes before reduction and keep the ordinary path in registers. Twelve paired ABBA rounds on an M1 Max show 5–15% higher throughput and 9–15% lower dependency-chain cost across float and double, with bit-identical results (#57).
 - Regular-range `exp`, `exp2`, `pow` and `db_to_gain` scale their polynomial by adding the shifted exponent to its bits instead of multiplying by a constructed power of two. Eight paired ABBA rounds on an M1 Max show 2–5% higher precise throughput for `exp`, `exp2`, `tanh`, `sigmoid`, `pow` and `db_to_gain`, with bit-identical results (#60).
+- `sin`, `cos`, `sincos` and `tan` skip the non-finite unit and apply the quadrant sign with a shift and exclusive-or when every lane is ordinary. Eight paired ABBA rounds on an M1 Max show 9–18% higher precise throughput and 20–31% higher fast-tier throughput, with bit-identical results (#61).
 
 ## [1.0.5] - 2026-11-03
 
