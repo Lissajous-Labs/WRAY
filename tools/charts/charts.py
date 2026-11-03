@@ -291,7 +291,7 @@ def summary_chart(acc, out):
         mono_ticks(ax.get_yticklabels())
         ax.invert_yaxis()
         ax.set_xlabel("worst error (ulp)")
-        ax.set_title("Balanced tier · provisional")
+        ax.set_title("Balanced tier")
         ax.legend(loc="upper right", bbox_to_anchor=(1, 1.2))
         value_axis(ax, "x")
     fig.tight_layout(w_pad=3)
