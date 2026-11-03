@@ -13,10 +13,12 @@ import numpy as np
 INK = "#1f2328"
 MUTED = "#6e7781"
 GRID = "#d0d7de"
-COLORS = {"std": "#8c959f", "wray": "#0969da", "wray fast": "#1a7f37",
+COLORS = {"libm": "#8c959f", "vforce": "#bf8700", "wray": "#0969da", "wray fast": "#1a7f37",
           "f32": "#0969da", "f64": "#8250df", "fast": "#1a7f37", "contract": "#cf222e"}
+LABELS = {"libm": "scalar libm", "vforce": "Apple vForce", "wray": "WRAY precise", "wray fast": "WRAY fast"}
 FUNCTIONS = ["product_log", "omega", "ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tanpi", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain", "gain_to_db"]
-NO_STD = {"omega", "product_log"}
+BENCH_FUNCTIONS = ["product_log", "omega", "smoothing_coefficient", "pole_from_cutoff", "prewarp", "ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tanpi", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "sincos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain", "gain_to_db"]
+SPEEDUP_FUNCTIONS = ["exp", "log", "sin", "cos", "sincos", "tanh", "pow", "db_to_gain"]
 TIER_LABEL = {"f32": "float precise", "f64": "double precise", "fast": "float fast"}
 
 
@@ -187,9 +189,9 @@ def trig_chart(acc, out):
 
 def bench_table(bench, mode="throughput"):
     table = {}
-    for row in bench["rows"] if isinstance(bench, dict) else bench:
-        if row.get("mode", "throughput") == mode:
-            table.setdefault(row["type"], {}).setdefault(row["function"], {})[row["variant"]] = row["ns"]
+    for row in bench["rows"]:
+        if row["mode"] == mode:
+            table.setdefault(row["type"], {}).setdefault(row["function"], {})[row["variant"]] = row["median"]
     return table
 
 
@@ -198,16 +200,16 @@ def latency_chart(bench, machine, out):
     fig, axes = plt.subplots(1, 2, figsize=(13, 4.2))
     for ax, kind in zip(axes, ["f32", "f64"]):
         data = table.get(kind, {})
-        names = [f for f in FUNCTIONS if f in data]
-        variants = [v for v in ["std", "wray", "wray fast"] if any(v in data[f] for f in names)]
+        names = [f for f in BENCH_FUNCTIONS if f in data]
+        variants = [v for v in ["libm", "wray", "wray fast"] if any(v in data[f] for f in names)]
         idx = np.arange(len(names))
         width = 0.8 / max(len(variants), 1)
         for k, v in enumerate(variants):
             vals = [data[f].get(v, np.nan) for f in names]
-            ax.bar(idx + (k - (len(variants) - 1) / 2) * width, vals, width, color=COLORS[v], label=v)
+            ax.bar(idx + (k - (len(variants) - 1) / 2) * width, vals, width, color=COLORS[v], label=LABELS[v])
         ax.set_xticks(idx, names, rotation=40, ha="right")
         ax.set_ylabel("ns per dependent call (lower is better)")
-        ax.set_title(f"{'float' if kind == 'f32' else 'double'} single-value latency ({machine})")
+        ax.set_title(f"{'float' if kind == 'f32' else 'double'} median scalar chain latency ({machine})")
         ax.legend(ncols=len(variants))
     fig.tight_layout()
     save(fig, out, "latency.png")
@@ -217,42 +219,59 @@ def throughput_chart(bench, machine, out):
     table = bench_table(bench)
     for kind in ["f32", "f64"]:
         data = table[kind]
-        names = [f for f in FUNCTIONS if f in data]
-        variants = [v for v in ["std", "wray", "wray fast"] if any(v in data[f] for f in names)]
+        names = [f for f in BENCH_FUNCTIONS if f in data]
+        variants = [v for v in ["libm", "vforce", "wray", "wray fast"] if any(v in data[f] for f in names)]
         fig, ax = plt.subplots(figsize=(12, 4.4))
         idx = np.arange(len(names))
         width = 0.8 / len(variants)
         for k, v in enumerate(variants):
             vals = [data[f].get(v, np.nan) for f in names]
-            ax.bar(idx + (k - (len(variants) - 1) / 2) * width, vals, width, color=COLORS[v], label=v)
+            ax.bar(idx + (k - (len(variants) - 1) / 2) * width, vals, width, color=COLORS[v], label=LABELS[v])
         ax.set_xticks(idx, names, rotation=35, ha="right")
-        ax.set_ylabel("ns per element (lower is better)")
-        ax.set_title(f"{'float' if kind == 'f32' else 'double'} throughput, 4096-element arrays, fastest of 25 interleaved rounds ({machine})")
+        ax.set_ylabel("ns per input; sincos writes both outputs (lower is better)")
+        ax.set_title(f"{'float' if kind == 'f32' else 'double'} buffer throughput, median paired samples, 4096 inputs ({machine})")
         ax.legend(ncols=len(variants))
         fig.tight_layout()
         save(fig, out, f"throughput_{kind}.png")
 
 
 def speedup_chart(bench, machine, out):
-    table = bench_table(bench)
-    names = [f for f in FUNCTIONS if f not in NO_STD]
-    fig, ax = plt.subplots(figsize=(12, 4.2))
-    idx = np.arange(len(names))
+    names = [f for f in SPEEDUP_FUNCTIONS if any(r["function"] == f for r in bench["rows"])]
+    baselines = ["libm"]
+    if any(r["variant"] == "vforce" for r in bench["rows"]):
+        baselines.append("vforce")
+    ratios = {(r["type"], r["function"], r["variant"], c["baseline"]): c
+              for r in bench["rows"] if r["mode"] == "throughput" for c in r["comparisons"]}
+    fig, axes = plt.subplots(1, len(baselines), figsize=(5 * len(baselines), 7), sharey=True, squeeze=False)
     series = [("f32", "wray", "float precise"), ("f32", "wray fast", "float fast"), ("f64", "wray", "double precise")]
-    width = 0.8 / len(series)
     colors = [COLORS["f32"], COLORS["fast"], COLORS["f64"]]
-    for k, (kind, variant, label) in enumerate(series):
-        vals = [table[kind][f]["std"] / table[kind][f][variant] if variant in table[kind].get(f, {}) else np.nan for f in names]
-        bars = ax.bar(idx + (k - 1) * width, vals, width, color=colors[k], label=label)
-        for b, v in zip(bars, vals):
-            if np.isfinite(v):
-                ax.text(b.get_x() + b.get_width() / 2, v + 0.15, f"{v:.1f}", ha="center", fontsize=6.5, color=MUTED)
-    ax.axhline(1, color=MUTED, linewidth=0.8)
-    ax.set_xticks(idx, names, rotation=35, ha="right")
-    ax.set_ylabel("speedup over std:: (x)")
-    ax.set_title(f"Speedup over the C++ standard library ({machine})")
-    ax.legend(ncols=3, loc="upper left")
-    fig.tight_layout()
+    idx = np.arange(len(names))
+    width = 0.24
+    for ax, baseline in zip(axes[0], baselines):
+        for k, (kind, variant, label) in enumerate(series):
+            points = [ratios.get((kind, f, variant, baseline)) for f in names]
+            vals = [p["speedup"] if p else np.nan for p in points]
+            low = [p["speedup"] - p["ci_low"] if p else np.nan for p in points]
+            high = [p["ci_high"] - p["speedup"] if p else np.nan for p in points]
+            y = idx + (k - 1) * width
+            ax.barh(y, vals, width, color=colors[k], label=label,
+                    xerr=np.array([low, high]), error_kw={"elinewidth": 0.7, "capsize": 2, "ecolor": INK})
+            for position, point in zip(y, points):
+                if point:
+                    ax.annotate(f"{point['speedup']:.2f}×", (point["ci_high"], position),
+                                xytext=(5, 0), textcoords="offset points", va="center", fontsize=10)
+        ax.axvline(1, color=MUTED, linewidth=0.8)
+        ax.set_yticks(idx, names, fontsize=11)
+        ax.set_ylim(len(names) - 0.5, -0.5)
+        ax.set_xlim(left=0)
+        ax.margins(x=0.2)
+        ax.set_xlabel("paired throughput ratio (>1× is faster)")
+        ax.set_title(f"vs {LABELS[baseline]}", fontsize=12)
+    fig.suptitle(f"Buffer throughput: selected primitives\n{machine}", fontsize=13)
+    axes[0, 0].legend(ncols=3, loc="lower left", bbox_to_anchor=(0, 1.02), fontsize=9)
+    fig.text(0.5, 0.01, "95% bootstrap intervals · different accuracy/domain contracts · scalar latency may be worse",
+             ha="center", fontsize=9, color=MUTED)
+    fig.tight_layout(rect=(0, 0.035, 1, 0.92))
     save(fig, out, "speedup.png")
 
 
@@ -275,7 +294,7 @@ def spectral_charts(spec, out):
         naive = np.array(row["naive"])
         adaa = np.array(row["adaa"])
         x = np.linspace(0, 0.5, len(naive))
-        ax.plot(x, naive, color=COLORS["std"], linewidth=0.6, label="pointwise")
+        ax.plot(x, naive, color=COLORS["libm"], linewidth=0.6, label="pointwise")
         ax.plot(x, adaa, color=COLORS["wray"], linewidth=0.6, label="first-order ADAA")
         ax.set_title(f"{row['name']}: aliasing -{row['reduction']:.1f} dB")
         ax.set_ylim(-160, 10)
@@ -287,7 +306,7 @@ def spectral_charts(spec, out):
 
     sm = spec["smoothing"]
     fig, ax = plt.subplots(figsize=(7, 3.2))
-    ax.loglog(sm["samples"], np.maximum(sm["naive"], 1e-3), color=COLORS["std"], linewidth=0.9, label="1 - exp(-1 / (t fs)) in float")
+    ax.loglog(sm["samples"], np.maximum(sm["naive"], 1e-3), color=COLORS["libm"], linewidth=0.9, label="1 - exp(-1 / (t fs)) in float")
     ax.loglog(sm["samples"], np.maximum(sm["wray"], 1e-3), color=COLORS["wray"], linewidth=0.9, label="wray::smoothing_coefficient")
     ax.set_xlabel("time constant in samples (t fs)")
     ax.set_ylabel("error in ulp")
@@ -309,15 +328,16 @@ def main():
     cores = json.loads((data / "cores.json").read_text())
     acc = json.loads((data / "accuracy.json").read_text())
     bench = json.loads((data / "bench.json").read_text())
+    machine = args.machine or f"{bench['meta']['cpu']} / {bench['meta']['backend']}"
     remez_chart(cores, out)
     pareto_chart(cores, out)
     for tier in ["f32", "f64", "fast"]:
         accuracy_chart(acc, tier, out)
     summary_chart(acc, out)
     trig_chart(acc, out)
-    throughput_chart(bench, args.machine, out)
-    latency_chart(bench, args.machine, out)
-    speedup_chart(bench, args.machine, out)
+    throughput_chart(bench, machine, out)
+    latency_chart(bench, machine, out)
+    speedup_chart(bench, machine, out)
     spectral = data / "spectral.json"
     if spectral.exists():
         spectral_charts(json.loads(spectral.read_text()), out)

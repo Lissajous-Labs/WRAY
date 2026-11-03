@@ -15,7 +15,7 @@
 
 (Wray & Nephew is a high-quality rum; you are highly advised to mix it with juice (JUCE))!
 
-Fast, verified math for audio DSP: header-only C++20, SIMD (NEON, SSE2, AVX2, AVX-512, scalar), `float` and `double`.
+Verified SIMD math for audio DSP: header-only C++20, NEON, SSE2, AVX2, AVX-512 and scalar backends, `float` and `double`.
 
 These kernels are specifically the fast math code in our shipping plugins, Chronos and Torus. Here every core is regenerated from first principles with a rational Remez solver and re-verified against 40-digit arithmetic.
 
@@ -44,6 +44,8 @@ Every function takes a scalar, a SIMD vector, or a range (any length, no alignme
 `sincos` and `sincos_turns` write both outputs in one pass, stopping at the shortest range. Their outputs must not overlap; either output can be the input itself.
 
 `wray::fast::` is a quicker `float`-only tier, accurate to 2^-16 relative error.
+
+**Buffer throughput, not scalar-call latency.** On Apple, compare with vForce—not just scalar libm. Precise `sincos` is slower than vForce on the M1 Max. A dependent scalar call can also be slower than libm. Results apply only to the named machine and backend. [Method and platform results](docs/details.md#performance).
 
 ![speedup](docs/charts/speedup.png)
 
@@ -123,7 +125,7 @@ NEON, SSE2, AVX2, AVX-512 and scalar backends. Scalar and SIMD code give bit-ide
 
 ![latency](docs/charts/latency.png)
 
-Over buffers the SIMD loops are several times faster than the standard library. A single value in a feedback loop can be slower than libm.
+The latency chart measures dependent scalar calls, not buffer throughput.
 
 ## How it is verified
 
@@ -161,12 +163,14 @@ More: [float](docs/charts/accuracy_f32.png), [double](docs/charts/accuracy_f64.p
 python3 -m venv .venv && .venv/bin/pip install -r tools/requirements.txt
 .venv/bin/python tools/remez/generate.py --header include/wray/math/coefficients.h --report docs/data/cores.json
 .venv/bin/python tools/oracle/oracle.py --dump build/tools/wray_dump --out docs/data/accuracy.json --samples 50000 --check
-build/bench/wray_bench docs/data/bench.json
+build/bench/wray_bench docs/data/bench.json --baseline vforce
 build/tests/wray_spectral_test --json docs/data/spectral.json
 .venv/bin/python tools/charts/charts.py --machine "your machine"
 .venv/bin/python tools/docs/check_readme.py --dump build/tools/wray_dump
 .venv/bin/python tools/brand/logo.py --font path/to/ClashGrotesk-Semibold.ttf
 ```
+
+Use `--baseline libm` on Windows and Linux. On macOS both baselines are recorded side by side; the switch selects the primary denominator.
 
 ## License
 
