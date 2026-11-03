@@ -625,16 +625,19 @@ namespace wray::inline WRAY_ABI::math::detail
         int q;
     };
 
+    inline std::uint32_t limb_at(const std::uint32_t *limbs, int count, int index) noexcept
+    {
+        return index >= 0 && index < count ? limbs[index] : 0u;
+    }
+
     inline std::uint64_t bits_at(const std::uint32_t *limbs, int count, int position, int width) noexcept
     {
-        std::uint64_t v = 0;
-        for (int b = width - 1; b >= 0; --b)
-        {
-            const int at = position + b;
-            const std::uint64_t bit = at >= 0 && at < 32 * count ? (limbs[at / 32] >> (at % 32)) & 1u : 0u;
-            v = (v << 1) | bit;
-        }
-        return v;
+        const int word = position >= 0 ? position / 32 : -((31 - position) / 32);
+        const int shift = position - 32 * word;
+        const std::uint64_t low = limb_at(limbs, count, word) | (std::uint64_t(limb_at(limbs, count, word + 1)) << 32);
+        const std::uint64_t high = limb_at(limbs, count, word + 2);
+        const std::uint64_t v = shift == 0 ? low : (low >> shift) | (high << (64 - shift));
+        return width == 64 ? v : v & ((std::uint64_t(1) << width) - 1);
     }
 
     inline huge_reduction reduce_huge(double x) noexcept
