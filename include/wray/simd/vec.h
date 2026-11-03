@@ -878,19 +878,16 @@ namespace wray::inline WRAY_ABI::simd
         return _mm_round_ps(a.v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
 #else
         const __m128 sign = _mm_set1_ps(-0.0f);
-        const __m128 m = _mm_or_ps(_mm_set1_ps(0x1p23f), _mm_and_ps(a.v, sign));
-        const __m128 c = WRAY_VOP(_mm_add_ps, +, a.v, m);
-        const __m128 r = WRAY_VOP(_mm_sub_ps, -, c, m);
-        const __m128 d = WRAY_VOP(_mm_sub_ps, -, a.v, r);
-        const __m128 odd = _mm_castsi128_ps(_mm_cmpeq_epi32(_mm_and_si128(_mm_castps_si128(c), _mm_set1_epi32(1)), _mm_set1_epi32(1)));
+        const __m128 ax = _mm_andnot_ps(sign, a.v);
+        const __m128i ti = _mm_cvttps_epi32(ax);
+        const __m128 t = _mm_cvtepi32_ps(ti);
+        const __m128 d = WRAY_VOP(_mm_sub_ps, -, ax, t);
         const __m128 half = _mm_set1_ps(0.5f);
-        const __m128 low = _mm_set1_ps(-0.5f);
+        const __m128 odd = _mm_castsi128_ps(_mm_srai_epi32(_mm_slli_epi32(ti, 31), 31));
         const __m128 up = _mm_or_ps(_mm_cmpgt_ps(d, half), _mm_and_ps(_mm_cmpeq_ps(d, half), odd));
-        const __m128 down = _mm_or_ps(_mm_cmplt_ps(d, low), _mm_and_ps(_mm_cmpeq_ps(d, low), odd));
-        const __m128 step = _mm_or_ps(_mm_and_ps(up, _mm_set1_ps(1.0f)), _mm_and_ps(down, _mm_set1_ps(-1.0f)));
-        const __m128 v = WRAY_VOP(_mm_add_ps, +, r, step);
-        const __m128 rounded = _mm_or_ps(_mm_andnot_ps(sign, v), _mm_and_ps(a.v, sign));
-        const __m128 keep = _mm_cmpnlt_ps(_mm_andnot_ps(sign, a.v), _mm_set1_ps(0x1p23f));
+        const __m128 v = WRAY_VOP(_mm_add_ps, +, t, _mm_and_ps(up, _mm_set1_ps(1.0f)));
+        const __m128 rounded = _mm_or_ps(v, _mm_and_ps(a.v, sign));
+        const __m128 keep = _mm_cmpnlt_ps(ax, _mm_set1_ps(0x1p23f));
         return _mm_or_ps(_mm_and_ps(keep, a.v), _mm_andnot_ps(keep, rounded));
 #endif
     }
