@@ -362,6 +362,37 @@ namespace
         }
         CHECK(same(wray::pow(T(2), huge), inf));
         CHECK(same(wray::pow(T(0.5), huge), T(0)));
+        for (int lane = 0; lane < V::size; ++lane)
+        {
+            for (int kind = 0; kind < 4; ++kind)
+            {
+                T bases[V::size], exponents[V::size];
+                for (int i = 0; i < V::size; ++i)
+                {
+                    bases[i] = T(2);
+                    exponents[i] = T(2);
+                }
+                const T base[] = {T(-2), -T(0), T(-3), -inf};
+                const T exponent[] = {T(3), T(3), T(0.5), T(-3)};
+                const T expected[] = {T(-8), -T(0), nan, -T(0)};
+                bases[lane] = base[kind];
+                exponents[lane] = exponent[kind];
+                const V result = wray::pow(V::load(bases), V::load(exponents));
+                for (int i = 0; i < V::size; ++i)
+                    CHECK(same(result[i], i == lane ? expected[kind] : T(4)));
+                if constexpr (std::is_same_v<T, float>)
+                {
+                    const V fast = wray::fast::pow(V::load(bases), V::load(exponents));
+                    const T target = kind == 1 || kind == 3 ? -std::numeric_limits<T>::min() : expected[kind];
+                    for (int i = 0; i < V::size; ++i)
+                    {
+                        const T want = i == lane ? target : T(4);
+                        CHECK(std::isnan(want) ? std::isnan(fast[i]) :
+                              std::signbit(fast[i]) == std::signbit(want) && std::abs(fast[i] - want) <= std::abs(want) * T(0x1p-16));
+                    }
+                }
+            }
+        }
     }
 
     template <class T>

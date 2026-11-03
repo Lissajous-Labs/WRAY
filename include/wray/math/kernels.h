@@ -523,10 +523,11 @@ namespace wray::inline WRAY_ABI::math::detail
         const auto prod = two_product(p.hi, V(K::inv_ln2_hi));
         const V cross = fma(p.hi, V(K::inv_ln2_lo), p.lo * V(K::inv_ln2_hi));
         const V plo = prod.lo + cross;
-        const auto sum = two_sum(p.e, prod.hi);
-        const V lo = sum.lo + plo;
-        const V hi = sum.hi + lo;
-        const V rest = lo - (hi - sum.hi);
+        const V sum = p.e + prod.hi;
+        const V error = prod.hi - (sum - p.e);
+        const V lo = error + plo;
+        const V hi = sum + lo;
+        const V rest = lo - (hi - sum);
         return {hi, rest};
     }
 
@@ -1368,10 +1369,12 @@ namespace wray::inline WRAY_ABI::math::detail
         using F = format<S>;
         using I = integer_t<V>;
         const V r = pow_magnitude<Tier>(abs(x), y);
+        const auto negative = nonzero(as_bits(x) & I(F::sign_bit));
+        if (!simd::any(negative))
+            return r;
         const V half = y * V(S(0.5));
         const auto whole = round_nearest(y) == y;
         const auto odd = both(whole, round_nearest(half) != half);
-        const auto negative = nonzero(as_bits(x) & I(F::sign_bit));
         const V signed_r = select(both(negative, odd), -r, r);
         const auto invalid = both(both(x < V(S(0)), abs(x) < inf<V>()), !whole);
         return select(invalid, nan<V>(), signed_r);
