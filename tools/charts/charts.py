@@ -16,15 +16,15 @@ from matplotlib.transforms import offset_copy
 THEMES = {
     "dark": {
         "ink": "#e6edf3", "muted": "#9198a1", "grid": "#3d444d", "surface": "#161b22",
-        "colors": {"libm": "#848d97", "vforce": "#79c0ff", "sleef_u10": "#56d4c1", "sleef_u35": "#2ab3a0", "libmvec": "#7ee787", "wray": "#ff6a57", "wray fast": "#ffb340",
-                   "f32": "#ff6a57", "f64": "#bc9cff", "fast": "#ffb340", "contract": "#e6edf3"},
+        "colors": {"libm": "#848d97", "vforce": "#79c0ff", "sleef_u10": "#56d4c1", "sleef_u35": "#2ab3a0", "libmvec": "#7ee787", "wray": "#ff6a57", "wray balanced": "#f778ba", "wray fast": "#ffb340",
+                   "f32": "#ff6a57", "f64": "#bc9cff", "balanced_f32": "#f778ba", "balanced_f64": "#d2d95b", "fast": "#ffb340", "contract": "#e6edf3"},
         "spectra": ["#ff6a57", "#ffb340", "#bc9cff", "#848d97"],
         "ramp": ["#161b22", "#3d2a6e", "#9b2f6d", "#ff5c4a", "#ffd166"],
     },
     "light": {
         "ink": "#1f2328", "muted": "#59636e", "grid": "#d1d9e0", "surface": "#f6f8fa",
-        "colors": {"libm": "#6e7781", "vforce": "#0969da", "sleef_u10": "#0f766e", "sleef_u35": "#279185", "libmvec": "#1a7f37", "wray": "#cf2e1c", "wray fast": "#9a6700",
-                   "f32": "#cf2e1c", "f64": "#7c3aed", "fast": "#9a6700", "contract": "#1f2328"},
+        "colors": {"libm": "#6e7781", "vforce": "#0969da", "sleef_u10": "#0f766e", "sleef_u35": "#279185", "libmvec": "#1a7f37", "wray": "#cf2e1c", "wray balanced": "#9b258c", "wray fast": "#9a6700",
+                   "f32": "#cf2e1c", "f64": "#7c3aed", "balanced_f32": "#9b258c", "balanced_f64": "#656d00", "fast": "#9a6700", "contract": "#1f2328"},
         "spectra": ["#cf2e1c", "#9a6700", "#7c3aed", "#6e7781"],
         "ramp": ["#f6f8fa", "#d9c8f5", "#c86aa8", "#e5432f", "#ffb02e"],
     },
@@ -32,12 +32,12 @@ THEMES = {
 SANS = ["Avenir Next", "Helvetica Neue", "Inter", "Arial", "DejaVu Sans"]
 MONO = ["Menlo", "SF Mono", "JetBrains Mono", "DejaVu Sans Mono"]
 LABELS = {"libm": "scalar libm", "vforce": "Apple vForce", "sleef_u10": "SLEEF 1.0 ulp", "sleef_u35": "SLEEF 3.5 ulp",
-          "libmvec": "glibc libmvec", "wray": "WRAY precise", "wray fast": "WRAY fast"}
+          "libmvec": "glibc libmvec", "wray": "WRAY precise", "wray balanced": "WRAY balanced", "wray fast": "WRAY fast"}
 REFERENCES = ["libm", "vforce", "sleef_u10", "sleef_u35", "libmvec"]
 FUNCTIONS = ["product_log", "omega", "ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tanpi", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain", "gain_to_db"]
 BENCH_FUNCTIONS = ["product_log", "omega", "smoothing_coefficient", "pole_from_cutoff", "prewarp", "ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tanpi", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "sincos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain", "gain_to_db"]
 SPEEDUP_FUNCTIONS = ["exp", "log", "sin", "cos", "sincos", "tanh", "pow", "db_to_gain"]
-TIER_LABEL = {"f32": "float precise", "f64": "double precise", "fast": "float fast"}
+TIER_LABEL = {"f32": "float precise", "f64": "double precise", "balanced_f32": "float balanced", "balanced_f64": "double balanced", "fast": "float fast"}
 
 T = {}
 COLORS = {}
@@ -210,7 +210,9 @@ def axis_values(x):
 
 def accuracy_chart(acc, tier, out):
     rows = {r["function"]: r for r in acc if r["tier"] == tier}
-    names = [f for f in FUNCTIONS if f in rows]
+    names = [f for f in FUNCTIONS + ["sincos_sin", "sincos_cos"] if f in rows]
+    if not names:
+        return
     fig, axes = grid(len(names), 4, 3.6, 2.4)
     for ax, name in zip(axes, names):
         r = rows[name]
@@ -237,7 +239,13 @@ def accuracy_chart(acc, tier, out):
 
 
 def summary_chart(acc, out):
-    fig, (left, right) = plt.subplots(1, 2, figsize=(13.5, 4.6), gridspec_kw={"width_ratios": [2.3, 1]})
+    balanced_rows = {tier: {r["function"]: r for r in acc if r["tier"] == tier}
+                     for tier in ("balanced_f32", "balanced_f64")}
+    has_balanced = any(balanced_rows.values())
+    widths = [2.3, 1, 1] if has_balanced else [2.3, 1]
+    fig, axes = plt.subplots(1, len(widths), figsize=(17.5 if has_balanced else 13.5, 4.6),
+                             gridspec_kw={"width_ratios": widths})
+    left, right = axes[:2]
     idx = np.arange(len(FUNCTIONS))
     width = 0.36
     for k, tier in enumerate(["f32", "f64"]):
@@ -268,16 +276,36 @@ def summary_chart(acc, out):
     right.set_xlabel("worst relative error")
     right.set_title("Fast tier · float")
     value_axis(right, "x")
+    if has_balanced:
+        ax = axes[2]
+        names = [f for f in FUNCTIONS + ["sincos_sin", "sincos_cos"]
+                 if any(f in rows for rows in balanced_rows.values())]
+        idx = np.arange(len(names))
+        for k, (tier, rows) in enumerate(balanced_rows.items()):
+            positions = idx + (k - 0.5) * width
+            ax.barh(positions, [rows[f]["score"] if f in rows else np.nan for f in names],
+                    width * 0.92, color=COLORS[tier], label=TIER_LABEL[tier])
+            ax.scatter([rows[f]["contract"] if f in rows else np.nan for f in names], positions,
+                       marker="|", s=70, linewidths=1.4, color=COLORS["contract"], zorder=3)
+        ax.set_yticks(idx, names)
+        mono_ticks(ax.get_yticklabels())
+        ax.invert_yaxis()
+        ax.set_xlabel("worst error (ulp)")
+        ax.set_title("Balanced tier · provisional")
+        ax.legend(loc="upper right", bbox_to_anchor=(1, 1.2))
+        value_axis(ax, "x")
     fig.tight_layout(w_pad=3)
-    header(fig, "Worst measured error", "against mpmath at 40 digits, 50k samples per function and tier")
+    header(fig, "Worst measured error", "dense samples against mpmath at 40 digits")
     save(fig, out, "accuracy_summary")
 
 
 def trig_chart(acc, out):
     fig, axes = plt.subplots(1, 3, figsize=(13, 3.4), sharey=True)
     for ax, name in zip(axes, ["sin", "cos", "tan"]):
-        for tier in ["f32", "f64"]:
-            r = next(r for r in acc if r["function"] == name and r["tier"] == tier)
+        for tier in ["f32", "f64", "balanced_f32", "balanced_f64"]:
+            r = next((r for r in acc if r["function"] == name and r["tier"] == tier), None)
+            if r is None:
+                continue
             x = np.abs(np.array(r["x"]))
             y = np.array(r["ulp"])
             keep = (x > 0) & np.isfinite(y)
@@ -323,11 +351,11 @@ def latency_chart(bench, machine, out):
     for ax, kind in zip(axes, ["f32", "f64"]):
         data = table.get(kind, {})
         names = [f for f in BENCH_FUNCTIONS if f in data]
-        variants = [v for v in ["libm", "wray", "wray fast"] if any(v in data[f] for f in names)]
+        variants = [v for v in ["libm", "wray", "wray balanced", "wray fast"] if any(v in data[f] for f in names)]
         grouped_bars(ax, data, names, variants)
         ax.set_ylabel("ns per dependent call, log scale")
         ax.set_title("float" if kind == "f32" else "double")
-    axes[1].legend(*axes[0].get_legend_handles_labels(), ncols=3, loc="upper right", bbox_to_anchor=(1, 1.14))
+    axes[1].legend(*axes[0].get_legend_handles_labels(), ncols=2, loc="upper right", bbox_to_anchor=(1, 1.2))
     fig.tight_layout(w_pad=3)
     header(fig, "Scalar latency · lower is better", f"median of dependent call chains · {machine}")
     save(fig, out, "latency")
@@ -338,11 +366,11 @@ def throughput_chart(bench, machine, out):
     for kind in ["f32", "f64"]:
         data = table[kind]
         names = [f for f in BENCH_FUNCTIONS if f in data]
-        variants = [v for v in REFERENCES + ["wray", "wray fast"] if any(v in data[f] for f in names)]
+        variants = [v for v in REFERENCES + ["wray", "wray balanced", "wray fast"] if any(v in data[f] for f in names)]
         fig, ax = plt.subplots(figsize=(13, 4.6))
         grouped_bars(ax, data, names, variants)
         ax.set_ylabel("ns per input, log scale")
-        ax.legend(ncols=len(variants), loc="upper right", bbox_to_anchor=(1, 1.12))
+        ax.legend(ncols=min(len(variants), 4), loc="upper right", bbox_to_anchor=(1, 1.24))
         fig.tight_layout()
         header(fig, f"{'Float' if kind == 'f32' else 'Double'} buffer throughput · lower is better",
                f"median paired samples over 4096 inputs; sincos writes both outputs · {machine}")
@@ -356,25 +384,29 @@ def speedup_chart(bench, machine, out, name="speedup"):
               for r in bench["rows"] if r["mode"] == "throughput" for c in r["comparisons"]}
     cols = min(len(baselines), 2)
     rows_n = math.ceil(len(baselines) / cols)
-    fig, axes = plt.subplots(rows_n, cols, figsize=(6 * cols, 6.4 * rows_n), squeeze=False)
+    fig, axes = plt.subplots(rows_n, cols, figsize=(6.8 * cols, 8.4 * rows_n), squeeze=False)
     for ax in axes.ravel()[len(baselines):]:
         ax.axis("off")
-    series = [("f32", "wray", "float precise", COLORS["f32"]), ("f32", "wray fast", "float fast", COLORS["fast"]),
-              ("f64", "wray", "double precise", COLORS["f64"])]
+    series = [("f32", "wray", "float precise", COLORS["f32"]),
+              ("f64", "wray", "double precise", COLORS["f64"]),
+              ("f32", "wray balanced", "float balanced", COLORS["balanced_f32"]),
+              ("f64", "wray balanced", "double balanced", COLORS["balanced_f64"]),
+              ("f32", "wray fast", "float fast", COLORS["fast"])]
+    series = [s for s in series if any(kind == s[0] and variant == s[1] for kind, _, variant, _ in ratios)]
     idx = np.arange(len(names))
-    width = 0.25
+    width = 0.82 / max(len(series), 1)
     for ax, baseline in zip(axes.ravel(), baselines):
         top = 1.0
         for k, (kind, variant, label, color) in enumerate(series):
             points = [ratios.get((kind, f, variant, baseline)) for f in names]
-            y = idx + (k - 1) * width
+            y = idx + (k - (len(series) - 1) / 2) * width
             vals = np.array([p["speedup"] if p else np.nan for p in points])
             ax.barh(y, vals, width * 0.86, color=color, label=label)
             for position, point in zip(y, points):
                 if point:
                     ax.plot([point["ci_low"], point["ci_high"]], [position, position], color=T["ink"], linewidth=0.8, alpha=0.6)
                     ax.annotate(f"{point['speedup']:.2f}×", (point["ci_high"], position), xytext=(5, 0),
-                                textcoords="offset points", va="center", fontsize=8.5, color=color, fontweight="semibold")
+                                textcoords="offset points", va="center", fontsize=8, color=color, fontweight="semibold")
                     top = max(top, point["ci_high"])
         for position, f in zip(idx, names):
             if not any(ratios.get((kind, f, variant, baseline)) for kind, variant, _, _ in series):
@@ -390,7 +422,7 @@ def speedup_chart(bench, machine, out, name="speedup"):
         ax.set_xlabel("paired throughput ratio · right of parity is faster")
         ax.set_title(f"vs {LABELS[baseline]}", fontsize=12)
         value_axis(ax, "x")
-    axes[0, -1].legend(ncols=3, loc="lower right", bbox_to_anchor=(1, 1.06))
+    axes[0, -1].legend(ncols=2, loc="lower right", bbox_to_anchor=(1, 1.06))
     fig.tight_layout(w_pad=3, h_pad=3)
     header(fig, "Buffer throughput", machine)
     footer(fig, "Bars are medians of paired rounds; whiskers are 95% bootstrap intervals. Contracts and domains differ by library; scalar latency can be slower.")
@@ -462,7 +494,7 @@ def main():
         style(theme)
         remez_chart(cores, out)
         pareto_chart(cores, out)
-        for tier in ["f32", "f64", "fast"]:
+        for tier in TIER_LABEL:
             accuracy_chart(acc, tier, out)
         summary_chart(acc, out)
         trig_chart(acc, out)

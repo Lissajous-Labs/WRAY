@@ -158,6 +158,46 @@ namespace
             }
         }
     }
+    template<class T, class Range, class Scalar>
+    void balanced_unary_ranges(Range apply, Scalar scalar)
+    {
+        constexpr std::size_t w = static_cast<std::size_t>(wray::simd::native<T>::size);
+        const T edge = std::is_same_v<T, float> ? T(0x1.921fb6p+12) : T(0x1.921fb54442d18p+22);
+        const T values[] = {T(0), -T(0), T(0.3), T(-1.7), edge, std::nextafter(edge, T(0)),
+                            std::nextafter(edge, std::numeric_limits<T>::infinity()),
+                            std::numeric_limits<T>::max(), -std::numeric_limits<T>::max(),
+                            std::numeric_limits<T>::denorm_min(), -std::numeric_limits<T>::denorm_min(),
+                            std::numeric_limits<T>::infinity(), -std::numeric_limits<T>::infinity(), std::numeric_limits<T>::quiet_NaN()};
+        const auto equal = [](T a, T b) { return same(a, b) || (std::isnan(a) && std::isnan(b)); };
+        for (std::size_t n = 0; n <= 8 * w + 1; ++n)
+        {
+            for (std::size_t offset = 0; offset < w; ++offset)
+            {
+                std::vector<T> a(offset + n + 2);
+                for (std::size_t i = 0; i < a.size(); ++i)
+                    a[i] = values[i % std::size(values)];
+                const std::span<const T> in(a.data() + offset, n);
+                for (int delta : {-1, 0, 3})
+                {
+                    const std::size_t count = delta < 0 ? (n ? n - 1 : 0) : n + std::size_t(delta);
+                    std::vector<T> out(offset + count + 2, T(7));
+                    apply(in, std::span<T>(out.data() + offset, count));
+                    bool ok = true;
+                    for (std::size_t i = 0; i < out.size(); ++i)
+                        ok = ok && (i >= offset && i < offset + std::min(n, count) ? equal(out[i], scalar(in[i - offset])) : out[i] == T(7));
+                    CHECK(ok);
+                }
+                std::vector<T> io(a);
+                const std::span<T> place(io.data() + offset, n);
+                apply(place, place);
+                bool ok = true;
+                for (std::size_t i = 0; i < io.size(); ++i)
+                    ok = ok && equal(io[i], i >= offset && i < offset + n ? scalar(in[i - offset]) : a[i]);
+                CHECK(ok);
+            }
+        }
+    }
+
 
     template<class T>
     void paired()
@@ -166,6 +206,10 @@ namespace
                          [](T x) { return wray::sincos(x); });
         paired_ranges<T>([](auto in, auto s, auto c) { wray::sincos_turns(in, s, c); },
                          [](T x) { return wray::sincos_turns(x); });
+        paired_ranges<T>([](auto in, auto s, auto c) { wray::balanced::sincos(in, s, c); },
+                         [](T x) { return wray::balanced::sincos(x); });
+        balanced_unary_ranges<T>([](auto in, auto out) { wray::balanced::sin(in, out); }, [](T x) { return wray::balanced::sin(x); });
+        balanced_unary_ranges<T>([](auto in, auto out) { wray::balanced::cos(in, out); }, [](T x) { return wray::balanced::cos(x); });
         if constexpr (std::is_same_v<T, float>)
         {
             paired_ranges<T>([](auto in, auto s, auto c) { wray::fast::sincos(in, s, c); },

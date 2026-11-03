@@ -245,6 +245,40 @@ namespace
                 CHECK(same(v[i], r.want));
         }
     }
+    template <class T>
+    void balanced_specials()
+    {
+        using V = wray::simd::native<T>;
+        const T inf = std::numeric_limits<T>::infinity();
+        const T nan = std::numeric_limits<T>::quiet_NaN();
+        for (const T x : {T(0), -T(0)})
+        {
+            const auto sc = wray::balanced::sincos(x);
+            const auto vc = wray::balanced::sincos(V(x));
+            CHECK(same(wray::balanced::sin(x), x));
+            CHECK(same(wray::balanced::cos(x), T(1)));
+            CHECK(same(sc.sin, x) && same(sc.cos, T(1)));
+            for (int i = 0; i < V::size; ++i)
+            {
+                CHECK(same(wray::balanced::sin(V(x))[i], x));
+                CHECK(same(wray::balanced::cos(V(x))[i], T(1)));
+                CHECK(same(vc.sin[i], x) && same(vc.cos[i], T(1)));
+            }
+        }
+        for (const T x : {inf, -inf, nan})
+        {
+            const auto sc = wray::balanced::sincos(x);
+            const auto vc = wray::balanced::sincos(V(x));
+            CHECK(std::isnan(wray::balanced::sin(x)) && std::isnan(wray::balanced::cos(x)));
+            CHECK(std::isnan(sc.sin) && std::isnan(sc.cos));
+            for (int i = 0; i < V::size; ++i)
+            {
+                CHECK(std::isnan(wray::balanced::sin(V(x))[i]) && std::isnan(wray::balanced::cos(V(x))[i]));
+                CHECK(std::isnan(vc.sin[i]) && std::isnan(vc.cos[i]));
+            }
+        }
+    }
+
 
     template <class T, class V>
     void huge_trig()
@@ -285,6 +319,15 @@ namespace
                 CHECK(close(sc.sin, s, 1));
                 CHECK(close(sc.cos, r.cos, 1));
                 CHECK(close(wray::sin(V(x))[V::size - 1], s, 1));
+                constexpr long double balanced_bound = WRAY_HAS_FMA ? 2.5L : 3.0L;
+                const auto bsc = wray::balanced::sincos(x);
+                const auto bvc = wray::balanced::sincos(V(x));
+                CHECK(close(wray::balanced::sin(x), s, balanced_bound));
+                CHECK(close(wray::balanced::cos(x), r.cos, balanced_bound));
+                CHECK(close(bsc.sin, s, balanced_bound) && close(bsc.cos, r.cos, balanced_bound));
+                CHECK(close(wray::balanced::sin(V(x))[V::size - 1], s, balanced_bound));
+                CHECK(close(wray::balanced::cos(V(x))[V::size - 1], r.cos, balanced_bound));
+                CHECK(close(bvc.sin[V::size - 1], s, balanced_bound) && close(bvc.cos[V::size - 1], r.cos, balanced_bound));
                 if constexpr (std::is_same_v<T, float>)
                 {
                     CHECK(close(wray::fast::sin(x), s, 128));
@@ -598,6 +641,8 @@ int main()
 {
     unary_specials<float>();
     unary_specials<double>();
+    balanced_specials<float>();
+    balanced_specials<double>();
     binary_specials<float>();
     binary_specials<double>();
     octaves<float>();

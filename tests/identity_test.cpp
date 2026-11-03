@@ -101,6 +101,14 @@ namespace
                 WRAY_ROW(wray::fast, db_to_gain), WRAY_ROW(wray::fast, gain_to_db)};
     }
 
+    template <class T, class V>
+    std::vector<named<T, V> > balanced_rows()
+    {
+        return {WRAY_ROW(wray::balanced, sin), WRAY_ROW(wray::balanced, cos),
+                named<T, V>{"balanced::sincos_sin", [](T x) { return wray::balanced::sincos(x).sin; }, [](V x) { return wray::balanced::sincos(x).sin; }},
+                named<T, V>{"balanced::sincos_cos", [](T x) { return wray::balanced::sincos(x).cos; }, [](V x) { return wray::balanced::sincos(x).cos; }}};
+    }
+
 #undef WRAY_ROW
 
     template <class T, class V>
@@ -147,6 +155,17 @@ namespace
             bool ok = same(sc.sin[0], wray::sin(x)) && same(sc.cos[0], wray::cos(x)) && same(st.sin[0], wray::sin_turns(x)) && same(st.cos[0], wray::cos_turns(x));
             const auto scalar_sc = wray::sincos(x);
             ok = ok && same(scalar_sc.sin, wray::sin(x)) && same(scalar_sc.cos, wray::cos(x));
+            const auto bsc = wray::balanced::sincos(V(x));
+            const auto scalar_bsc = wray::balanced::sincos(x);
+            const T bs = wray::balanced::sin(x);
+            const T bc = wray::balanced::cos(x);
+            ok = ok && same(bsc.sin[0], scalar_bsc.sin) && same(bsc.cos[0], scalar_bsc.cos);
+            const T norm_bound = T(16) * std::numeric_limits<T>::epsilon();
+            ok = ok && std::fabs(bs * bs + bc * bc - T(1)) <= norm_bound;
+            ok = ok && std::fabs(scalar_bsc.sin * scalar_bsc.sin + scalar_bsc.cos * scalar_bsc.cos - T(1)) <= norm_bound;
+            ok = ok && same(wray::balanced::sin(-x), -bs) && same(wray::balanced::cos(-x), bc);
+            const auto negative_bsc = wray::balanced::sincos(-x);
+            ok = ok && same(negative_bsc.sin, -scalar_bsc.sin) && same(negative_bsc.cos, scalar_bsc.cos);
             if constexpr (std::is_same_v<T, float>)
             {
                 const auto fsc = wray::fast::sincos(V(x));
@@ -187,6 +206,7 @@ namespace
     void widths(std::uint64_t seed)
     {
         mixed_lanes<T, V>(precise_rows<T, V>());
+        mixed_lanes<T, V>(balanced_rows<T, V>());
         if constexpr (std::is_same_v<T, float>)
             mixed_lanes<T, V>(fast_rows<T, V>());
         metamorphic<T, V>(seed);

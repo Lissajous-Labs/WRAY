@@ -6,6 +6,7 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 
 ### Added
 
+- `wray::balanced::{sin,cos,sincos}` for scalar, SIMD and range calls in `float` and `double`, plus matching `wray_balanced_<sin|cos|sincos>_<f32|f64>` C buffer calls. Round-to-nearest targets 2.5 ulp per output and directed rounding 8 ulp, plus 0.5 ulp without FMA. Every finite input is supported; paired `sincos` may differ from separate calls. Precise and fast behavior is unchanged (#93).
 - `wray_bench` measures SLEEF 3.9 (1.0- and 3.5-ulp tiers) and glibc libmvec at each backend's native vector width when they are available, checks their outputs against libm before timing, and records which were present. Native x86 CI builds SLEEF from a checksummed release and fails if a Linux run lacks either library; charts now include Linux AVX2 and AVX-512 hosts (#92).
 - `adaa::first_order<Shape, T>::process(in, out)` and `process(io)` for scalar `T` run consecutive mono samples in parallel lanes and match per-sample calls bit for bit: 2.9–4.3× faster in float and 1.5–2.1× in double on an M1 Max (#49).
 - `sincos(in, sin_out, cos_out)` and `sincos_turns(in, sin_out, cos_out)` produce both range outputs in one SIMD pass, including the float-only fast tier. They stop at the shortest range and support exact input aliasing with either disjoint output (#53).

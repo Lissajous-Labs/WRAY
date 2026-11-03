@@ -221,6 +221,10 @@ namespace
         const std::vector<piece> turn_domain{{p::values, -1, 1, false, 2}, {p::bits, tiny, huge, true, 1}, {p::near_turns, 0, 0, false, 1}};
         const std::vector<piece> trig_domain{{p::values, -2 * M_PI, 2 * M_PI, false, 4}, {p::values, -trig, trig, false, 4}, {p::bits, 1e-6, trig, true, 3}, {p::near_quadrants, 0, 0, false, 4}, {p::bits, trig, huge, true, 1}};
         const std::vector<piece> logs{{p::bits, tiny, huge, false, 1}, {p::values, 0.5, 2.0, false, 1}};
+        auto balanced_domain = trig_domain;
+        balanced_domain.push_back({p::bits, tiny, huge, true, 2});
+        constexpr auto root = std::bit_cast<std::uint64_t>(0x1.a9adcc7f96cf0p+20);
+        balanced_domain.push_back({p::bits, std::bit_cast<double>(root - 8), std::bit_cast<double>(root + 8), true, 1});
         return {
             {"exp", {{p::values, -745.0, 709.78, false, 1}, {p::bits, 1e-6, 709.78, true, 1}}, vector_run([](auto v) { return wray::exp(v); }), [](double x) { return expq(x); }},
             {"expm1", {{p::values, -2.0, 2.0, false, 1}, {p::bits, tiny, 709.78, true, 1}}, vector_run([](auto v) { return wray::expm1(v); }), [](double x) { return expm1q(x); }},
@@ -251,6 +255,10 @@ namespace
             {"tanh", {{p::values, -20, 20, false, 1}, {p::bits, tiny, 30, true, 1}}, vector_run([](auto v) { return wray::tanh(v); }), [](double x) { return tanhq(x); }},
             {"sigmoid", {{p::values, -744, 744, false, 1}}, vector_run([](auto v) { return wray::sigmoid(v); }), [](double x) { return 1 / (1 + expq(-static_cast<quad>(x))); }},
             {"db_to_gain", {{p::values, -6000, 6000, false, 1}}, vector_run([](auto v) { return wray::db_to_gain(v); }), [](double x) { return powq(10, static_cast<quad>(x) / 20); }},
+            {"balanced_sin", balanced_domain, vector_run([](auto v) { return wray::balanced::sin(v); }), [](double x) { return sinq(x); }},
+            {"balanced_cos", balanced_domain, vector_run([](auto v) { return wray::balanced::cos(v); }), [](double x) { return cosq(x); }},
+            {"balanced_sincos_sin", balanced_domain, vector_run([](auto v) { return wray::balanced::sincos(v).sin; }), [](double x) { return sinq(x); }},
+            {"balanced_sincos_cos", balanced_domain, vector_run([](auto v) { return wray::balanced::sincos(v).cos; }), [](double x) { return cosq(x); }},
         };
     }
 

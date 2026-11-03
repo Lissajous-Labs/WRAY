@@ -69,7 +69,7 @@ namespace
         return [f](const std::vector<T>& a, const std::vector<T>& b, std::vector<T>& out) { wray::math::apply(a, b, out, f); };
     }
 
-    template <class T, bool Fast>
+    template <class T, bool Fast, bool Balanced = false>
     struct catalogue
     {
         std::map<std::string, std::pair<unary<T>, unary<T>>> one;
@@ -89,7 +89,14 @@ namespace
 
         catalogue()
         {
-            if constexpr (Fast)
+            if constexpr (Balanced)
+            {
+                add("sin", [](auto v) { return wray::balanced::sin(v); });
+                add("cos", [](auto v) { return wray::balanced::cos(v); });
+                add("sincos_sin", [](auto v) { return wray::balanced::sincos(v).sin; });
+                add("sincos_cos", [](auto v) { return wray::balanced::sincos(v).cos; });
+            }
+            else if constexpr (Fast)
             {
                 add("exp", [](auto v) { return wray::fast::exp(v); });
                 add("exp2", [](auto v) { return wray::fast::exp2(v); });
@@ -173,10 +180,10 @@ namespace
         }
     };
 
-    template <class T, bool Fast>
+    template <class T, bool Fast, bool Balanced = false>
     int run(const std::string& fn, bool vectorised, const char* in_path, const char* out_path)
     {
-        static const catalogue<T, Fast> table;
+        static const catalogue<T, Fast, Balanced> table;
         auto data = read_all<T>(in_path);
         if (auto it = table.one.find(fn); it != table.one.end())
         {
@@ -229,10 +236,10 @@ namespace
         return h;
     }
 
-    template <class T, bool Fast>
+    template <class T, bool Fast, bool Balanced = false>
     void digest(const char* tier)
     {
-        static const catalogue<T, Fast> table;
+        static const catalogue<T, Fast, Balanced> table;
         constexpr std::size_t n = 1 << 16;
         const auto a = digest_inputs<T>(1, n);
         const auto b = digest_inputs<T>(2, n);
@@ -337,13 +344,15 @@ int main(int argc, char** argv)
         digest<float, false>("f32");
         digest<double, false>("f64");
         digest<float, true>("fast");
+        digest<float, false, true>("balanced_f32");
+        digest<double, false, true>("balanced_f64");
         stateful<float, wray::f32x4>("f32");
         stateful<double, wray::f64x2>("f64");
         return 0;
     }
     if (argc != 6)
     {
-        std::fprintf(stderr, "usage: wray_dump info | wray_dump <function> <f32|f64|fast> <scalar|vector> <in> <out>\n");
+        std::fprintf(stderr, "usage: wray_dump info | wray_dump <function> <f32|f64|fast|balanced_f32|balanced_f64> <scalar|vector> <in> <out>\n");
         return 2;
     }
     const std::string fn = argv[1];
@@ -355,6 +364,10 @@ int main(int argc, char** argv)
         return run<double, false>(fn, vectorised, argv[4], argv[5]);
     if (tier == "fast")
         return run<float, true>(fn, vectorised, argv[4], argv[5]);
+    if (tier == "balanced_f32")
+        return run<float, false, true>(fn, vectorised, argv[4], argv[5]);
+    if (tier == "balanced_f64")
+        return run<double, false, true>(fn, vectorised, argv[4], argv[5]);
     std::fprintf(stderr, "unknown tier %s\n", tier.c_str());
     return 2;
 }

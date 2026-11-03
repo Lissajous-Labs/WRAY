@@ -108,6 +108,16 @@ namespace
         binary(x, y, [](auto a, auto b) { return wray::pole_from_cutoff(a, b); });
         binary(x, y, [](auto a, auto b) { return wray::prewarp(a, b); });
     }
+    template <class T>
+    void balanced(std::mt19937_64& g)
+    {
+        const auto x = inputs<T>(g);
+        unary(x, [](auto v) { return wray::balanced::sin(v); });
+        unary(x, [](auto v) { return wray::balanced::cos(v); });
+        unary(x, [](auto v) { return wray::balanced::sincos(v).sin; });
+        unary(x, [](auto v) { return wray::balanced::sincos(v).cos; });
+    }
+
 
     void fast(std::mt19937_64& g)
     {
@@ -143,5 +153,7 @@ int main()
     precise<float>(g);
     precise<double>(g);
     fast(g);
+    balanced<float>(g);
+    balanced<double>(g);
     return wray::test::finish("parity");
 }

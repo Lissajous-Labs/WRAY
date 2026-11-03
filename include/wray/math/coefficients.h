@@ -245,6 +245,20 @@ namespace wray::inline WRAY_ABI::math::coeff
         static constexpr std::array<float, 1> q{ 0x1p+0f };
     };
 
+    struct sin_half_balanced_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 5> p{ -0x1.555556p-3f, 0x1.11111p-7f, -0x1.a019p-13f, 0x1.7195a8p-19f, -0x1.9d9a44p-26f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct sin_half_balanced_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 8> p{ -0x1.5555555555555p-3, 0x1.1111111111107p-7, -0x1.a01a01a0189eep-13, 0x1.71de3a544f38bp-19, -0x1.ae64559dacae7p-26, 0x1.6124001f68ef9p-33, -0x1.ae50dbdc76e43p-41, 0x1.8999caaa46f81p-49 };
+        static constexpr std::array<double, 1> q{ 0x1p+0 };
+    };
+
     struct sin_turns_f32
     {
         using value_type = float;
@@ -355,7 +369,12 @@ namespace wray::inline WRAY_ABI::math
         static constexpr float pio2_2 = -0x1.2aep-18f;
         static constexpr float pio2_3 = -0x1.deap-31f;
         static constexpr float pio2_4 = 0x1.184698p-44f;
+        static constexpr float pi_1 = 0x1.922p+1f;
+        static constexpr float pi_2 = -0x1.2aep-17f;
+        static constexpr float pi_3 = -0x1.deap-30f;
+        static constexpr float pi_4 = 0x1.184698p-43f;
         static constexpr float two_over_pi = 0x1.45f306p-1f;
+        static constexpr float inv_pi = 0x1.45f306p-2f;
         static constexpr float pi_hi = 0x1.921fb6p+1f;
         static constexpr float pi_lo = -0x1.777a5cp-24f;
         static constexpr float pio2_hi = 0x1.921fb6p+0f;
@@ -421,7 +440,12 @@ namespace wray::inline WRAY_ABI::math
         static constexpr double pio2_1 = 0x1.921fb544p+0;
         static constexpr double pio2_2 = 0x1.0b4611a8p-34;
         static constexpr double pio2_3 = -0x1.d9cceba3f91f2p-66;
+        static constexpr double pi_1 = 0x1.921fb544p+1;
+        static constexpr double pi_2 = 0x1.0b4611a8p-33;
+        static constexpr double pi_3 = -0x1.d9cceba4p-65;
+        static constexpr double pi_4 = 0x1.b839a252049c1p-103;
         static constexpr double two_over_pi = 0x1.45f306dc9c883p-1;
+        static constexpr double inv_pi = 0x1.45f306dc9c883p-2;
         static constexpr double pi_hi = 0x1.921fb54442d18p+1;
         static constexpr double pi_lo = 0x1.1a62633145c07p-53;
         static constexpr double pio2_hi = 0x1.921fb54442d18p+0;

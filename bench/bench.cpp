@@ -347,9 +347,17 @@ namespace
         if (n == "log2")
             unary(s, [](T x) { return std::log2(x); }, [](auto x) { return wray::log2(x); }, [](auto x) { return wray::fast::log2(x); });
         if (n == "sin")
+        {
             unary(s, [](T x) { return std::sin(x); }, [](auto x) { return wray::sin(x); }, [](auto x) { return wray::fast::sin(x); });
+            s.throughput_rows.push_back(simd_loop<T>("wray balanced", [](auto x) { return wray::balanced::sin(x); }));
+            s.latency_rows.push_back(chain<T>("wray balanced", [](T x) { return wray::balanced::sin(x); }));
+        }
         if (n == "cos")
+        {
             unary(s, [](T x) { return std::cos(x); }, [](auto x) { return wray::cos(x); }, [](auto x) { return wray::fast::cos(x); });
+            s.throughput_rows.push_back(simd_loop<T>("wray balanced", [](auto x) { return wray::balanced::cos(x); }));
+            s.latency_rows.push_back(chain<T>("wray balanced", [](T x) { return wray::balanced::cos(x); }));
+        }
         if (n == "sincos")
         {
             s.throughput_rows.push_back({"wray", [](const workload<T>& w, std::span<T> out, std::span<T> cos_out) {
@@ -358,6 +366,13 @@ namespace
             s.latency_rows.push_back(chain<T>("libm", [](T x) { return std::sin(x) + std::cos(x); }));
             s.latency_rows.push_back(chain<T>("wray", [](T x) {
                 const auto r = wray::sincos(x);
+                return r.sin + r.cos;
+            }));
+            s.throughput_rows.push_back({"wray balanced", [](const workload<T>& w, std::span<T> out, std::span<T> cos_out) {
+                wray::balanced::sincos(w.a, out, cos_out);
+            }});
+            s.latency_rows.push_back(chain<T>("wray balanced", [](T x) {
+                const auto r = wray::balanced::sincos(x);
                 return r.sin + r.cos;
             }));
             if constexpr (std::is_same_v<T, float>)

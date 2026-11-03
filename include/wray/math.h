@@ -552,4 +552,28 @@ namespace wray::inline WRAY_ABI::fast
     }
 }
 
+namespace wray::inline WRAY_ABI::balanced
+{
+    template<simd::real V>
+    WRAY_INLINE V sin(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::sin<math::balanced>(v); }); }
+
+    template<simd::real V>
+    WRAY_INLINE V cos(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::cos<math::balanced>(v); }); }
+
+    template<simd::real V>
+    WRAY_INLINE math::sincos_result<V> sincos(const V &x) noexcept { return math::lift_pair(x, [](const auto &v) { return math::detail::sincos<math::balanced>(v); }); }
+
+    template<math::real_range In, class Out>
+    void sin(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return balanced::sin(v); }); }
+
+    template<math::real_range In, class Out>
+    void cos(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return balanced::cos(v); }); }
+
+    template<math::real_range In, class SinOut, class CosOut>
+    void sincos(const In &in, SinOut &&sin_out, CosOut &&cos_out) noexcept
+    {
+        math::apply_pair(in, sin_out, cos_out, [](auto v) { return balanced::sincos(v); });
+    }
+}
+
 WRAY_FP_END

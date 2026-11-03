@@ -27,6 +27,8 @@ double b = wray::atan2(1.0, -2.0);
 auto   v = wray::tanh(wray::f32x4(0.25f));
 wray::sin(input, output);
 wray::sincos(input, sines, cosines);
+double d = wray::balanced::sin(0.5);
+auto   p = wray::balanced::sincos(wray::f32x4(0.25f));
 float  c = wray::fast::tanh(x);
 float  s = wray::sin_turns(phase);
 float  k = wray::smoothing_coefficient(0.010f, 48000.0f);
@@ -42,6 +44,8 @@ Every function takes a scalar, a SIMD vector, or a range (any length, no alignme
 - parameter maps: `smoothing_coefficient pole_from_cutoff prewarp`
 
 `sincos` and `sincos_turns` write both outputs in one pass, stopping at the shortest range. Their outputs must not overlap; either output can be the input itself.
+
+`wray::balanced::` provides `sin`, `cos` and `sincos` for `float` and `double`, trading precision for throughput: 2.5 ulp in round-to-nearest. It supports every finite input, scalar calls, SIMD and ranges. [Bounds and behavior](docs/details.md#balanced-tier).
 
 `wray::fast::` is a quicker `float`-only tier, accurate to 2^-16 relative error.
 
@@ -81,13 +85,15 @@ target_link_libraries(your_target PRIVATE wray::wray)
 
 ### From C, Rust, Python or Swift
 
-`wray_c` is a compiled library with a C ABI for languages that cannot use C++ templates. It covers every range function above in `float` and `double` and the `float` fast tier as buffer calls, with stable unmangled names:
+`wray_c` is a compiled library with a C ABI for languages that cannot use C++ templates. It covers every range function above in `float` and `double`, the balanced trig tier in both precisions, and the `float` fast tier as buffer calls, with stable unmangled names:
 
 ```c
 #include <wray/c/wray.h>
 
 wray_sin_f32(in, out, n);
 wray_sincos_f64(in, sin_out, cos_out, n);
+wray_balanced_sin_f32(in, out, n);
+wray_balanced_sincos_f64(in, sin_out, cos_out, n);
 wray_pow_f32(x, y, out, n);
 wray_fast_tanh_f32(in, out, n);
 ```
@@ -96,7 +102,7 @@ Configure WRAY with `-DWRAY_BUILD_C_API=ON`, then link `wray::c` or `libwray_c`.
 
 ## Accuracy contracts
 
-Maximum measured error in ulp (units in the last place). Every `float` input is tested for one-argument functions; the rest are densely sampled. `pow` loosens for very large results. [Details](docs/details.md#accuracy-contracts).
+The table below is for the unchanged precise tier: maximum measured error in ulp (units in the last place). Every `float` input is tested for one-argument precise functions; the rest are densely sampled. `pow` loosens for very large results. The balanced trig tier has a separate provisional 2.5-ulp round-to-nearest bound, not a claim of exhaustive verification or measured speed. [Details](docs/details.md#accuracy-contracts).
 
 | function | float | double | function | float | double |
 |---|---|---|---|---|---|
@@ -164,7 +170,7 @@ The latency chart measures dependent scalar calls, not buffer throughput.
 
 ## How it is verified
 
-Every `float` input, 10^8 `double` inputs per function, 40-digit reference checks, shape and determinism checks, and spectral tests. [Details](docs/details.md#how-it-is-verified).
+The established precise and fast tiers are checked on every `float` input, 10^8 `double` inputs per function, 40-digit references, shape and determinism checks, and spectral tests. Balanced trig has a provisional contract; it does not yet inherit those published sweep or timing claims. [Details](docs/details.md#how-it-is-verified).
 
 ```sh
 cmake -S . -B build -G Ninja && cmake --build build && ctest --test-dir build

@@ -7,6 +7,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "oracle"))
 import mpmath as mp
 import oracle
 
+BALANCED = {f"balanced_{name}": name for name in oracle.CONTRACTS["balanced_f64"]}
+
 
 def verify(dense, seed, count):
     out = subprocess.run([dense, "--references", "--samples", str(count), "--seed", str(seed)], check=True, capture_output=True, text=True).stdout
@@ -14,8 +16,9 @@ def verify(dense, seed, count):
     worst = {}
     for line in out.splitlines()[1:]:
         name, x, y, ref = line.split()
-        args = (mp.mpf(float.fromhex(x)),) if name in oracle.UNARY else (mp.mpf(float.fromhex(x)), mp.mpf(float.fromhex(y)))
-        want = oracle.REFERENCE[name](*args)
+        function = BALANCED.get(name, name)
+        args = (mp.mpf(float.fromhex(x)),) if function in oracle.UNARY or name in BALANCED else (mp.mpf(float.fromhex(x)), mp.mpf(float.fromhex(y)))
+        want = oracle.REFERENCE[function](*args)
         got = mp.mpf(ref)
         if not mp.isfinite(want) or want == 0:
             rel = 0 if got == want else mp.inf
@@ -42,7 +45,7 @@ def main():
     parser.add_argument("only", nargs="*")
     args = parser.parse_args()
     index, count = (int(v) for v in args.shard.split("/"))
-    names = args.only or [n for n in oracle.UNARY + oracle.BINARY if n in oracle.CONTRACTS["f64"] and not n.startswith("adaa_")]
+    names = args.only or ([n for n in oracle.UNARY + oracle.BINARY if n in oracle.CONTRACTS["f64"] and not n.startswith("adaa_")] + list(BALANCED))
     names = names[index::count]
     failures = verify(args.dense, args.seed, args.verify) if args.verify else 0
     run = subprocess.run([args.dense, "--samples", str(args.samples), "--seed", str(args.seed), "--pow-scale", str(oracle.POW_SCALE)] + names,
@@ -52,7 +55,7 @@ def main():
     margin = 0.0 if fma else oracle.NO_FMA_MARGIN
     for line in run[1:]:
         name, value, x, y = line.split()
-        bound = oracle.CONTRACTS["f64"][name] + margin
+        bound = (oracle.CONTRACTS["balanced_f64"][BALANCED[name]] if name in BALANCED else oracle.CONTRACTS["f64"][name]) + margin
         ok = float(value) <= bound
         failures += 0 if ok else 1
         print(f"{name:>22} {float(value):10.4g} ulp (contract {bound:.4g})  {'ok' if ok else 'FAIL'}  worst x {float.fromhex(x)!r} y {float.fromhex(y)!r}")

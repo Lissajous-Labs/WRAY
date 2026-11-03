@@ -78,6 +78,10 @@ def log_t():
     return ((mp.sqrt(2) - 1) / (mp.sqrt(2) + 1)) ** 2
 
 
+def pi2_sq():
+    return (mp.pi / 2) ** 2
+
+
 def pi4_sq():
     return (mp.pi / 4) ** 2
 
@@ -158,6 +162,7 @@ CORES = {
                 pin=lambda tier: [-ln2_half(), ln2_half()] if tier == "fast" else []),
     "log": dict(g=_limit(log_tail, lambda: mp.mpf(2) / 3), interval=lambda tier: (0, log_t())),
     "sin": dict(g=_limit(sin_core, lambda: mp.mpf(-1) / 6), interval=lambda tier: (0, pi4_sq()), pin=fast_pi4),
+    "sin_half": dict(g=_limit(sin_core, lambda: mp.mpf(-1) / 6), interval=lambda tier: (0, pi2_sq())),
     "cos": dict(g=_limit(cos_core, lambda: mp.mpf(1) / 24), interval=lambda tier: (0, pi4_sq()), pin=fast_pi4),
     "tan": dict(g=_limit(tan_tail, lambda: mp.mpf(1) / 3), interval=lambda tier: (0, pi4_sq()), pin=fast_pi4),
     "atan": dict(g=_limit(atan_tail, lambda: mp.mpf(-1) / 3), interval=lambda tier: (0, 1)),

@@ -4,11 +4,33 @@ The full reference behind the [README](../README.md). `tools/docs/check_readme.p
 
 ## Accuracy contracts
 
-The contracts are measured bounds, not proofs: one-argument `float` functions are checked on every input against a double-precision reference, and every function is sampled against 40-digit mpmath (50,000 points per function and tier in the published data). `double` and two-argument functions are only sampled; the `double` bounds come from 4×10^8 inputs per function against a quad-precision reference in both FMA classes, and a weekly run with a new seed checks them again.
+The contracts are measured bounds, not proofs. Established one-argument `float` functions are checked on every input against a double-precision reference, and every function is sampled against 40-digit mpmath (50,000 points per function and tier in the published data). Established `double` bounds come from 4×10^8 inputs per function against a quad-precision reference in both FMA classes; a weekly run with a new seed checks them again. Balanced trig has separate measurements described below.
 
 `pow` meets its bound while |y·log₂|x|| ≤ 4; past that the bound scales with the product, to contract × |y·log₂|x|| / 4 ulp, because the error of log₂|x| is multiplied by y. Negative bases follow C: integer exponents give the signed power and other exponents give NaN. The fast tier's 2^-16 bound for `pow` is likewise relative to 1 + |y·log₂|x||.
 
 Beyond the error bound, the precise tier keeps shape: every function is checked for monotonicity on its monotone intervals, exact odd or even symmetry, range bounds, and finite outputs for finite inputs, over every `float` and a dense `double` sample. The few documented exceptions are listed in `tests/accuracy_test.cpp`. `midi_to_hz(69 + 12k)` is exactly `440 * 2^k`, and at multiples of 1/8 turn the turns functions return the correctly rounded value.
+
+## Balanced tier
+
+Use `wray::balanced::sin`, `wray::balanced::cos` or `wray::balanced::sincos` when the precise tier's tighter error bounds are unnecessary. All three accept `float`, `double`, SIMD vectors and ranges, like their precise counterparts. Selecting this namespace is explicit; existing `wray::` and `wray::fast::` calls retain their behavior and contracts.
+
+The bounds below apply in round-to-nearest with FMA. Add 0.5 ulp without FMA. Directed-rounding modes use an 8-ulp bound, plus the same no-FMA margin; uncompensated evaluation is more sensitive to rounding direction than the precise tier.
+
+| function | float | double |
+|---|---|---|
+| sin | 2.5 | 2.5 |
+| cos | 2.5 | 2.5 |
+| sincos | 2.5 | 2.5 |
+
+- Each `sincos` output has its own bound against the corresponding exact sine or cosine. Scalar and SIMD `sincos` return an object with `.sin` and `.cos` members.
+- Paired `sincos` uses a different reduction and approximation from separate balanced `sin` and `cos` calls. Its outputs need not be bit-identical to those separate calls; the same accuracy bound applies to both forms.
+- Every finite input is supported, including the largest finite `float` and `double`. Huge arguments take a slower exact reduction rather than a clamped or missing result.
+- Infinity and NaN inputs return NaN in both separate and paired outputs. Sine preserves signed zero; cosine of either zero is exactly 1.
+- For the same function, input and FMA class, scalar and SIMD results are bit-identical apart from NaN sign and payload, including vectors mixing ordinary and huge arguments.
+- Range calls stop at the shortest input/output range, accept any length and alignment, and support exact in-place input/output aliasing. For `sincos(in, sin_out, cos_out)`, the output ranges must not overlap; either output may exactly alias the input. Partial overlap is not supported.
+- The C buffer entry points are `wray_balanced_sin_f32`, `wray_balanced_cos_f32`, `wray_balanced_sincos_f32` and the corresponding `_f64` names. Their argument layouts and aliasing rules are the same as the [C API](#c-api).
+
+Balanced trig has been checked over every finite `float` input on NEON against double-precision libm: the worst error across all four outputs was 2.454 ulp, with no non-finite outputs. Separate and paired `double` outputs were checked on 160,000 inputs against 60-digit mpmath, including root neighborhoods, tiny values and huge arguments; the worst observed error was 2.270 ulp. The ordinary path uses four split π terms; separate calls use a half-period sine core, while paired calls retain quarter-period sine and cosine cores. Oracle checks additionally cover both FMA classes.
 
 ## Parameter maps
 
@@ -50,7 +72,7 @@ A deep sweep checks 4000 random parameter sets per filter type and precision, pl
 
 `include/wray/c/wray.h` declares a C99 interface, built as `wray_c` (static, or shared with `-DBUILD_SHARED_LIBS=ON`) and exported as `wray::c`. Build it with `-DWRAY_BUILD_C_API=ON`; it is off by default, so installing the headers needs no compiled library.
 
-- Every function is `void wray_<name>_<f32|f64>(...)`, with `wray_fast_<name>_f32` for the fast tier. One-input functions take `(const T *in, T *out, size_t n)`; `sincos` and `sincos_turns` take `(const T *in, T *sin_out, T *cos_out, size_t n)`; two-input functions keep the C++ argument order, such as `wray_atan2_f64(y, x, out, n)` and `wray_pow_f32(x, y, out, n)`.
+- Every precise function is `void wray_<name>_<f32|f64>(...)`, with `wray_fast_<name>_f32` for the fast tier and `wray_balanced_<sin|cos|sincos>_<f32|f64>` for balanced trig. One-input functions take `(const T *in, T *out, size_t n)`; `sincos` and `sincos_turns` take `(const T *in, T *sin_out, T *cos_out, size_t n)`; two-input functions keep the C++ argument order, such as `wray_atan2_f64(y, x, out, n)` and `wray_pow_f32(x, y, out, n)`.
 - Exactly `n` elements are read and written. An output may be the same buffer as an input; partially overlapping buffers are not supported. With `n == 0` nothing is touched.
 - Results are those of the matching C++ range function, bit for bit, for the backend and FMA class the library was compiled with. `wray_c_backend()` returns `"neon"`, `"sse2"`, `"avx2"`, `"avx512"` or `"scalar"`, and `wray_c_has_fma()` returns 1 or 0. Build `wray_c` with the most capable `WRAY_SIMD` your deployment targets support; one binary does not switch backends at run time.
 - No C++ symbols are exported, and no structs or callbacks cross the boundary, so Rust (`extern "C"`), Python (`ctypes` or `cffi`), Swift (a module map over the header), C# (`DllImport`) and LuaJIT FFI bind it directly.
@@ -78,6 +100,8 @@ Each math comparison uses 4096 inputs, 40 repetitions per sample and 25 paired r
 
 `sincos` throughput computes and writes both outputs through the public fused range overload. Latency instead measures dependent scalar calls against scalar libm, including the chain scaffolding; vForce is a bulk API, not a scalar latency baseline. Precise kernels can lose to libm here because compensated arithmetic lengthens the dependency chain. The data also includes edge-input throughput, filter blocks, coefficient updates and each ADAA shape against its pointwise version.
 
+Balanced `sin`, `cos` and `sincos` have float and double throughput, edge-input throughput and dependent scalar latency rows under the variant name `wray balanced`. They use the same inputs, paired rounds, available competitors and output consumption as the other tiers. On M1 Max NEON, the initial paired run measured 0.76–0.95× vForce throughput in float and 0.88–0.99× in double: substantially faster than WRAY precise, but not a win over vForce. Separate-call scalar latency regressed relative to WRAY precise. Charts omit unavailable balanced functions rather than substituting precise or fast results.
+
 For native x86 measurements, run `python tools/ci/benchmark.py --out benchmark-results` or dispatch CI with `benchmarks=true`. Each host runs its supported backends sequentially, never under an instruction emulator. CI collects Linux and Windows hosts and requires native results for SSE2, AVX2 and AVX-512 across the collected artifacts. Hosted-VM timings are not bare-metal measurements; CPU, compiler, flags and host manifests stay with the data.
 
 ## How it is verified
@@ -85,6 +109,8 @@ For native x86 measurements, run `python tools/ci/benchmark.py --out benchmark-r
 Pull requests run CI. `main` only advances by fast-forwarding to a pull request head whose `ci-pass` succeeded, so every commit on `main` has already passed the full matrix and keeps its signature; pushes do not run the matrix again. Manual and scheduled runs have separate concurrency groups, so ordinary development cannot cancel a release sweep.
 
 Documentation-only pull requests run the README checks instead of the full matrix. A failed change comparison blocks CI rather than skipping the code checks.
+
+Balanced trig uses separate `balanced_f32` and `balanced_f64` accuracy and determinism tiers. Its exhaustive finite-float and sampled high-precision double measurements are described in [Balanced tier](#balanced-tier); the older quad-precision sweep counts below are not claims about this new tier.
 
 - Exhaustive: every `float` input (all 2^32 bit patterns) for each unary function, `wray_accuracy_test --exhaustive`, weekly on NEON, SSE2, AVX2, AVX-512 and the scalar backend; the same run repeats every fourth input under flush-to-zero and each rounding mode, after reading back that the mode took effect.
 - Double: 10^8 inputs per `double` function weekly against a quad-precision reference (`tools/dense`, GCC on x86-64), with a rotating seed and the contracts as the gate; the reference is itself checked against mpmath on every run.
@@ -99,19 +125,19 @@ Documentation-only pull requests run the README checks instead of the full matri
 
 ### Hardware and rounding
 
-- x86 builds without FMA (SSE2, and the scalar backend on x86) add 0.5 ulp to every precise contract; arm64 always has FMA, scalar backend included.
-- Under flush-to-zero the measured errors stay within contract for normal inputs and outputs; subnormals read and write as zero.
-- In the directed rounding modes the measured error grows by at most 1 ulp.
+- x86 builds without FMA (SSE2, and the scalar backend on x86) add 0.5 ulp to every precise and balanced contract; arm64 always has FMA, scalar backend included.
+- For the established precise and fast tiers, flush-to-zero measurements stay within contract for normal inputs and outputs; subnormals read and write as zero.
+- For those established tiers, directed-rounding measurements grow by at most 1 ulp. Balanced trig has a separate 8-ulp directed-rounding bound.
 
 ### Large trig arguments
 
-`sin`, `cos`, `sincos` and `tan` use a fast three-part reduction up to:
+The precise and fast `sin`, `cos`, `sincos` and `tan` use a fast three-part reduction up to:
 
 | | float | double |
 |---|---|---|
 | fast reduction for \|x\| ≤ | 6433.98 (2048π) | 6588397.3 (2^22·π/2) |
 
-Larger finite inputs take a slower exact reduction against a 1280-bit table of 2/π, lane by lane. Every finite input still gets an accurate result; only infinities and NaN return NaN. The fast tier uses the same reductions and stays within 2^-16 for every finite input.
+Larger finite inputs take a slower exact reduction against a 1280-bit table of 2/π, lane by lane. Every finite input still gets an accurate result; only infinities and NaN return NaN. The fast tier uses the same reductions and stays within 2^-16 for every finite input. Balanced trig also supports the full finite domain with exact reduction for huge inputs, under its separate [contract](#balanced-tier).
 
 The turns functions reduce exactly at any magnitude: whole turns are removed without rounding, so the result carries only the polynomial's error. For example, in double, `sin_turns(2^40 + 0.25)` is exactly 1; that input is not representable in float. For oscillators and phase accumulators, keep the phase in turns and use `sin_turns`, `cos_turns` and `sincos_turns`, so a growing phase never reaches the slow path.
 
@@ -168,6 +194,8 @@ Each core is fitted by a rational Remez exchange on its reduced interval. `docs/
 ## Charts
 
 Every chart comes in a dark and a light variant, regenerated by `tools/charts/charts.py` from `docs/data`.
+
+The chart generator recognizes balanced benchmark rows and the `balanced_f32` / `balanced_f64` coefficient and accuracy tiers. It renders balanced accuracy panels only when those rows are present; the paired components are named `sincos_sin` and `sincos_cos` in the data. Existing checked-in data and images do not yet report balanced measurements.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="charts/speedup-linux-avx512-dark.png">

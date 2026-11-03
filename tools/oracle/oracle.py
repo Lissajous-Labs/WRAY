@@ -14,6 +14,8 @@ FORMATS = {
     "f32": dict(dtype=np.float32, bits=np.uint32, precision=24, emin=-126, trig=float.fromhex("0x1.921fb6p+12")),
     "fast": dict(dtype=np.float32, bits=np.uint32, precision=24, emin=-126, trig=float.fromhex("0x1.921fb6p+12")),
     "f64": dict(dtype=np.float64, bits=np.uint64, precision=53, emin=-1022, trig=float.fromhex("0x1.921fb54442d18p+22")),
+    "balanced_f32": dict(dtype=np.float32, bits=np.uint32, precision=24, emin=-126, trig=float.fromhex("0x1.921fb6p+12")),
+    "balanced_f64": dict(dtype=np.float64, bits=np.uint64, precision=53, emin=-1022, trig=float.fromhex("0x1.921fb54442d18p+22")),
 }
 
 def _omega_ref(x):
@@ -66,6 +68,8 @@ REFERENCE = {
     "sin": lambda x: _wide_trig(mp.sin, x),
     "cos_turns": lambda x: mp.cospi(2 * x),
     "cos": lambda x: _wide_trig(mp.cos, x),
+    "sincos_sin": lambda x: _wide_trig(mp.sin, x),
+    "sincos_cos": lambda x: _wide_trig(mp.cos, x),
     "tanpi": lambda x: mp.sinpi(x) / mp.cospi(x) if mp.cospi(x) != 0 else mp.inf * mp.sign(x),
     "tan_turns": lambda x: mp.sinpi(2 * x) / mp.cospi(2 * x) if mp.cospi(2 * x) != 0 else mp.inf * mp.sign(x),
     "tan": lambda x: _wide_trig(mp.tan, x),
@@ -128,6 +132,8 @@ CONTRACTS = {
             "sigmoid": 1.75, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.35, "pow": 2.0},
     "fast": {name: 2.0 ** -16 for name in ["product_log", "omega", "tanpi", "tan_turns", "cos_turns", "sin_turns", "exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid",
                                            "db_to_gain", "gain_to_db", "atan2", "pow"]},
+    "balanced_f32": {name: 2.5 for name in ("sin", "cos", "sincos_sin", "sincos_cos")},
+    "balanced_f64": {name: 2.5 for name in ("sin", "cos", "sincos_sin", "sincos_cos")},
 }
 ADAA_CONTRACTS = {"hard_clip": (0.8, 1.0), "soft_clip": (1.5, 3.0), "tanh": (3.0, 10.0), "atan": (3.5, 15.0), "algebraic": (6.0, 62.0),
                   "radical": (3.0, 5.0)}
@@ -206,13 +212,28 @@ def domain(fn, tier, rng, n):
     if fn in ("log", "log2", "gain_to_db"):
         lo = np.finfo(fmt["dtype"]).tiny if fast else tiny
         return np.concatenate([bit_uniform(rng, fmt, lo, huge, half), value_uniform(rng, fmt, 0.5, 2.0, n - half)])
-    if fn in ("sin", "cos", "tan"):
+    if fn in ("sin", "cos", "sincos_sin", "sincos_cos", "tan"):
         trig = fmt["trig"]
         q = n // 4
         k = rng.integers(-int(trig / (np.pi / 2)), int(trig / (np.pi / 2)), size=q)
         near = (k * (np.pi / 2)).astype(fmt["dtype"])
         near = np.nextafter(near, near + rng.choice([-1, 1], size=q)).astype(fmt["dtype"])
         wide = q // 2
+        if tier.startswith("balanced_"):
+            dtype = fmt["dtype"]
+            anchors = np.array([0.0, -0.0, tiny, -tiny, np.finfo(dtype).tiny, huge, -huge,
+                                np.pi / 4, np.pi / 2, np.pi, trig, float.fromhex("0x1.a9adcc7f96cf0p+20")], dtype=dtype)
+            boundaries = anchors[7:]
+            edges = np.concatenate([anchors, -boundaries, np.nextafter(boundaries, dtype(0)),
+                                    np.nextafter(boundaries, dtype(huge)), -np.nextafter(boundaries, dtype(0)),
+                                    -np.nextafter(boundaries, dtype(huge))])
+            if not f32:
+                root_bits = np.array([float.fromhex("0x1.a9adcc7f96cf0p+20")], dtype=dtype).view(fmt["bits"])[0]
+                neighborhood = np.arange(int(root_bits) - 8, int(root_bits) + 9, dtype=fmt["bits"]).view(dtype)
+                edges = np.concatenate([edges, neighborhood, -neighborhood])
+            return np.concatenate([value_uniform(rng, fmt, -2 * np.pi, 2 * np.pi, q),
+                                   value_uniform(rng, fmt, -trig, trig, q), near,
+                                   bit_uniform(rng, fmt, tiny, huge, n - 3 * q, True), edges])
         return np.concatenate([value_uniform(rng, fmt, -2 * np.pi, 2 * np.pi, q), value_uniform(rng, fmt, -trig, trig, q),
                                bit_uniform(rng, fmt, 1e-6, trig, n - 3 * q - wide, True), near[: q], bit_uniform(rng, fmt, trig, huge, wide, True)])
     if fn == "atan":
@@ -351,13 +372,13 @@ def main():
     parser.add_argument("--jobs", type=int, default=os.cpu_count())
     parser.add_argument("--only", nargs="*")
     parser.add_argument("--check", action="store_true")
-    parser.add_argument("--tiers", nargs="*", default=["f32", "f64", "fast"])
+    parser.add_argument("--tiers", nargs="*", choices=FORMATS, default=["f32", "f64", "fast", "balanced_f32", "balanced_f64"])
     args = parser.parse_args()
     info = json.loads(subprocess.run([args.dump, "info"], check=True, capture_output=True, text=True).stdout)
     margin = 0.0 if info["fma"] else NO_FMA_MARGIN
     jobs = []
     for tier in args.tiers:
-        for i, fn in enumerate(UNARY + BINARY):
+        for i, fn in enumerate(UNARY + BINARY + ["sincos_sin", "sincos_cos"]):
             if (args.only and fn not in args.only) or fn not in CONTRACTS.get(tier, {}):
                 continue
             jobs.append((fn, tier, args.dump, args.samples, 1000 + i))

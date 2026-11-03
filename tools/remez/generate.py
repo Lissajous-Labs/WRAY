@@ -13,12 +13,13 @@ import remez
 
 DPS = 60
 
-TIERS = {"f32": ("float", 24), "f64": ("double", 53), "fast": ("float", 24)}
+TIERS = {"f32": ("float", 24), "f64": ("double", 53), "fast": ("float", 24), "balanced_f32": ("float", 24), "balanced_f64": ("double", 53)}
 
 PLAN = {
     "exp": {"f32": (4, 0), "f64": (9, 0), "fast": (2, 0)},
     "log": {"f32": (2, 0), "f64": (6, 0), "fast": (1, 0)},
     "sin": {"f32": (2, 0), "f64": (5, 0), "fast": (1, 0)},
+    "sin_half": {"balanced_f32": (4, 0), "balanced_f64": (7, 0)},
     "cos": {"f32": (2, 0), "f64": (5, 0), "fast": (1, 0)},
     "tan": {"f32": (6, 0), "f64": (3, 3), "fast": (4, 0)},
     "atan": {"fast": (6, 0)},
@@ -109,6 +110,7 @@ def constants(ctype):
         ln2_hi, ln2_lo = split(ln2, 16 if ctype == "float" else 42, total)
         pio2 = mp.pi / 2
         pio2_parts = split_n(pio2, 12, total, 4) if ctype == "float" else split_n(pio2, 31, total, 3)
+        pi_parts = split_n(mp.pi, 12, total, 4) if ctype == "float" else split_n(mp.pi, 31, total, 4)
         pi_hi, pi_lo = split(mp.pi, total, total)
         pio2_hi, pio2_lo = split(pio2, total, total)
         if ctype == "float":
@@ -128,12 +130,13 @@ def constants(ctype):
             tanh_clamp = mp.mpf(cores.TANH_CLAMP["f64"])
             tanh_clamp_fast = tanh_clamp
         pio2_terms = {f"pio2_{i + 1}": p for i, p in enumerate(pio2_parts)}
+        pi_terms = {f"pi_{i + 1}": p for i, p in enumerate(pi_parts)}
         return {
             "ln2": ln2, "ln2_hi": ln2_hi, "ln2_lo": ln2_lo, "inv_ln2": 1 / ln2,
             "inv_ln2_hi": split(1 / ln2, total, total)[0], "inv_ln2_lo": split(1 / ln2, total, total)[1],
             "veltkamp": mp.mpf(2) ** (12 if ctype == "float" else 27) + 1,
             "sqrt2": mp.sqrt(2), "sqrt_half": mp.sqrt(mp.mpf(1) / 2),
-            **pio2_terms, "two_over_pi": 2 / mp.pi,
+            **pio2_terms, **pi_terms, "two_over_pi": 2 / mp.pi, "inv_pi": 1 / mp.pi,
             "pi_hi": pi_hi, "pi_lo": pi_lo, "pio2_hi": pio2_hi, "pio2_lo": pio2_lo,
             "third_hi": split(mp.mpf(1) / 3, total, total)[0], "third_lo": split(mp.mpf(1) / 3, total, total)[1],
             "max_arg": round_to(max_arg, total), "min_arg": round_to(min_arg, total),

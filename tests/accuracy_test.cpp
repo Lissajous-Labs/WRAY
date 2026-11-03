@@ -283,6 +283,41 @@ namespace
              [](std::mt19937_64& g) { return bit_uniform(g, 0x1p-1074, 0x1.fffffffffffffp+1023); }, 1.5, 0x1p-16, 1.5},
         };
     }
+    struct balanced_case
+    {
+        const char* name;
+        std::function<double(double)> reference;
+        batch_f32 precise;
+        batch_f64 precise64;
+        std::function<double(std::mt19937_64&)> sample64;
+    };
+
+    std::vector<balanced_case> balanced_cases()
+    {
+        const auto sample = [](std::mt19937_64& g) {
+            if (g() % 16 == 0)
+            {
+                constexpr auto root = std::bit_cast<std::uint64_t>(0x1.a9adcc7f96cf0p+20);
+                const auto offset = std::int64_t(g() % 17) - 8;
+                const double x = std::bit_cast<double>(std::uint64_t(std::int64_t(root) + offset));
+                return g() & 1 ? x : -x;
+            }
+            if (g() % 3 == 0)
+                return uniform(g, -0x1.921fb54442d18p+22, 0x1.921fb54442d18p+22);
+            return signed_bits(g, 0x1p-1074, 0x1.fffffffffffffp+1023);
+        };
+        return {
+            {"sin", [](double x) { return std::sin(x); }, batch32([](auto v) { return wray::balanced::sin(v); }),
+             batch64([](auto v) { return wray::balanced::sin(v); }), sample},
+            {"cos", [](double x) { return std::cos(x); }, batch32([](auto v) { return wray::balanced::cos(v); }),
+             batch64([](auto v) { return wray::balanced::cos(v); }), sample},
+            {"sincos_sin", [](double x) { return std::sin(x); }, batch32([](auto v) { return wray::balanced::sincos(v).sin; }),
+             batch64([](auto v) { return wray::balanced::sincos(v).sin; }), sample},
+            {"sincos_cos", [](double x) { return std::cos(x); }, batch32([](auto v) { return wray::balanced::sincos(v).cos; }),
+             batch64([](auto v) { return wray::balanced::sincos(v).cos; }), sample},
+        };
+    }
+
 
     enum class host
     {
@@ -345,7 +380,8 @@ namespace
         float worst_x = 0.0f;
     };
 
-    result sweep_f32(const unary_case& c, const batch_f32& fn, bool relative, std::uint64_t stride, const std::function<bool(float)>& domain,
+    template <class Case>
+    result sweep_f32(const Case& c, const batch_f32& fn, bool relative, std::uint64_t stride, const std::function<bool(float)>& domain,
                      host h = host::nearest)
     {
         if (!fn)
@@ -397,7 +433,8 @@ namespace
         return best;
     }
 
-    double sweep_f64(const unary_case& c, std::size_t samples, double& worst_x, host h = host::nearest)
+    template <class Case>
+    double sweep_f64(const Case& c, std::size_t samples, double& worst_x, host h = host::nearest)
     {
         std::mt19937_64 g(42);
         std::vector<double> in(samples);
@@ -419,6 +456,27 @@ namespace
         }
         return worst;
     }
+    void balanced_checks(const std::function<bool(const char*)>& selected, std::uint64_t stride, std::size_t samples, bool report, host h = host::nearest)
+    {
+        const bool directed = h != host::nearest && h != host::flush;
+        for (const auto& c : balanced_cases())
+        {
+            const std::string qualified = std::string("balanced_") + c.name;
+            if (!selected(c.name) && !selected("balanced") && !selected(qualified.c_str()))
+                continue;
+            const auto p = sweep_f32(c, c.precise, false, stride, finite, h);
+            double wx = 0.0;
+            const double d = sweep_f64(c, samples, wx, h);
+            const double bound = (directed ? 8.0 : 2.5) + margin;
+            const bool ok = p.worst <= bound && d <= bound + 2.0;
+            if (report || !ok)
+                std::printf("%-11s balanced_f32 %8.3f ulp @ %-14.9g balanced_f64 %8.3f ulp @ %.17g (vs libm) %s\n",
+                            c.name, p.worst, double(p.worst_x), d, wx, host_names[static_cast<int>(h)]);
+            CHECK(p.worst <= bound);
+            CHECK(d <= bound + 2.0);
+        }
+    }
+
 
     template <class T>
     T smaller(T a, T b)
@@ -515,6 +573,7 @@ namespace
                 CHECK(d <= c.contract_f64 + 2.0 + margin + slack);
             }
             binary_checks(samples, report, selected("atan2"), selected("pow"), h);
+            balanced_checks(selected, stride, samples, report, h);
         }
     }
 
@@ -1006,6 +1065,7 @@ int main(int argc, char** argv)
         CHECK(f.worst <= c.contract_fast);
         CHECK(d <= c.contract_f64 + 2.0 + margin);
     }
+    balanced_checks(selected, stride, samples64, report);
     binary_checks(1u << 22, report, selected("atan2"), selected("pow"));
     if (selected("parameter_maps"))
         parameter_maps(report);

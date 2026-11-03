@@ -88,6 +88,60 @@ namespace
             CHECK(ok);
         }
     }
+    template <class T, class Unary, class Pair>
+    void balanced_abi(std::mt19937_64& g, Unary sine, Unary cosine, Pair paired)
+    {
+        constexpr std::size_t w = std::size_t(wray::simd::native<T>::size);
+        for (std::size_t n = 0; n <= 4 * w + 1; ++n)
+        {
+            auto x = inputs<T>(g, n);
+            for (std::size_t i = 0; i < n; ++i)
+                if (i % 4 == 1)
+                    x[i] = std::copysign(std::numeric_limits<T>::max(), T(i % 3 ? 1 : -1));
+            for (const auto fn : {sine, cosine})
+            {
+                std::vector<T> got(n + 2, T(7));
+                fn(x.data(), got.data() + 1, n);
+                bool ok = got.front() == T(7) && got.back() == T(7);
+                for (std::size_t i = 0; i < n; ++i)
+                    ok = ok && same(got[i + 1], fn == sine ? wray::balanced::sin(x[i]) : wray::balanced::cos(x[i]));
+                auto io = x;
+                fn(io.data(), io.data(), n);
+                for (std::size_t i = 0; i < n; ++i)
+                    ok = ok && same(io[i], got[i + 1]);
+                CHECK(ok);
+            }
+            for (int alias = 0; alias < 3; ++alias)
+            {
+                auto io = x;
+                std::vector<T> s(n + 2, T(7)), c(n + 2, T(7));
+                T* ps = alias == 1 ? io.data() : s.data() + 1;
+                T* pc = alias == 2 ? io.data() : c.data() + 1;
+                paired(io.data(), ps, pc, n);
+                bool ok = s.front() == T(7) && s.back() == T(7) && c.front() == T(7) && c.back() == T(7);
+                for (std::size_t i = 0; i < n; ++i)
+                {
+                    const auto expected = wray::balanced::sincos(x[i]);
+                    ok = ok && same(ps[i], expected.sin) && same(pc[i], expected.cos);
+                }
+                CHECK(ok);
+            }
+        }
+        const T edge[] = {std::numeric_limits<T>::denorm_min(), -std::numeric_limits<T>::denorm_min(),
+                          std::numeric_limits<T>::infinity(), -std::numeric_limits<T>::infinity(), std::numeric_limits<T>::quiet_NaN(), -T(0)};
+        T s[std::size(edge)], c[std::size(edge)];
+        paired(edge, s, c, std::size(edge));
+        for (std::size_t i = 0; i < std::size(edge); ++i)
+        {
+            const auto expected = wray::balanced::sincos(edge[i]);
+            CHECK(same(s[i], expected.sin) && same(c[i], expected.cos));
+        }
+        sine(edge, s, std::size(edge));
+        cosine(edge, c, std::size(edge));
+        for (std::size_t i = 0; i < std::size(edge); ++i)
+            CHECK(same(s[i], wray::balanced::sin(edge[i])) && same(c[i], wray::balanced::cos(edge[i])));
+    }
+
 
 #define WRAY_C_UNARY(ns, prefix, f, T, t) unary<T>(g, wray_##prefix##f##_##t, [](auto in, auto out) { ns::f(in, out); });
 #define WRAY_C_PAIR(ns, prefix, f, T, t) pair<T>(g, wray_##prefix##f##_##t, [](auto in, auto s, auto c) { ns::f(in, s, c); });
@@ -191,6 +245,8 @@ namespace
         WRAY_C_PAIR(wray::fast, fast_, sincos_turns, float, f32)
         WRAY_C_BINARY(wray::fast, fast_, atan2, float, f32)
         WRAY_C_BINARY(wray::fast, fast_, pow, float, f32)
+        balanced_abi<float>(g, wray_balanced_sin_f32, wray_balanced_cos_f32, wray_balanced_sincos_f32);
+        balanced_abi<double>(g, wray_balanced_sin_f64, wray_balanced_cos_f64, wray_balanced_sincos_f64);
     }
 
 #undef WRAY_C_UNARY

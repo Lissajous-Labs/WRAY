@@ -136,6 +136,12 @@ extern "C"
     WRAY_C_PAIR(wray::fast, fast_, sincos_turns, float, f32)
     WRAY_C_BINARY(wray::fast, fast_, atan2, float, f32)
     WRAY_C_BINARY(wray::fast, fast_, pow, float, f32)
+    WRAY_C_UNARY(wray::balanced, balanced_, sin, float, f32)
+    WRAY_C_UNARY(wray::balanced, balanced_, cos, float, f32)
+    WRAY_C_PAIR(wray::balanced, balanced_, sincos, float, f32)
+    WRAY_C_UNARY(wray::balanced, balanced_, sin, double, f64)
+    WRAY_C_UNARY(wray::balanced, balanced_, cos, double, f64)
+    WRAY_C_PAIR(wray::balanced, balanced_, sincos, double, f64)
 
 #undef WRAY_C_UNARY
 #undef WRAY_C_PAIR

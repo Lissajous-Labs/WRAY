@@ -124,6 +124,14 @@ fast tanh 28668486f8dc6ba7
 fast tanpi 9eae4f156c9a2598
 fast atan2 a7971d3efc1ae9a1
 fast pow 5df802f473171801
+balanced_f32 cos 41f9dc49f4042f73
+balanced_f32 sin 39c12067a197ea2d
+balanced_f32 sincos_cos 7baf26228dfa23b4
+balanced_f32 sincos_sin 24a325aacac88534
+balanced_f64 cos 0923d5f6e44f30a2
+balanced_f64 sin 8736efa463086843
+balanced_f64 sincos_cos b63ba3c10447efbd
+balanced_f64 sincos_sin 6c8de7d20564fefc
 f32 one_pole_0 b75154b11299e639
 f32 one_pole_1 579d7a42765638ff
 f32 one_pole_2 5de4c1691062dfb2

@@ -25,6 +25,10 @@ namespace wray::inline WRAY_ABI::math
     {
     };
 
+    struct balanced
+    {
+    };
+
     template<class Tier, class T>
     struct table;
 
@@ -74,6 +78,18 @@ namespace wray::inline WRAY_ABI::math
         using erf_mid = coeff::erf_mid_f64;
         using erf_mid2 = coeff::erf_mid2_f64;
         using omega = coeff::omega_f64;
+    };
+
+    template<>
+    struct table<balanced, float> : table<precise, float>
+    {
+        using sin_half = coeff::sin_half_balanced_f32;
+    };
+
+    template<>
+    struct table<balanced, double> : table<precise, double>
+    {
+        using sin_half = coeff::sin_half_balanced_f64;
     };
 
     template<>
@@ -826,6 +842,14 @@ namespace wray::inline WRAY_ABI::math::detail
         const V kf = round_nearest(y);
         const integer_t<V> q = to_integer(kf);
         constexpr bool four = std::is_same_v<S, float>;
+        if constexpr (std::is_same_v<Tier, balanced>)
+        {
+            V r = fma(-kf, V(K::pi_1 * S(0.5)), x);
+            r = fma(-kf, V(K::pi_2 * S(0.5)), r);
+            r = fma(-kf, V(K::pi_3 * S(0.5)), r);
+            r = fma(-kf, V(K::pi_4 * S(0.5)), r);
+            return {r, V(S(0)), q};
+        }
         const V r1 = fma(-kf, V(K::pio2_1), x);
         const V c1 = kf * V(K::pio2_2);
         const V c2 = kf * V(K::pio2_3);
@@ -898,6 +922,42 @@ namespace wray::inline WRAY_ABI::math::detail
     }
 
     template<class V>
+    WRAY_INLINE V half_period_core(const V &r) noexcept
+    {
+        using C = typename table<balanced, scalar_t<V> >::sin_half;
+        const V t = r * r;
+        return fma(r * t, numerics::horner(C::p, t), r);
+    }
+
+    template<class V>
+    WRAY_INLINE V half_period_sin(const V &x) noexcept
+    {
+        using S = scalar_t<V>;
+        using K = constants<S>;
+        const V kf = round_nearest(x * V(K::inv_pi));
+        V r = fma(-kf, V(K::pi_1), x);
+        r = fma(-kf, V(K::pi_2), r);
+        r = fma(-kf, V(K::pi_3), r);
+        r = fma(-kf, V(K::pi_4), r);
+        return from_bits<V>(as_bits(half_period_core(r)) ^ shift_left(to_integer(kf), format<S>::width - 1));
+    }
+
+    template<class V>
+    WRAY_INLINE V half_period_cos(const V &x) noexcept
+    {
+        using S = scalar_t<V>;
+        using K = constants<S>;
+        const V kf = round_nearest(fma(x, V(K::inv_pi), V(S(-0.5))));
+        const V k = fma(kf, V(S(2)), V(S(1)));
+        V r = fma(-k, V(K::pi_1 * S(0.5)), x);
+        r = fma(-k, V(K::pi_2 * S(0.5)), r);
+        r = fma(-k, V(K::pi_3 * S(0.5)), r);
+        r = fma(-k, V(K::pi_4 * S(0.5)), r);
+        const V v = from_bits<V>(as_bits(half_period_core(r)) ^ shift_left(to_integer(kf) + integer_t<V>(1), format<S>::width - 1));
+        return select(x == V(S(0)), V(S(1)), v);
+    }
+
+    template<class V>
     WRAY_INLINE bool trig_ordinary(const V &x) noexcept
     {
         return simd::all(abs(x) <= V(constants<scalar_t<V> >::trig_arg_max));
@@ -907,6 +967,12 @@ namespace wray::inline WRAY_ABI::math::detail
     V sin_edge(V x) noexcept
     {
         const auto red = reduce_pio2_edge<Tier>(x);
+        if constexpr (std::is_same_v<Tier, balanced>)
+        {
+            const auto inside = abs(x) <= V(constants<scalar_t<V> >::trig_arg_max);
+            const V ordinary = keep_zero(x, half_period_sin(select(inside, x, V(scalar_t<V>(0)))));
+            return select(inside, ordinary, keep_zero(x, orient(trig_core<Tier>(red), red.q, trig_unit<Tier>(x))));
+        }
         return keep_zero(x, orient(trig_core<Tier>(red), red.q, trig_unit<Tier>(x)));
     }
 
@@ -915,6 +981,12 @@ namespace wray::inline WRAY_ABI::math::detail
     {
         using I = integer_t<V>;
         const auto red = reduce_pio2_edge<Tier>(x);
+        if constexpr (std::is_same_v<Tier, balanced>)
+        {
+            const auto inside = abs(x) <= V(constants<scalar_t<V> >::trig_arg_max);
+            const V ordinary = half_period_cos(select(inside, x, V(scalar_t<V>(0))));
+            return select(inside, ordinary, orient(trig_core<Tier>(red), red.q + I(1), trig_unit<Tier>(x)));
+        }
         return orient(trig_core<Tier>(red), red.q + I(1), trig_unit<Tier>(x));
     }
 
@@ -933,6 +1005,8 @@ namespace wray::inline WRAY_ABI::math::detail
     {
         if (trig_ordinary(x)) [[likely]]
         {
+            if constexpr (std::is_same_v<Tier, balanced>)
+                return keep_zero(x, half_period_sin(x));
             const auto red = reduce_pio2_inside<Tier>(x);
             return keep_zero(x, orient_finite(trig_core<Tier>(red), red.q));
         }
@@ -945,6 +1019,8 @@ namespace wray::inline WRAY_ABI::math::detail
         using I = integer_t<V>;
         if (trig_ordinary(x)) [[likely]]
         {
+            if constexpr (std::is_same_v<Tier, balanced>)
+                return half_period_cos(x);
             const auto red = reduce_pio2_inside<Tier>(x);
             return orient_finite(trig_core<Tier>(red), red.q + I(1));
         }
