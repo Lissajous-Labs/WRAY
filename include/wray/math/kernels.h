@@ -1192,14 +1192,26 @@ namespace wray::inline WRAY_ABI::math::detail
         {
             const V c(K::tanh_clamp);
             const auto small = a < V(K::tanh_switch);
-            const V t = a * a;
-            const V at = a * t;
-            const auto parts = numerics::rational_parts<C>(t);
-            const V ac = select(a < c, a, c);
-            const V e = exp_regular<Tier>(ac + ac);
-            const V dl = e + V(S(1));
-            const V q = select(small, parts.num, V(S(2))) / select(small, parts.den, dl);
-            const V v = select(small, fma(at, q, a), V(S(1)) - q);
+            V v;
+            if (simd::all(small))
+            {
+                const auto parts = numerics::rational_parts<C>(a * a);
+                v = fma(a * (a * a), parts.num / parts.den, a);
+            } else if (!simd::any(small))
+            {
+                const V ac = select(a < c, a, c);
+                v = V(S(1)) - V(S(2)) / (exp_regular<Tier>(ac + ac) + V(S(1)));
+            } else
+            {
+                const V t = a * a;
+                const V at = a * t;
+                const auto parts = numerics::rational_parts<C>(t);
+                const V ac = select(a < c, a, c);
+                const V e = exp_regular<Tier>(ac + ac);
+                const V dl = e + V(S(1));
+                const V q = select(small, parts.num, V(S(2))) / select(small, parts.den, dl);
+                v = select(small, fma(at, q, a), V(S(1)) - q);
+            }
             return select(isnan(x), x, copysign_from(v, x));
         } else
         {
@@ -1254,15 +1266,23 @@ namespace wray::inline WRAY_ABI::math::detail
         using K = constants<S>;
         using C = typename table<Tier, S>::sinh;
         const V a = abs(x);
-        const V t = a * a;
-        const V small = fma(a * t, numerics::rational<C>(t), a);
-        const auto e = exp_half<Tier>(a);
-        const V quarter(S(0.25));
-        const V inv = quarter / e.hi;
-        const V d = e.hi - inv;
-        const V rest = ((e.hi - d) - inv) + (fma(e.lo, inv / e.hi, e.lo) - select(a < V(S(16)), residual(inv, e.hi, quarter) / e.hi, V(S(0))));
-        const V large = select(a > V(K::max_arg + K::ln2), inf<V>(), d + rest);
-        return copysign_from(select(a < V(S(1)), small, large), x);
+        const auto inner = a < V(S(1));
+        V v = a;
+        if (!simd::all(inner))
+        {
+            const auto e = exp_half<Tier>(a);
+            const V quarter(S(0.25));
+            const V inv = quarter / e.hi;
+            const V d = e.hi - inv;
+            const V rest = ((e.hi - d) - inv) + (fma(e.lo, inv / e.hi, e.lo) - select(a < V(S(16)), residual(inv, e.hi, quarter) / e.hi, V(S(0))));
+            v = select(a > V(K::max_arg + K::ln2), inf<V>(), d + rest);
+        }
+        if (simd::any(inner))
+        {
+            const V t = a * a;
+            v = select(inner, fma(a * t, numerics::rational<C>(t), a), v);
+        }
+        return copysign_from(v, x);
     }
 
     template<class Tier, class V>
@@ -1272,17 +1292,25 @@ namespace wray::inline WRAY_ABI::math::detail
         using K = constants<S>;
         using C = typename table<Tier, S>::cosh;
         const V a = abs(x);
-        const V t = a * a;
         const V one(S(1));
-        const V y = fma(a, a * V(S(0.5)), (t * t) * numerics::rational<C>(t));
-        const V small = one + y;
-        const auto e = exp_half<Tier>(a);
-        const V quarter(S(0.25));
-        const V inv = quarter / e.hi;
-        const V d = e.hi + inv;
-        const V rest = ((e.hi - d) + inv) + (fma(-e.lo, inv / e.hi, e.lo) + select(a < V(S(16)), residual(inv, e.hi, quarter) / e.hi, V(S(0))));
-        const V large = select(a > V(K::max_arg + K::ln2), inf<V>(), d + rest);
-        return select(a < one, small, large);
+        const auto inner = a < one;
+        V v = a;
+        if (!simd::all(inner))
+        {
+            const auto e = exp_half<Tier>(a);
+            const V quarter(S(0.25));
+            const V inv = quarter / e.hi;
+            const V d = e.hi + inv;
+            const V rest = ((e.hi - d) + inv) + (fma(-e.lo, inv / e.hi, e.lo) + select(a < V(S(16)), residual(inv, e.hi, quarter) / e.hi, V(S(0))));
+            v = select(a > V(K::max_arg + K::ln2), inf<V>(), d + rest);
+        }
+        if (simd::any(inner))
+        {
+            const V t = a * a;
+            const V y = fma(a, a * V(S(0.5)), (t * t) * numerics::rational<C>(t));
+            v = select(inner, one + y, v);
+        }
+        return v;
     }
 
     template<class V>
@@ -1407,26 +1435,37 @@ namespace wray::inline WRAY_ABI::math::detail
         using C = typename table<Tier, S>::asinh;
         const V one(S(1));
         const V a = abs(x);
-        const V t = a * a;
-        const V small = fma(a * t, numerics::rational<C>(t), a);
         const V big(std::numeric_limits<S>::digits == 24 ? S(0x1p13) : S(0x1p27));
-        const V m = select(a < big, a, one);
-        const auto mm = two_product(m, m);
-        const V q = one + mm.hi;
-        const V qe = ((one - q) + mm.hi) + mm.lo;
-        const V root = simd::sqrt(q);
-        const V re = (residual(root, root, q) + qe) / (root + root);
-        const V d = root + one;
-        const V de = ((root - d) + one) + re;
-        const V fh = mm.hi / d;
-        const V fl = (residual(fh, d, mm.hi) + mm.lo - fh * de) / d;
-        const auto u = two_sum(m, fh);
-        const V ul = u.lo + fl;
-        const V medium = log1p_combine<Tier, false>(u.hi, ul, one + u.hi);
-        auto p = log_reduce<Tier, false>(select(a < inf<V>(), a, one));
-        p.e = p.e + one;
-        const V large = select(a < inf<V>(), log_combine(p), a);
-        const V v = select(a < V(S(0.5)), small, select(a < big, medium, large));
+        const auto inner = a < V(S(0.5));
+        const auto below_big = a < big;
+        V v = a;
+        if (!simd::all(below_big))
+        {
+            auto p = log_reduce<Tier, false>(select(a < inf<V>(), a, one));
+            p.e = p.e + one;
+            v = select(a < inf<V>(), log_combine(p), a);
+        }
+        if (simd::any(both(!inner, below_big)))
+        {
+            const V m = select(below_big, a, one);
+            const auto mm = two_product(m, m);
+            const V q = one + mm.hi;
+            const V qe = ((one - q) + mm.hi) + mm.lo;
+            const V root = simd::sqrt(q);
+            const V re = (residual(root, root, q) + qe) / (root + root);
+            const V d = root + one;
+            const V de = ((root - d) + one) + re;
+            const V fh = mm.hi / d;
+            const V fl = (residual(fh, d, mm.hi) + mm.lo - fh * de) / d;
+            const auto u = two_sum(m, fh);
+            const V ul = u.lo + fl;
+            v = select(below_big, log1p_combine<Tier, false>(u.hi, ul, one + u.hi), v);
+        }
+        if (simd::any(inner))
+        {
+            const V t = a * a;
+            v = select(inner, fma(a * t, numerics::rational<C>(t), a), v);
+        }
         return select(isnan(x), x, copysign_from(v, x));
     }
 
