@@ -26,6 +26,7 @@ float  a = wray::exp(0.5f);
 double b = wray::atan2(1.0, -2.0);
 auto   v = wray::tanh(wray::f32x4(0.25f));
 wray::sin(input, output);
+wray::sincos(input, sines, cosines);
 float  c = wray::fast::tanh(x);
 float  s = wray::sin_turns(phase);
 float  k = wray::smoothing_coefficient(0.010f, 48000.0f);
@@ -39,6 +40,8 @@ Every function takes a scalar, a SIMD vector, or a range (any length, no alignme
 - turns (one turn is a full cycle): `sin_turns cos_turns sincos_turns tan_turns wrap_turns`
 - audio: `db_to_gain gain_to_db midi_to_hz hz_to_midi ratio_from_cents omega product_log`
 - parameter maps: `smoothing_coefficient pole_from_cutoff prewarp`
+
+`sincos` and `sincos_turns` write both outputs in one pass, stopping at the shortest range. Their outputs must not overlap; either output can be the input itself.
 
 `wray::fast::` is a quicker `float`-only tier, accurate to 2^-16 relative error.
 
