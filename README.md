@@ -47,7 +47,10 @@ Every function takes a scalar, a SIMD vector, or a range (any length, no alignme
 
 **Buffer throughput, not scalar-call latency.** On Apple, compare with vForce—not just scalar libm. Precise `sincos` is slower than vForce on the M1 Max. A dependent scalar call can also be slower than libm. Results apply only to the named machine and backend. [Method and platform results](docs/details.md#performance).
 
-![speedup](docs/charts/speedup.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/charts/speedup-dark.png">
+  <img alt="speedup" src="docs/charts/speedup-light.png">
+</picture>
 
 ## Use it
 
@@ -110,7 +113,10 @@ Maximum measured error in ulp (units in the last place). Every `float` input is 
 | ratio_from_cents | 0.85 | 0.9 | pole_from_cutoff | 2.0 | 2.0 |
 | prewarp | 2.0 | 2.0 | tan_turns | 1.2 | 1.4 |
 
-![accuracy](docs/charts/accuracy_summary.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/charts/accuracy_summary-dark.png">
+  <img alt="accuracy" src="docs/charts/accuracy_summary-light.png">
+</picture>
 
 ## ADAA
 
@@ -122,13 +128,19 @@ Maximum measured error in ulp (units in the last place). Every `float` input is 
 | soft_clip | 1.5 | 3.0 | algebraic | 6.0 | 62.0 |
 | tanh | 3.0 | 10.0 | radical | 3.0 | 5.0 |
 
-![adaa](docs/charts/adaa_aliasing.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/charts/adaa_aliasing-dark.png">
+  <img alt="adaa" src="docs/charts/adaa_aliasing-light.png">
+</picture>
 
 ## Parameter maps
 
 `smoothing_coefficient`, `pole_from_cutoff` and `prewarp` stay within 2 ulp even at tiny cutoffs where the textbook formulas lose every digit, and return safe values for bad input. [Details](docs/details.md#parameter-maps).
 
-![smoothing](docs/charts/smoothing_precision.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/charts/smoothing_precision-dark.png">
+  <img alt="smoothing" src="docs/charts/smoothing_precision-light.png">
+</picture>
 
 ## Filters
 
@@ -138,7 +150,10 @@ Maximum measured error in ulp (units in the last place). Every `float` input is 
 
 NEON, SSE2, AVX2, AVX-512 and scalar backends. Scalar and SIMD code give bit-identical results, except for NaN sign and payload; only builds with and without FMA differ, slightly. [Details](docs/details.md#backends-and-determinism).
 
-![latency](docs/charts/latency.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/charts/latency-dark.png">
+  <img alt="latency" src="docs/charts/latency-light.png">
+</picture>
 
 The latency chart measures dependent scalar calls, not buffer throughput.
 
@@ -150,7 +165,10 @@ Every `float` input, 10^8 `double` inputs per function, 40-digit reference check
 cmake -S . -B build -G Ninja && cmake --build build && ctest --test-dir build
 ```
 
-![sfdr](docs/charts/oscillator_sfdr.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/charts/oscillator_sfdr-dark.png">
+  <img alt="sfdr" src="docs/charts/oscillator_sfdr-light.png">
+</picture>
 
 ## Where it stops working
 
@@ -166,11 +184,17 @@ Exact thresholds and flag-by-flag behavior: [details](docs/details.md#where-it-s
 
 Each core is fitted by a rational Remez exchange; `docs/data/cores.json` records how well each fit converged. [Details](docs/details.md#rational-minimax-cores).
 
-![remez](docs/charts/remez.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/charts/remez-dark.png">
+  <img alt="remez" src="docs/charts/remez-light.png">
+</picture>
 
-![pareto](docs/charts/pareto.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/charts/pareto-dark.png">
+  <img alt="pareto" src="docs/charts/pareto-light.png">
+</picture>
 
-More: [float](docs/charts/accuracy_f32.png), [double](docs/charts/accuracy_f64.png), [fast](docs/charts/accuracy_fast.png), [trig range](docs/charts/trig_range.png), [float throughput](docs/charts/throughput_f32.png), [double throughput](docs/charts/throughput_f64.png).
+More charts: per-function accuracy, trig range and full throughput tables are in [docs/details.md](docs/details.md#charts).
 
 ## Regenerate
 

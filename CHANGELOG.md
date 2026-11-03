@@ -14,6 +14,7 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 
 ### Changed
 
+- Charts render on transparent backgrounds in a dark and a light variant, and the README picks the one matching the reader's GitHub theme. Throughput and latency use a log axis so the slowest functions no longer flatten the rest. Series and text colours keep at least 4.5:1 contrast on GitHub's default light and dark pages, and spectra are drawn as a peak-hold envelope rather than every FFT bin, which removes moiré without hiding any spur (#83).
 - CI runs AVX-512 tests in three jobs (GCC, Clang, MSVC); each runs natively when its runner has AVX-512 and is compile-only otherwise, and an `avx512-coverage` gate requires at least one native run, so a runner without AVX-512 no longer fails `main` on its own (#71).
 - CI no longer reruns the full matrix on pushes to `main`: `main` only fast-forwards to pull request heads that already passed, and the duplicate runs were starving the macOS arm64 runner pool (#79).
 - Every public header is compiled on its own in each CI build, so a header that depends on another header's includes fails CI rather than a consumer (#77).
