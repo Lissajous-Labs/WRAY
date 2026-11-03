@@ -82,7 +82,7 @@ if(WRAY_INSTALL)
     install(EXPORT wrayTargets NAMESPACE wray:: DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/wray)
     configure_package_config_file(cmake/wrayConfig.cmake.in "${CMAKE_CURRENT_BINARY_DIR}/wrayConfig.cmake"
                                   INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/wray)
-    write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/wrayConfigVersion.cmake" COMPATIBILITY SameMinorVersion ARCH_INDEPENDENT)
+    write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/wrayConfigVersion.cmake" COMPATIBILITY SameMajorVersion ARCH_INDEPENDENT)
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wrayConfig.cmake" "${CMAKE_CURRENT_BINARY_DIR}/wrayConfigVersion.cmake"
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/wray)
 endif()

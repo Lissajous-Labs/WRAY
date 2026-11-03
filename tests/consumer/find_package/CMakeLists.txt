@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
 project(wray_consumer LANGUAGES CXX)
-find_package(wray CONFIG REQUIRED)
+find_package(wray 1.0 CONFIG REQUIRED)
 add_executable(wray_consumer main.cpp)
 target_link_libraries(wray_consumer PRIVATE wray::wray)
