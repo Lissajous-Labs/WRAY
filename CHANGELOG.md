@@ -7,6 +7,7 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 ### Changed
 
 - `smoothing_coefficient` skips its overflow and domain handling when every lane has a positive, normal, finite product: float throughput goes from 0.9× to 1.13× of `std`, double from 0.53× to 0.68× on an M1 Max, with the same contract (#10).
+- Non-FMA smoothing routes non-finite residual corrections through the edge path, preserving finite coefficients for tiny and very large positive parameter products (#52).
 
 ## [1.0.3] - 2026-11-03
 
