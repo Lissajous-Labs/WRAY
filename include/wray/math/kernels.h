@@ -657,8 +657,8 @@ namespace wray::inline WRAY_ABI::math::detail
 
     inline std::uint64_t bits_at(const std::uint64_t *limbs, int count, int position, int width) noexcept
     {
-        const int word = position >= 0 ? position / 64 : -((63 - position) / 64);
-        const int shift = position - 64 * word;
+        const int word = position >> 6;
+        const int shift = position & 63;
         const std::uint64_t low = limb_at(limbs, count, word);
         const std::uint64_t v = shift == 0 ? low : (low >> shift) | (limb_at(limbs, count, word + 1) << (64 - shift));
         return width == 64 ? v : v & ((std::uint64_t(1) << width) - 1);
