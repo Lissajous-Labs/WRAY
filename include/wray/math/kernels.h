@@ -1589,6 +1589,10 @@ namespace wray::inline WRAY_ABI::math::detail
             return smoothing_coefficient_edge<Tier>(seconds, fs);
         const auto x = quotient(one, p.hi);
         const V xl = fma(-x.hi, p.lo / p.hi, x.lo);
+#if !WRAY_HAS_FMA
+        if (simd::any(!(abs(xl) < inf<V>())))
+            return smoothing_coefficient_edge<Tier>(seconds, fs);
+#endif
         const V e = expm1<Tier>(-x.hi);
         return fma(xl, one + e, -e);
     }
