@@ -1,9 +1,12 @@
 #include <wray/wray.h>
+#include "baselines.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <limits>
@@ -35,7 +38,7 @@ namespace
     struct throughput
     {
         std::string name;
-        std::function<void(const workload<T>&, std::vector<T>&)> run;
+        std::function<void(const workload<T>&, std::span<T>, std::span<T>)> run;
     };
 
     template <class T>
@@ -229,33 +232,15 @@ namespace
     }
 
     template <class T, class F>
-    throughput<T> scalar_loop(const char* name, F f)
-    {
-        return {name, [f](const workload<T>& w, std::vector<T>& out) {
-                    for (std::size_t i = 0; i < kSize; ++i)
-                        out[i] = f(w.a[i]);
-                }};
-    }
-
-    template <class T, class F>
-    throughput<T> scalar_loop2(const char* name, F f)
-    {
-        return {name, [f](const workload<T>& w, std::vector<T>& out) {
-                    for (std::size_t i = 0; i < kSize; ++i)
-                        out[i] = f(w.a[i], w.b[i]);
-                }};
-    }
-
-    template <class T, class F>
     throughput<T> simd_loop(const char* name, F f)
     {
-        return {name, [f](const workload<T>& w, std::vector<T>& out) { wray::math::apply(w.a, out, f); }};
+        return {name, [f](const workload<T>& w, std::span<T> out, std::span<T>) { wray::math::apply(w.a, out, f); }};
     }
 
     template <class T, class F>
     throughput<T> simd_loop2(const char* name, F f)
     {
-        return {name, [f](const workload<T>& w, std::vector<T>& out) { wray::math::apply(w.a, w.b, out, f); }};
+        return {name, [f](const workload<T>& w, std::span<T> out, std::span<T>) { wray::math::apply(w.a, w.b, out, f); }};
     }
 
     template <class T, class F>
@@ -285,8 +270,7 @@ namespace
     {
         if constexpr (!std::is_same_v<R, none>)
         {
-            s.throughput_rows.push_back(scalar_loop<T>("std", reference));
-            s.latency_rows.push_back(chain<T>("std", reference));
+            s.latency_rows.push_back(chain<T>("libm", reference));
         }
         s.throughput_rows.push_back(simd_loop<T>("wray", precise));
         s.latency_rows.push_back(chain<T>("wray", [precise](T x) { return precise(x); }));
@@ -300,9 +284,8 @@ namespace
     template <class T, class R, class P, class Q>
     void binary(suite<T>& s, R reference, P precise, Q fast)
     {
-        s.throughput_rows.push_back(scalar_loop2<T>("std", reference));
         s.throughput_rows.push_back(simd_loop2<T>("wray", precise));
-        s.latency_rows.push_back(chain2<T>("std", reference));
+        s.latency_rows.push_back(chain2<T>("libm", reference));
         s.latency_rows.push_back(chain2<T>("wray", [precise](T a, T b) { return precise(a, b); }));
         if constexpr (std::is_same_v<T, float> && !std::is_same_v<Q, none>)
         {
@@ -346,7 +329,7 @@ namespace
         if (n == "ratio_from_cents")
             unary(s, [](T x) { return std::exp2(x / T(1200)); }, [](auto x) { return wray::ratio_from_cents(x); }, none{});
         if (n == "smoothing_coefficient")
-            binary(s, [](T t, T fs) { return T(1) - std::exp(T(-1) / (t * fs)); }, [](auto t, auto fs) { return wray::smoothing_coefficient(t, fs); }, none{});
+            binary(s, [](T t, T fs) { return -std::expm1(T(-1) / (t * fs)); }, [](auto t, auto fs) { return wray::smoothing_coefficient(t, fs); }, none{});
         if (n == "pole_from_cutoff")
             binary(s, [](T hz, T fs) { return std::exp(T(-2) * std::numbers::pi_v<T> * hz / fs); }, [](auto hz, auto fs) { return wray::pole_from_cutoff(hz, fs); }, none{});
         if (n == "prewarp")
@@ -368,15 +351,26 @@ namespace
         if (n == "cos")
             unary(s, [](T x) { return std::cos(x); }, [](auto x) { return wray::cos(x); }, [](auto x) { return wray::fast::cos(x); });
         if (n == "sincos")
-            unary(s, [](T x) { return std::sin(x) + std::cos(x); },
-                  [](auto x) {
-                      const auto r = wray::sincos(x);
-                      return r.sin + r.cos;
-                  },
-                  [](auto x) {
-                      const auto r = wray::fast::sincos(x);
-                      return r.sin + r.cos;
-                  });
+        {
+            s.throughput_rows.push_back({"wray", [](const workload<T>& w, std::span<T> out, std::span<T> cos_out) {
+                wray::sincos(w.a, out, cos_out);
+            }});
+            s.latency_rows.push_back(chain<T>("libm", [](T x) { return std::sin(x) + std::cos(x); }));
+            s.latency_rows.push_back(chain<T>("wray", [](T x) {
+                const auto r = wray::sincos(x);
+                return r.sin + r.cos;
+            }));
+            if constexpr (std::is_same_v<T, float>)
+            {
+                s.throughput_rows.push_back({"wray fast", [](const workload<T>& w, std::span<T> out, std::span<T> cos_out) {
+                    wray::fast::sincos(w.a, out, cos_out);
+                }});
+                s.latency_rows.push_back(chain<T>("wray fast", [](T x) {
+                    const auto r = wray::fast::sincos(x);
+                    return r.sin + r.cos;
+                }));
+            }
+        }
         if (n == "tan")
             unary(s, [](T x) { return std::tan(x); }, [](auto x) { return wray::tan(x); }, [](auto x) { return wray::fast::tan(x); });
         if (n == "atan")
@@ -393,11 +387,26 @@ namespace
             binary(s, [](T x, T y) { return std::pow(x, y); }, [](auto x, auto y) { return wray::pow(x, y); },
                    [](auto x, auto y) { return wray::fast::pow(x, y); });
         if (n == "db_to_gain")
-            unary(s, [](T x) { return std::pow(T(10), x / T(20)); }, [](auto x) { return wray::db_to_gain(x); },
+            unary(s, [](T x) { return std::exp2(x * (std::numbers::ln10_v<T> / (T(20) * std::numbers::ln2_v<T>))); }, [](auto x) { return wray::db_to_gain(x); },
                   [](auto x) { return wray::fast::db_to_gain(x); });
         if (n == "gain_to_db")
             unary(s, [](T x) { return T(20) * std::log10(x); }, [](auto x) { return wray::gain_to_db(x); },
                   [](auto x) { return wray::fast::gain_to_db(x); });
+        if (const auto f = wray_bench::libm<T>(n))
+        {
+            s.throughput_rows.insert(s.throughput_rows.begin(), {"libm", [f](const workload<T>& w, std::span<T> out, std::span<T> cos_out) {
+                f(w.a.data(), w.b.data(), out.data(), cos_out.data(), w.a.size());
+            }});
+        }
+#if defined(__APPLE__)
+        if (const auto f = wray_bench::vforce<T>(n))
+        {
+            const auto position = s.throughput_rows.begin() + (!s.throughput_rows.empty() && s.throughput_rows.front().name == "libm" ? 1 : 0);
+            s.throughput_rows.insert(position, {"vforce", [f](const workload<T>& w, std::span<T> out, std::span<T> cos_out) {
+                f(w.a.data(), w.b.data(), out.data(), cos_out.data(), w.a.size());
+            }});
+        }
+#endif
         return s;
     }
 
@@ -415,17 +424,61 @@ namespace
         }
     };
 
-    void emit(std::FILE* json, bool& first, const char* type, const char* fn, const char* variant, const char* mode, const timing& t)
+    struct comparison
+    {
+        std::string_view baseline;
+        timing log_ratios;
+
+        std::array<double, 3> interval() const
+        {
+            constexpr std::size_t count = 5000;
+            std::vector<double> bootstrap(count);
+            std::vector<double> sample(log_ratios.samples.size());
+            std::mt19937_64 rng(17);
+            std::uniform_int_distribution<std::size_t> pick(0, sample.size() - 1);
+            for (auto &value : bootstrap)
+            {
+                for (auto &x : sample)
+                    x = log_ratios.samples[pick(rng)];
+                std::sort(sample.begin(), sample.end());
+                value = sample[sample.size() / 2];
+            }
+            std::sort(bootstrap.begin(), bootstrap.end());
+            return {std::exp(log_ratios.quantile(0.5)),
+                    std::exp(bootstrap[static_cast<std::size_t>(0.025 * (count - 1) + 0.5)]),
+                    std::exp(bootstrap[static_cast<std::size_t>(0.975 * (count - 1) + 0.5)])};
+        }
+    };
+
+    void emit(std::FILE* json, bool& first, const char* type, const char* fn, const char* variant, const char* mode,
+              const timing& t, const char* baseline = "none", const std::vector<comparison>& comparisons = {})
     {
         const double best = t.quantile(0.0);
-        std::printf("%-4s %-10s %-22s %-11s %8.3f ns  median %8.3f  p90 %8.3f\n", type, mode, fn, variant, best, t.quantile(0.5), t.quantile(0.9));
-        std::fprintf(json, "%s\n  {\"type\": \"%s\", \"function\": \"%s\", \"variant\": \"%s\", \"mode\": \"%s\", \"ns\": %.5f, \"median\": %.5f, \"p90\": %.5f, \"rounds\": %zu}",
-                     first ? "" : ",", type, fn, variant, mode, best, t.quantile(0.5), t.quantile(0.9), t.samples.size());
+        std::printf("%-4s %-10s %-22s %-11s %8.3f ns  median %8.3f  p90 %8.3f  baseline %s\n",
+                    type, mode, fn, variant, best, t.quantile(0.5), t.quantile(0.9), baseline);
+        std::fprintf(json, "%s\n  {\"type\": \"%s\", \"function\": \"%s\", \"variant\": \"%s\", \"mode\": \"%s\", \"baseline\": \"%s\", \"ns\": %.5f, \"median\": %.5f, \"p90\": %.5f, \"rounds\": %d, \"sample_count\": %zu, \"samples_ns\": [",
+                     first ? "" : ",", type, fn, variant, mode, baseline, best, t.quantile(0.5), t.quantile(0.9), kRounds, t.samples.size());
+        for (std::size_t i = 0; i < t.samples.size(); ++i)
+            std::fprintf(json, "%s%.7f", i ? ", " : "", t.samples[i]);
+        std::fprintf(json, "], \"comparisons\": [");
+        for (std::size_t i = 0; i < comparisons.size(); ++i)
+        {
+            const auto &c = comparisons[i];
+            const auto bounds = c.interval();
+            std::printf("     vs %-6s %.3fx [%.3f, %.3f] paired 95%% CI\n",
+                        c.baseline.data(), bounds[0], bounds[1], bounds[2]);
+            std::fprintf(json, "%s{\"baseline\": \"%s\", \"speedup\": %.7f, \"ci_low\": %.7f, \"ci_high\": %.7f, \"log_ratios\": [",
+                         i ? ", " : "", c.baseline.data(), bounds[0], bounds[1], bounds[2]);
+            for (std::size_t j = 0; j < c.log_ratios.samples.size(); ++j)
+                std::fprintf(json, "%s%.9f", j ? ", " : "", c.log_ratios.samples[j]);
+            std::fprintf(json, "]}");
+        }
+        std::fprintf(json, "]}");
         first = false;
     }
 
     template <class T>
-    void run(const char* type, std::FILE* json, bool& first, const std::vector<std::string>& only)
+    void run(const char* type, std::FILE* json, bool& first, const std::vector<std::string>& only, const char* selected_baseline)
     {
         const char* names[] = {"product_log", "omega", "smoothing_coefficient", "pole_from_cutoff", "prewarp", "ratio_from_cents", "hz_to_midi", "midi_to_hz", "erf", "cbrt", "asinh", "cosh", "sinh", "tanpi", "tan_turns", "cos_turns", "sin_turns", "log10", "log1p", "exp", "expm1", "exp2", "log", "log2", "sin", "cos", "sincos", "tan", "atan", "atan2", "tanh", "sigmoid", "pow", "db_to_gain",
                                "gain_to_db"};
@@ -442,30 +495,69 @@ namespace
             if (!only.empty() && std::find(only.begin(), only.end(), n) == only.end())
                 continue;
             auto s = variants<T>(n);
-            std::vector<timing> best(s.throughput_rows.size());
+            const auto count = s.throughput_rows.size();
+            std::vector<timing> best(count);
             std::vector<timing> best_chain(s.latency_rows.size());
-            std::vector<timing> best_edge(s.throughput_rows.size());
-            std::vector<T> out(kSize);
+            std::vector<timing> best_edge(count);
+            std::vector<std::vector<comparison>> comparisons(count);
+            std::vector<std::size_t> references;
+            const char *baseline = "none";
+            for (std::size_t k = 0; k < count; ++k)
+            {
+                if (!s.throughput_rows[k].name.starts_with("wray"))
+                    references.push_back(k);
+                if (s.throughput_rows[k].name == selected_baseline)
+                    baseline = selected_baseline;
+            }
+            std::vector<T> out(kSize), cos_out(kSize);
+            for (auto &row : s.throughput_rows)
+                row.run(w, out, cos_out);
+            for (std::size_t k = 0; k < count; ++k)
+            {
+                if (!s.throughput_rows[k].name.starts_with("wray"))
+                    continue;
+                for (const auto reference : references)
+                    comparisons[k].push_back({s.throughput_rows[reference].name, {}});
+                comparisons[k].push_back({"self", {}});
+            }
             for (int round = 0; round < kRounds; ++round)
             {
-                for (std::size_t k = 0; k < s.throughput_rows.size(); ++k)
-                {
+                const auto measure = [&](std::size_t k, const workload<T> &input) {
                     const auto t0 = std::chrono::steady_clock::now();
                     for (int r = 0; r < kRepeats; ++r)
-                        s.throughput_rows[k].run(w, out);
+                        s.throughput_rows[k].run(input, out, cos_out);
                     const auto t1 = std::chrono::steady_clock::now();
-                    sink = sink + out[static_cast<std::size_t>(round) % kSize];
-                    const double ns = std::chrono::duration<double, std::nano>(t1 - t0).count() / (double(kRepeats) * double(kSize));
-                    best[k].add(ns);
-                    if (s.throughput_rows[k].name.starts_with("wray"))
+                    const auto index = static_cast<std::size_t>(round) % kSize;
+                    sink = sink + out[index] + (std::strcmp(n, "sincos") == 0 ? cos_out[index] : T(0));
+                    return std::chrono::duration<double, std::nano>(t1 - t0).count() / (double(kRepeats) * double(kSize));
+                };
+                for (std::size_t k = 0; k < count; ++k)
+                {
+                    if (!s.throughput_rows[k].name.starts_with("wray"))
+                        continue;
+                    for (std::size_t p = 0; p <= references.size(); ++p)
                     {
-                        const auto e0 = std::chrono::steady_clock::now();
-                        for (int r = 0; r < kRepeats; ++r)
-                            s.throughput_rows[k].run(e, out);
-                        const auto e1 = std::chrono::steady_clock::now();
-                        sink = sink + out[static_cast<std::size_t>(round) % kSize];
-                        best_edge[k].add(std::chrono::duration<double, std::nano>(e1 - e0).count() / (double(kRepeats) * double(kSize)));
+                        const auto reference = p == references.size() ? k : references[p];
+                        const std::array<std::size_t, 4> order = round % 2
+                            ? std::array<std::size_t, 4>{k, reference, reference, k}
+                            : std::array<std::size_t, 4>{reference, k, k, reference};
+                        std::array<double, 4> ns;
+                        for (std::size_t j = 0; j < order.size(); ++j)
+                            ns[j] = measure(order[j], w);
+                        const double outside = (ns[0] + ns[3]) * 0.5;
+                        const double inside = (ns[1] + ns[2]) * 0.5;
+                        const double a = round % 2 ? inside : outside;
+                        const double b = round % 2 ? outside : inside;
+                        comparisons[k][p].log_ratios.add(std::log(a / b));
+                        if (p < references.size())
+                        {
+                            best[reference].add(a);
+                            best[k].add(b);
+                        }
+                        else if (references.empty())
+                            best[k].add((a + b) * 0.5);
                     }
+                    best_edge[k].add(measure(k, e));
                 }
                 for (std::size_t k = 0; k < s.latency_rows.size(); ++k)
                 {
@@ -479,12 +571,13 @@ namespace
                 }
             }
             for (std::size_t k = 0; k < s.throughput_rows.size(); ++k)
-                emit(json, first, type, n, s.throughput_rows[k].name.c_str(), "throughput", best[k]);
+                emit(json, first, type, n, s.throughput_rows[k].name.c_str(), "throughput", best[k], baseline, comparisons[k]);
             for (std::size_t k = 0; k < s.throughput_rows.size(); ++k)
                 if (!best_edge[k].samples.empty())
                     emit(json, first, type, n, s.throughput_rows[k].name.c_str(), "edge", best_edge[k]);
+            const char *latency_baseline = references.empty() ? "none" : "libm";
             for (std::size_t k = 0; k < s.latency_rows.size(); ++k)
-                emit(json, first, type, n, s.latency_rows[k].name.c_str(), "latency", best_chain[k]);
+                emit(json, first, type, n, s.latency_rows[k].name.c_str(), "latency", best_chain[k], latency_baseline);
         }
     }
 
@@ -583,6 +676,8 @@ namespace
 
     std::string cpu_name()
     {
+        if (const char *name = std::getenv("WRAY_BENCH_CPU"))
+            return name;
 #if defined(__APPLE__)
         char buf[256] = {};
         std::size_t len = sizeof buf;
@@ -634,6 +729,23 @@ namespace
 #endif
     }
 
+    std::string platform()
+    {
+#if defined(__APPLE__)
+        char version[128] = {};
+        std::size_t length = sizeof version;
+        if (sysctlbyname("kern.osproductversion", version, &length, nullptr, 0) == 0)
+            return std::string("macOS ") + version;
+        return "macOS";
+#elif defined(_WIN32)
+        return "Windows";
+#elif defined(__linux__)
+        return "Linux";
+#else
+        return "unknown";
+#endif
+    }
+
     std::string escaped(std::string s)
     {
         std::string out;
@@ -649,16 +761,69 @@ namespace
 
 int main(int argc, char** argv)
 {
-    const char* path = argc > 1 ? argv[1] : "bench.json";
+    const char* path = "bench.json";
+#if defined(__APPLE__)
+    const char* baseline = "vforce";
+#else
+    const char* baseline = "libm";
+#endif
+    bool has_path = false;
     std::vector<std::string> only;
-    for (int i = 2; i < argc; ++i)
-        only.emplace_back(argv[i]);
+    for (int i = 1; i < argc; ++i)
+    {
+        const std::string_view arg(argv[i]);
+        if (arg == "--help")
+        {
+            std::puts("Usage: wray_bench [output.json] [--baseline libm|vforce] [function ...]");
+            std::puts("macOS always records both baselines where available; selection sets the primary denominator.");
+            std::puts("Latency uses scalar libm. Throughput uses paired ABBA rounds, a self-control, and bootstrap intervals.");
+            return 0;
+        }
+        if (arg == "--baseline")
+        {
+            if (++i == argc || (std::strcmp(argv[i], "libm") != 0 && std::strcmp(argv[i], "vforce") != 0))
+            {
+                std::fputs("--baseline requires libm or vforce\n", stderr);
+                return 2;
+            }
+            baseline = argv[i];
+        }
+        else if (arg.starts_with("--"))
+        {
+            std::fprintf(stderr, "Unknown option: %s\n", argv[i]);
+            return 2;
+        }
+        else if (!has_path)
+        {
+            path = argv[i];
+            has_path = true;
+        }
+        else
+            only.emplace_back(arg);
+    }
+#if !defined(__APPLE__)
+    if (std::strcmp(baseline, "vforce") == 0)
+    {
+        std::fputs("vForce is available only on macOS\n", stderr);
+        return 2;
+    }
+#endif
     std::FILE* json = std::fopen(path, "w");
-    std::fprintf(json, "{\n\"meta\": {\"cpu\": \"%s\", \"compiler\": \"%s\", \"flags\": \"%s\", \"backend\": \"%s\", \"fma\": %s, \"rounds\": %d, \"repeats\": %d, \"statistic\": \"ns is the fastest round; median and p90 are over rounds\"},\n\"rows\": [",
-                 escaped(cpu_name()).c_str(), escaped(compiler()).c_str(), escaped(WRAY_BENCH_FLAGS).c_str(), backend(), WRAY_HAS_FMA ? "true" : "false", kRounds, kRepeats);
+    if (!json)
+    {
+        std::perror(path);
+        return 1;
+    }
+    const char *revision = std::getenv("WRAY_BENCH_REVISION");
+    if (!revision)
+        revision = std::getenv("GITHUB_SHA");
+    std::fprintf(json, "{\n\"meta\": {\"cpu\": \"%s\", \"platform\": \"%s\", \"compiler\": \"%s\", \"flags\": \"%s\", \"backend\": \"%s\", \"revision\": \"%s\", \"baseline\": \"%s\", \"libm_vectorization\": \"disabled\", \"libm_flags\": \"%s\", \"fma\": %s, \"rounds\": %d, \"repeats\": %d, \"sampling\": \"alternating ABBA; self-control; median paired ratios; 5000 bootstrap resamples; 95%% intervals\", \"statistic\": \"ns is minimum sample; median and p90 are sample quantiles\"},\n\"rows\": [",
+                 escaped(cpu_name()).c_str(), escaped(platform()).c_str(), escaped(compiler()).c_str(), escaped(WRAY_BENCH_FLAGS).c_str(),
+                 backend(), escaped(revision ? revision : "unrecorded").c_str(), baseline, escaped(WRAY_BENCH_LIBM_FLAGS).c_str(),
+                 WRAY_HAS_FMA ? "true" : "false", kRounds, kRepeats);
     bool first = true;
-    run<float>("f32", json, first, only);
-    run<double>("f64", json, first, only);
+    run<float>("f32", json, first, only, baseline);
+    run<double>("f64", json, first, only, baseline);
     if (only.empty())
     {
         dsp<float>("f32", json, first);
