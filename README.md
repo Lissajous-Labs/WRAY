@@ -1,4 +1,17 @@
-# WRAY
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/wray-dark.svg">
+    <img alt="WRAY" src="docs/brand/wray-light.svg" width="640">
+  </picture>
+</h1>
+
+<p align="center">
+  <a href="https://github.com/Lissajous-Labs/WRAY/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Lissajous-Labs/WRAY/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/Lissajous-Labs/WRAY/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/Lissajous-Labs/WRAY?color=ff5c4a"></a>
+  <a href="LICENSE"><img alt="License: GPL-2.0-or-later" src="https://img.shields.io/badge/license-GPL--2.0--or--later-ff5c4a"></a>
+  <img alt="C++20" src="https://img.shields.io/badge/C%2B%2B-20-ff5c4a">
+  <img alt="Header-only" src="https://img.shields.io/badge/header--only-yes-ff5c4a">
+</p>
 
 (Wray & Nephew is a high-quality rum; you are highly advised to mix it with juice (JUCE))!
 
@@ -149,6 +162,7 @@ build/bench/wray_bench docs/data/bench.json
 build/tests/wray_spectral_test --json docs/data/spectral.json
 .venv/bin/python tools/charts/charts.py --machine "your machine"
 .venv/bin/python tools/docs/check_readme.py --dump build/tools/wray_dump
+.venv/bin/python tools/brand/logo.py --font path/to/ClashGrotesk-Semibold.ttf
 ```
 
 ## License
