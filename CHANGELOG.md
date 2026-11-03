@@ -1,8 +1,12 @@
 # Changelog
 
-All notable changes to WRAY are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+All notable changes to WRAY are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow the [stability policy](docs/details.md#stability).
 
 ## [Unreleased]
+
+### Added
+
+- This changelog (#6) and a [stability policy](docs/details.md#stability) (#7).
 
 ## [1.0.1] - 2026-11-03
 
