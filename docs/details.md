@@ -50,6 +50,8 @@ For a single value inside a dependency chain, such as a feedback loop, the preci
 
 ## How it is verified
 
+Pull requests and pushes to `main` run CI. Manual and scheduled runs have separate concurrency groups, so ordinary development cannot cancel a release sweep.
+
 - Exhaustive: every `float` input (all 2^32 bit patterns) for each unary function, `wray_accuracy_test --exhaustive`, weekly on NEON, SSE2, AVX2, AVX-512 and the scalar backend; the same run repeats every fourth input under flush-to-zero and each rounding mode, after reading back that the mode took effect.
 - Double: 10^8 inputs per `double` function weekly against a quad-precision reference (`tools/dense`, GCC on x86-64), with a rotating seed and the contracts as the gate; the reference is itself checked against mpmath on every run.
 - Dense: every function and tier against mpmath at 40 digits, `tools/oracle/oracle.py --check`.
