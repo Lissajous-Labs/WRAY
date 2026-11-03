@@ -71,6 +71,21 @@ target_link_libraries(your_target PRIVATE wray::wray)
 
 `WRAY_SIMD` (`auto`, `scalar`, `sse2`, `avx2`, `avx512`) picks the x86 instruction set and travels with the `wray::wray` target.
 
+### From C, Rust, Python or Swift
+
+`wray_c` is a compiled library with a C ABI for languages that cannot use C++ templates. It covers every range function above in `float` and `double` and the `float` fast tier as buffer calls, with stable unmangled names:
+
+```c
+#include <wray/c/wray.h>
+
+wray_sin_f32(in, out, n);
+wray_sincos_f64(in, sin_out, cos_out, n);
+wray_pow_f32(x, y, out, n);
+wray_fast_tanh_f32(in, out, n);
+```
+
+Configure WRAY with `-DWRAY_BUILD_C_API=ON`, then link `wray::c` or `libwray_c`. Results match the C++ calls bit for bit for the backend the library was built with; `wray_c_backend()` and `wray_c_has_fma()` report it. [Details](docs/details.md#c-api).
+
 ## Accuracy contracts
 
 Maximum measured error in ulp (units in the last place). Every `float` input is tested for one-argument functions; the rest are densely sampled. `pow` loosens for very large results. [Details](docs/details.md#accuracy-contracts).

@@ -10,6 +10,7 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 - `sincos(in, sin_out, cos_out)` and `sincos_turns(in, sin_out, cos_out)` produce both range outputs in one SIMD pass, including the float-only fast tier. They stop at the shortest range and support exact input aliasing with either disjoint output (#53).
 - `wray_bench --baseline libm|vforce` pins its denominator, measures both on Apple, disables scalar-loop auto-vectorization without disabling fused scalar calls, and records paired ABBA samples, bootstrap intervals and a self-control (#54, #35).
 - Manual CI can collect native SSE2, AVX2 and AVX-512 timings on Linux and Windows, with runtime ISA checks, per-host provenance, separate artifacts and an aggregate coverage gate. Unsupported hardware produces no timing rather than an emulated or compile-only result (#13).
+- `wray_c`, an optional compiled library built with `-DWRAY_BUILD_C_API=ON` with a C ABI (`include/wray/c/wray.h`, CMake target `wray::c`): every range function in `float` and `double` plus the `float` fast tier as `wray_<name>_<f32|f64>` buffer calls, bit-identical to the C++ ranges, with no C++ symbols exported. Verified from C99, Python `ctypes`, Rust and Swift (#73).
 
 ### Changed
 

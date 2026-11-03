@@ -46,6 +46,16 @@ A deep sweep checks 4000 random parameter sets per filter type and precision, pl
 - `WRAY_STRICT_FP` (on by default) stops consumers' compilers from contracting the library's arithmetic.
 - Every header lives in an inline namespace named after its backend and FMA class (for example `wray::abi_avx2_fma`), so translation units compiled with different SIMD flags can share one program without the linker merging their code.
 
+## C API
+
+`include/wray/c/wray.h` declares a C99 interface, built as `wray_c` (static, or shared with `-DBUILD_SHARED_LIBS=ON`) and exported as `wray::c`. Build it with `-DWRAY_BUILD_C_API=ON`; it is off by default, so installing the headers needs no compiled library.
+
+- Every function is `void wray_<name>_<f32|f64>(...)`, with `wray_fast_<name>_f32` for the fast tier. One-input functions take `(const T *in, T *out, size_t n)`; `sincos` and `sincos_turns` take `(const T *in, T *sin_out, T *cos_out, size_t n)`; two-input functions keep the C++ argument order, such as `wray_atan2_f64(y, x, out, n)` and `wray_pow_f32(x, y, out, n)`.
+- Exactly `n` elements are read and written. An output may be the same buffer as an input; partially overlapping buffers are not supported. With `n == 0` nothing is touched.
+- Results are those of the matching C++ range function, bit for bit, for the backend and FMA class the library was compiled with. `wray_c_backend()` returns `"neon"`, `"sse2"`, `"avx2"`, `"avx512"` or `"scalar"`, and `wray_c_has_fma()` returns 1 or 0. Build `wray_c` with the most capable `WRAY_SIMD` your deployment targets support; one binary does not switch backends at run time.
+- No C++ symbols are exported, and no structs or callbacks cross the boundary, so Rust (`extern "C"`), Python (`ctypes` or `cffi`), Swift (a module map over the header), C# (`DllImport`) and LuaJIT FFI bind it directly.
+- `WRAY_C_ABI_VERSION` and `wray_c_abi_version()` start at 1. Existing names and signatures stay unchanged within a major version; new functions only add symbols.
+
 ## Performance
 
 The speed charts measure **buffer throughput**, not scalar latency. A speedup above 1× means WRAY is faster than the named baseline; below 1× means it is slower. Do not transfer a ratio between platforms, processors or backends.
@@ -160,4 +170,5 @@ WRAY uses semantic versioning, read as follows.
 
 - Golden digests in `tests/golden` pin output bits for one version and FMA class. They are not covered by this policy: a patch may change them as long as every contract still holds.
 - The inline ABI namespace (`wray::abi_avx2_fma` and the like) is not stable. Code that names it directly may break in any release, and every translation unit in one program must use the same WRAY version.
+- The C API in `include/wray/c/wray.h` is stable: renaming or removing a function, or changing a signature, is a major change, and `WRAY_C_ABI_VERSION` changes with it.
 - `find_package(wray X.Y)` accepts any later release with the same major version.

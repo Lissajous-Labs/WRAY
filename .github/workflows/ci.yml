@@ -129,7 +129,7 @@ jobs:
         with:
           arch: ${{ matrix.arch || 'x64' }}
 
-      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=${{ matrix.std || 23 }} -DCMAKE_CXX_FLAGS="${{ matrix.flags }}" -DWRAY_SIMD=${{ matrix.simd }} -DWRAY_PYTHON="${{ steps.python.outputs.python-path }}"
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=${{ matrix.std || 23 }} -DCMAKE_CXX_FLAGS="${{ matrix.flags }}" -DWRAY_SIMD=${{ matrix.simd }} -DWRAY_BUILD_C_API=ON -DWRAY_PYTHON="${{ steps.python.outputs.python-path }}"
 
       - run: cmake --build build
 
@@ -307,7 +307,7 @@ jobs:
 
       - run: sudo apt-get install -y ninja-build
 
-      - run: CXX=g++-14 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWRAY_BUILD_BENCH=OFF
+      - run: CXX=g++-14 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWRAY_BUILD_BENCH=OFF -DWRAY_BUILD_C_API=ON
 
       - run: cmake --build build
 
