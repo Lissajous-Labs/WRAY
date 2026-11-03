@@ -75,6 +75,15 @@
 #define WRAY_FP_END
 #endif
 
+#if defined(__clang__)
+#if __has_builtin(__builtin_elementwise_fma)
+#define WRAY_FMA(a, b, c) __builtin_elementwise_fma(a, b, c)
+#endif
+#endif
+#ifndef WRAY_FMA
+#define WRAY_FMA(a, b, c) std::fma(a, b, c)
+#endif
+
 #if defined(__GNUC__) || defined(__clang__)
 #define WRAY_INLINE inline __attribute__((always_inline))
 #define WRAY_VOP(intrinsic, op, a, b) ((a) op (b))
