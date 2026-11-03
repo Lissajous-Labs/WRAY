@@ -9,6 +9,7 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 - `adaa::first_order<Shape, T>::process(in, out)` and `process(io)` for scalar `T` run consecutive mono samples in parallel lanes and match per-sample calls bit for bit: 2.9–4.3× faster in float and 1.5–2.1× in double on an M1 Max (#49).
 - `sincos(in, sin_out, cos_out)` and `sincos_turns(in, sin_out, cos_out)` produce both range outputs in one SIMD pass, including the float-only fast tier. They stop at the shortest range and support exact input aliasing with either disjoint output (#53).
 - `wray_bench --baseline libm|vforce` pins its denominator, measures both on Apple, disables scalar-loop auto-vectorization without disabling fused scalar calls, and records paired ABBA samples, bootstrap intervals and a self-control (#54, #35).
+- Manual CI can collect native SSE2, AVX2 and AVX-512 timings on Linux and Windows, with runtime ISA checks, per-host provenance, separate artifacts and an aggregate coverage gate. Unsupported hardware produces no timing rather than an emulated or compile-only result (#13).
 
 ### Changed
 
