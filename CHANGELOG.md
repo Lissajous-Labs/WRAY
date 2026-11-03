@@ -8,6 +8,7 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 
 - This changelog (#6) and a [stability policy](docs/details.md#stability) (#7).
 - Pushing a `vX.Y.Z` tag publishes a GitHub release with that version's changelog entry, and fails if the tag does not match `CMakeLists.txt` (#8).
+- `tools/ci/mutants.py` plants a wrong coefficient and a broken reduction step and requires the accuracy test or golden digest to catch each; CI runs it (#34).
 
 ## [1.0.1] - 2026-11-03
 
