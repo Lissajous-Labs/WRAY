@@ -57,8 +57,13 @@ namespace wray::inline WRAY_ABI::adaa::detail
     template<class V, class F>
     WRAY_INLINE V settle(const V &x0, const V &x1, const V &v, F f) noexcept
     {
-        V r = select(either(abs(x0) == inf<V>(), abs(x1) == inf<V>()), f(select(abs(x1) == inf<V>(), x1, x0)), v);
-        r = select(x0 == x1, f(x0), r);
+        V r = v;
+        const auto infinite = either(abs(x0) == inf<V>(), abs(x1) == inf<V>());
+        if (simd::any(infinite))
+            r = select(infinite, f(select(abs(x1) == inf<V>(), x1, x0)), r);
+        const auto equal = x0 == x1;
+        if (simd::any(equal))
+            r = select(equal, f(x0), r);
         return select(either(isnan(x0), isnan(x1)), x0 + x1, r);
     }
 
@@ -105,6 +110,16 @@ namespace wray::inline WRAY_ABI::adaa::detail
         using S = scalar_t<V>;
         return interval_mean(x0, x1, f, [&](const magnitudes<V> &g) {
             const auto narrow = g.d < V(gauss<S>::span);
+            if (simd::all(narrow))
+            {
+                const V q = quadrature(g.lo, g.hi, f);
+                return mean_parts<V>{q, g.d * q};
+            }
+            if (!simd::any(narrow))
+            {
+                const V wide = delta(g.lo, g.hi, g.d);
+                return mean_parts<V>{wide / g.d, wide};
+            }
             const V q = quadrature(g.lo, g.hi, f);
             const V wide = delta(g.lo, g.hi, g.d);
             return mean_parts<V>{select(narrow, q, wide / g.d), select(narrow, g.d * q, wide)};
@@ -196,6 +211,10 @@ namespace wray::inline WRAY_ABI::adaa::detail
         const V one(S(1));
         const V half(S(0.5));
         const auto f = [](const V &x) { return clip(x); };
+        const auto inner = simd::max(abs(x0), abs(x1)) <= one;
+        const V middle = x0 * half + x1 * half;
+        if (simd::all(inner))
+            return middle;
         const V outside = outside_mean(x0, x1, [=](const V &lo, const V &hi, const V &shrink) {
             const auto wide = two_sum(hi, -lo);
             const auto sq = two_product(lo, lo);
@@ -204,7 +223,7 @@ namespace wray::inline WRAY_ABI::adaa::detail
             const auto beyond = lo >= one;
             return pair<V>{select(beyond, wide.hi, mixed.hi) * shrink, select(beyond, wide.lo, mixed.lo) * shrink};
         }, f);
-        return select(simd::max(abs(x0), abs(x1)) <= one, x0 * half + x1 * half, outside);
+        return select(inner, middle, outside);
     }
 
     template<class V>
@@ -215,6 +234,11 @@ namespace wray::inline WRAY_ABI::adaa::detail
         const S third_hi = S(2) / S(3);
         const V third_lo = residual(V(third_hi), V(S(3)), V(S(2))) / V(S(3));
         const auto f = [](const V &x) { return soft(x); };
+        const V sum = x0 + x1;
+        const V inside = fma(sum * (x0 * x0 + x1 * x1), V(S(-1) / S(12)), sum * V(S(0.5)));
+        const auto inner = simd::max(abs(x0), abs(x1)) <= one;
+        if (simd::all(inner))
+            return settle(x0, x1, inside, f);
         const V outside = outside_mean(x0, x1, [=](const V &lo, const V &hi, const V &shrink) {
             const auto beyond = lo >= one;
             const auto t = two_sum(hi, select(beyond, -lo, -one));
@@ -225,9 +249,7 @@ namespace wray::inline WRAY_ABI::adaa::detail
             const auto mixed = plus(scaled, pair<V>{edge, V(S(0))});
             return pair<V>{select(beyond, scaled.hi, mixed.hi), select(beyond, scaled.lo, mixed.lo)};
         }, f);
-        const V sum = x0 + x1;
-        const V inside = fma(sum * (x0 * x0 + x1 * x1), V(S(-1) / S(12)), sum * V(S(0.5)));
-        return settle(x0, x1, select(simd::max(abs(x0), abs(x1)) <= one, inside, outside), f);
+        return settle(x0, x1, select(inner, inside, outside), f);
     }
 
     template<class V>
@@ -281,9 +303,16 @@ namespace wray::inline WRAY_ABI::adaa::detail
         const auto f = [](const V &x) { return atan<math::precise>(x); };
         return interval_mean(x0, x1, f, [=](const magnitudes<V> &g) {
             const auto narrow = g.d < V(gauss<S>::span);
-            const V q = quadrature(g.lo, g.hi, f);
+            if (simd::all(narrow))
+            {
+                const V q = quadrature(g.lo, g.hi, f);
+                return mean_parts<V>{q, g.d * q};
+            }
             const auto a = atan_split(g.lo, g.hi, g.d);
             const V rest = fma(a.spread, V(S(-0.5)), a.turn);
+            if (!simd::any(narrow))
+                return mean_parts<V>{a.top + rest / g.d, fma(g.d, a.top, rest)};
+            const V q = quadrature(g.lo, g.hi, f);
             return mean_parts<V>{select(narrow, q, a.top + rest / g.d), select(narrow, g.d * q, fma(g.d, a.top, rest))};
         });
     }
