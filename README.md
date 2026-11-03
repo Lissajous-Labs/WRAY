@@ -94,7 +94,7 @@ Maximum measured error in ulp (units in the last place). Every `float` input is 
 
 ## ADAA
 
-`wray::adaa` antialiases six waveshapers (`hard_clip`, `soft_clip`, `tanh`, `atan`, `algebraic`, `radical`) with first-order antiderivatives. It stays accurate for any pair of inputs, including equal ones.
+`wray::adaa` antialiases six waveshapers (`hard_clip`, `soft_clip`, `tanh`, `atan`, `algebraic`, `radical`) with first-order antiderivatives. It stays accurate for any pair of inputs, including equal ones. For mono buffers, `first_order<Shape, float>::process(in, out)` runs consecutive samples in parallel and matches the per-sample call bit for bit.
 
 | shape | F1 (ulp) | first (ulp) | shape | F1 (ulp) | first (ulp) |
 |---|---|---|---|---|---|

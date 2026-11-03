@@ -1,8 +1,10 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <limits>
+#include <span>
 #include <type_traits>
 
 #include "math.h"
@@ -484,6 +486,50 @@ namespace wray::inline WRAY_ABI::adaa
             const V y = Shape::first(previous_, x);
             previous_ = x;
             return y;
+        }
+
+        void process(std::span<const V> in, std::span<V> out) noexcept
+            requires std::is_floating_point_v<V>
+        {
+            using W = simd::native<V>;
+            constexpr std::size_t w = W::size;
+            const std::size_t n = std::min(in.size(), out.size());
+            const V *src = in.data();
+            V *dst = out.data();
+            std::size_t i = 0;
+            if constexpr (simd::register_bytes > 0)
+            {
+                if (src != dst && n >= w)
+                {
+                    V head[w];
+                    head[0] = previous_;
+                    for (std::size_t k = 1; k < w; ++k)
+                        head[k] = src[k - 1];
+                    Shape::first(W::load(head), W::load(src)).store(dst);
+                    for (i = w; i + w <= n; i += w)
+                        Shape::first(W::load(src + i - 1), W::load(src + i)).store(dst + i);
+                    previous_ = src[i - 1];
+                } else
+                {
+                    V shifted[w];
+                    for (; i + w <= n; i += w)
+                    {
+                        shifted[0] = previous_;
+                        for (std::size_t k = 1; k < w; ++k)
+                            shifted[k] = src[i + k - 1];
+                        previous_ = src[i + w - 1];
+                        Shape::first(W::load(shifted), W::load(src + i)).store(dst + i);
+                    }
+                }
+            }
+            for (; i < n; ++i)
+                dst[i] = (*this)(src[i]);
+        }
+
+        void process(std::span<V> io) noexcept
+            requires std::is_floating_point_v<V>
+        {
+            process(std::span<const V>(io), io);
         }
 
         void reset(const V &initial = V(simd::scalar_t<V>(0))) noexcept { previous_ = initial; }
