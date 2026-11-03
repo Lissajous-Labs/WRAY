@@ -13,6 +13,7 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 - `erf` evaluates only the regions some lane needs: buffer throughput 13% faster in float and 22% in double, latency 20% lower, and inputs below 0.5 about 4.5× faster on an M1 Max, with bit-identical results (#44).
 - `tanh`, `sinh`, `cosh` and `asinh` evaluate only the regions some lane needs: on an M1 Max, buffer throughput improves by 8% (float) and 25% (double) for `tanh`, 19% and 32% for `asinh`, and 9% for double `cosh`, with bit-identical results (#45).
 - `omega` and `product_log` evaluate only the branches some lane needs: `product_log` buffer throughput is 2.2× (float) and 2.7× (double) faster, `omega` 1.24× and 1.59×, on an M1 Max, with bit-identical results (#46).
+- ADAA computes the quadrature, the closed-form mean, the outside-range mean and the infinite and equal-input fallbacks only when some lane needs them. On an M1 Max with a 440 Hz sine at gain 0.5, `first_order` is 2.9–10× faster across the six shapes; at gain 4 it is 1.0–3.1× faster; results are bit-identical (#47).
 
 ## [1.0.4] - 2026-11-03
 
