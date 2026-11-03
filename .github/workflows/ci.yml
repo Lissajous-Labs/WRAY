@@ -78,23 +78,19 @@ jobs:
 
       - run: cmake --build build
 
-      - id: cpu
+      - if: matrix.simd == 'avx512'
         shell: bash
         run: |
-          if [ "${{ matrix.simd }}" != avx512 ] || grep -qw avx512f /proc/cpuinfo; then
-            echo "runnable=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "runnable=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::runner CPU lacks AVX-512F; ${{ matrix.name }} is compile-only"
+          if ! grep -qw avx512f /proc/cpuinfo; then
+            echo "::error::runner CPU lacks AVX-512F; re-run ${{ matrix.name }}"
+            exit 1
           fi
 
-      - if: steps.cpu.outputs.runnable == 'true'
-        run: ctest --test-dir build -LE "exhaustive|oracle" --output-on-failure
+      - run: ctest --test-dir build -LE "exhaustive|oracle" --output-on-failure
 
-      - if: steps.cpu.outputs.runnable == 'true'
-        run: python tools/oracle/oracle.py --dump build/tools/wray_dump --out build/accuracy.json --check
+      - run: python tools/oracle/oracle.py --dump build/tools/wray_dump --out build/accuracy.json --check
 
-      - if: always() && steps.cpu.outputs.runnable == 'true'
+      - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: accuracy-${{ matrix.name }}
@@ -257,24 +253,19 @@ jobs:
 
       - run: python -m pip install ninja
 
-      - id: cpu
+      - if: matrix.simd == 'avx512'
         shell: bash
         run: |
-          if [ "${{ matrix.simd }}" != avx512 ] || grep -qw avx512f /proc/cpuinfo; then
-            echo "runnable=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "runnable=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::runner CPU lacks AVX-512F; ${{ matrix.name }} is skipped"
+          if ! grep -qw avx512f /proc/cpuinfo; then
+            echo "::error::runner CPU lacks AVX-512F; re-run ${{ matrix.name }}"
+            exit 1
           fi
 
-      - if: steps.cpu.outputs.runnable == 'true'
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWRAY_SIMD=${{ matrix.simd }} -DWRAY_BUILD_BENCH=OFF
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWRAY_SIMD=${{ matrix.simd }} -DWRAY_BUILD_BENCH=OFF
 
-      - if: steps.cpu.outputs.runnable == 'true'
-        run: cmake --build build --target wray_accuracy_test
+      - run: cmake --build build --target wray_accuracy_test
 
-      - if: steps.cpu.outputs.runnable == 'true'
-        run: ctest --test-dir build -L exhaustive --output-on-failure
+      - run: ctest --test-dir build -L exhaustive --output-on-failure
 
   double-dense:
     name: double-dense-${{ matrix.simd }}-${{ matrix.shard }}
