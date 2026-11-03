@@ -1513,18 +1513,25 @@ namespace wray::inline WRAY_ABI::math::detail
         return octaves<Tier>(c, V(S(0)), S(1200), K::ln2_per_cent_hi, K::ln2_per_cent_lo, S(1));
     }
 
-    template<class Tier, class V>
-    WRAY_INLINE V hz_to_midi(const V &f) noexcept
+    template<class V>
+    WRAY_INLINE V hz_to_midi_far(const pair<V> &l) noexcept
     {
         using S = scalar_t<V>;
         using K = constants<S>;
-        const V one(S(1));
-        const auto l = log2_pair_combine(log_reduce<Tier, true>(f));
         const auto s = two_sum(l.hi, V(-K::log2_a4_hi));
         const V sl = s.lo + (l.lo - V(K::log2_a4_lo));
         const auto z12 = two_product(V(S(12)), s.hi);
         const auto m = two_sum(V(S(69)), z12.hi);
-        const V far = m.hi + (m.lo + fma(V(S(12)), sl, z12.lo));
+        return m.hi + (m.lo + fma(V(S(12)), sl, z12.lo));
+    }
+
+    template<class Tier, class V>
+    V hz_to_midi_edge(const V &f) noexcept
+    {
+        using S = scalar_t<V>;
+        using K = constants<S>;
+        const V one(S(1));
+        const V far = hz_to_midi_far(log2_pair_combine(log_reduce<Tier, true>(f)));
         const V g = select(both(f > V(S(4)), f < V(S(16))), f, V(S(8)));
         const V rh = g / V(K::midi_zero_hz_hi);
         const V rl = fma(-rh, V(K::midi_zero_hz_lo), residual(rh, V(K::midi_zero_hz_hi), g)) / V(K::midi_zero_hz_hi);
@@ -1532,6 +1539,15 @@ namespace wray::inline WRAY_ABI::math::detail
         const auto z = two_product(ln, V(K::semitones_per_ln_hi));
         const V near = z.hi + fma(ln, V(K::semitones_per_ln_lo), z.lo);
         return log_specials(f, select(abs(far) < V(S(2)), near, far));
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE V hz_to_midi(const V &f) noexcept
+    {
+        using S = scalar_t<V>;
+        if (simd::any(either(!log_regular_mask(f), both(f > V(S(4)), f < V(S(16))))))
+            return hz_to_midi_edge<Tier>(f);
+        return hz_to_midi_far(log2_pair_combine(log_reduce<Tier, false>(f)));
     }
 
     template<class V>
