@@ -29,9 +29,53 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'schedule' }}
 
 jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - id: diff
+        shell: bash
+        run: |
+          code=true
+          if [ "${{ github.event_name }}" = pull_request ] && ! git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD | grep -qvE '^(.*\.md|LICENSE|docs/.*)$'; then
+            code=false
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+  docs:
+    needs: changes
+    if: needs.changes.outputs.code == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CXX: g++-14
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tools/requirements.txt
+
+      - run: python -m pip install -r tools/requirements.txt ninja
+
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWRAY_SIMD=avx2 -DWRAY_BUILD_TESTS=OFF -DWRAY_BUILD_BENCH=OFF
+
+      - run: cmake --build build --target wray_dump
+
+      - run: python tools/docs/check_readme.py --dump build/tools/wray_dump
+
   test:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -100,6 +144,8 @@ jobs:
   strict-warnings:
     name: strict-warnings-${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -144,6 +190,8 @@ jobs:
   hostility:
     name: hostility-${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -189,6 +237,8 @@ jobs:
   hostility-windows:
     name: hostility-windows-${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -216,6 +266,8 @@ jobs:
   debug:
     name: debug-O0
     runs-on: ubuntu-24.04
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -298,7 +350,7 @@ jobs:
 
   ci-pass:
     if: always()
-    needs: [test, strict-warnings, hostility, hostility-windows, debug, exhaustive, double-dense]
+    needs: [changes, docs, test, strict-warnings, hostility, hostility-windows, debug, exhaustive, double-dense]
     runs-on: ubuntu-24.04
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
