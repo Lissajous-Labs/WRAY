@@ -4,6 +4,8 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-11-03
+
 ### Changed
 
 - `hz_to_midi` skips its near-zero path when no lane is within 4–16 Hz and folds the A4 offset into one exactly summed double-word step: float throughput goes from 0.6× to 1.6× of `std`, double from 0.4× to 0.86× on an M1 Max, with the same contracts (#9).
@@ -40,7 +42,8 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 - Filters: `tpt_one_pole`, `svf`, `biquad`.
 - Backends: NEON, SSE2, AVX2, AVX-512 and scalar, for `float` and `double`.
 
-[Unreleased]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/Lissajous-Labs/WRAY/releases/tag/v1.0.0
