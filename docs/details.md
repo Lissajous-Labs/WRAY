@@ -35,7 +35,7 @@ The bounds below apply in round-to-nearest with FMA. Add 0.5 ulp without FMA. Di
 
 Balanced trig has been checked over every finite `float` input on NEON and non-FMA SSE2 against double-precision libm: the worst error across all four outputs was 2.454 ulp, with no non-finite outputs. Separate and paired `double` outputs were checked on 160,000 inputs against 60-digit mpmath, including root neighborhoods, tiny values and huge arguments; the worst observed error was 2.270 ulp. The ordinary path uses four split π terms; separate calls use a half-period sine core, while paired calls retain quarter-period sine and cosine cores. Oracle checks additionally cover both FMA classes.
 
-Balanced `tanh` passed every finite `float` input on NEON (worst 2.457 ulp) and non-FMA SSE2 (2.533 ulp), with finite outputs inside [-1, 1]. High-precision sampling covered 200,000 inputs per type and FMA class. On M1 Max NEON, its paired buffer throughput measured 1.084× vForce for float and 0.935× for double; scalar-call latency remained slower than WRAY precise.
+Balanced `tanh` passed every finite `float` input on NEON (worst 2.457 ulp) and non-FMA SSE2 (2.533 ulp), with finite outputs inside [-1, 1]. High-precision sampling covered 200,000 inputs per type and FMA class. On M1 Max NEON, its paired buffer throughput measured 1.084× vForce for float and 0.937× for double; scalar-call latency remained slower than WRAY precise.
 
 ## Parameter maps
 
