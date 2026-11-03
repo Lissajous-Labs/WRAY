@@ -4,6 +4,8 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-11-03
+
 ### Changed
 
 - `sin`, `cos`, `sincos` and `tan` reduce huge arguments with word-level bit extraction and 64-bit limb products: about 110 ns to 16 ns per element on an M1 Max, with bit-identical results (#39).
@@ -62,7 +64,8 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 - Filters: `tpt_one_pole`, `svf`, `biquad`.
 - Backends: NEON, SSE2, AVX2, AVX-512 and scalar, for `float` and `double`.
 
-[Unreleased]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.4...HEAD
+[Unreleased]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.5...HEAD
+[1.0.5]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/Lissajous-Labs/WRAY/compare/v1.0.1...v1.0.2
