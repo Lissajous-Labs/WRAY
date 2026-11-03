@@ -703,8 +703,8 @@ namespace wray::inline WRAY_ABI::simd
     WRAY_INLINE m64x2 operator&(const m64x2 &a, const m64x2 &b) noexcept { return {vandq_u64(a.v, b.v)}; }
     WRAY_INLINE m64x2 operator|(const m64x2 &a, const m64x2 &b) noexcept { return {vorrq_u64(a.v, b.v)}; }
     WRAY_INLINE m64x2 operator!(const m64x2 &a) noexcept { return {veorq_u64(a.v, vdupq_n_u64(~0ull))}; }
-    WRAY_INLINE bool any(const m64x2 &a) noexcept { return (vgetq_lane_u64(a.v, 0) | vgetq_lane_u64(a.v, 1)) != 0; }
-    WRAY_INLINE bool all(const m64x2 &a) noexcept { return (vgetq_lane_u64(a.v, 0) & vgetq_lane_u64(a.v, 1)) != 0; }
+    WRAY_INLINE bool any(const m64x2 &a) noexcept { return vmaxvq_u32(vreinterpretq_u32_u64(a.v)) != 0; }
+    WRAY_INLINE bool all(const m64x2 &a) noexcept { return vminvq_u32(vreinterpretq_u32_u64(a.v)) != 0; }
 
 #elif defined(WRAY_SIMD_SSE2)
 
