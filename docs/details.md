@@ -85,6 +85,7 @@ Documentation-only pull requests run the README checks instead of the full matri
 - Host: every function again under flush-to-zero and in all four rounding modes, after reading back that each mode took effect.
 - Determinism: golden output digests per FMA class, covering every function, `sincos`, `wrap_turns`, every filter type with a parameter change mid-stream, and the stateful ADAA processors, and bit-identical scalar and SIMD results on every backend apart from NaN sign and payload.
 - Spectral: oscillator SFDR, ADAA aliasing and parameter-map precision each assert a recorded limit (`wray_spectral_test`).
+- Headers: every public header compiles on its own, twice in one translation unit, under every CI compiler and backend.
 
 ## Where it stops working
 
