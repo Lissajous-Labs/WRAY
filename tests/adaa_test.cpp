@@ -260,6 +260,44 @@ namespace
         CHECK(recovered);
     }
 
+    template <class Shape, class T>
+    void blocks(std::uint64_t seed)
+    {
+        using U = std::conditional_t<sizeof(T) == 4, std::uint32_t, std::uint64_t>;
+        std::mt19937_64 rng(seed);
+        std::uniform_real_distribution<double> u(-3.0, 3.0);
+        std::vector<T> x(203);
+        for (auto &v: x)
+            v = T(u(rng));
+        x[5] = x[4];
+        x[9] = std::numeric_limits<T>::infinity();
+        x[10] = -std::numeric_limits<T>::infinity();
+        std::vector<T> want(x.size());
+        wray::adaa::first_order<Shape, T> single(T(0.25));
+        for (std::size_t i = 0; i < x.size(); ++i)
+            want[i] = single(x[i]);
+        const auto same = [&](const std::vector<T> &got) {
+            bool ok = true;
+            for (std::size_t i = 0; i < x.size(); ++i)
+                ok = ok && std::bit_cast<U>(got[i]) == std::bit_cast<U>(want[i]);
+            return ok;
+        };
+        bool split_ok = true;
+        for (std::size_t cut: {0u, 1u, 3u, 7u, 64u, 202u})
+        {
+            std::vector<T> out(x.size());
+            wray::adaa::first_order<Shape, T> stage(T(0.25));
+            stage.process(std::span<const T>(x.data(), cut), std::span<T>(out.data(), cut));
+            stage.process(std::span<const T>(x.data() + cut, x.size() - cut), std::span<T>(out.data() + cut, x.size() - cut));
+            split_ok = split_ok && same(out) && std::bit_cast<U>(stage(T(0.5))) == std::bit_cast<U>(Shape::first(x.back(), T(0.5)));
+        }
+        CHECK(split_ok);
+        std::vector<T> io = x;
+        wray::adaa::first_order<Shape, T> in_place(T(0.25));
+        in_place.process(std::span<T>(io));
+        CHECK(same(io));
+    }
+
     template <class Shape>
     void stateful_all()
     {
@@ -269,6 +307,8 @@ namespace
         stateful<Shape, wray::f64x2>(14);
         stateful<Shape, wray::simd::native<float> >(15);
         stateful<Shape, wray::simd::native<double> >(16);
+        blocks<Shape, float>(17);
+        blocks<Shape, double>(18);
     }
 }
 
