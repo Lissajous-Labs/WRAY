@@ -170,6 +170,8 @@ def constants(ctype):
             "midi_zero_hz_lo": split(440 * mp.power(2, mp.mpf(-69) / 12), total, total)[1],
             "semitones_per_ln_hi": split(12 / mp.log(2), total, total)[0],
             "semitones_per_ln_lo": split(12 / mp.log(2), total, total)[1],
+            "midi_offset_hi": split(69 - 12 * mp.log(440, 2), 19 if ctype == "float" else 45, total)[0],
+            "midi_offset_lo": split(69 - 12 * mp.log(440, 2), 19 if ctype == "float" else 45, total)[1],
         }
 
 

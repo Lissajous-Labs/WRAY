@@ -402,6 +402,8 @@ namespace wray::inline WRAY_ABI::math
         static constexpr float midi_zero_hz_lo = -0x1.e7a8d6p-22f;
         static constexpr float semitones_per_ln_hi = 0x1.14ff58p+4f;
         static constexpr float semitones_per_ln_lo = 0x1.7c1448p-21f;
+        static constexpr float midi_offset_hi = -0x1.2302cp+5f;
+        static constexpr float midi_offset_lo = 0x1.b7bffep-16f;
     };
 
     template <>
@@ -466,5 +468,7 @@ namespace wray::inline WRAY_ABI::math
         static constexpr double midi_zero_hz_lo = 0x1.9ba0bcca28c7cp-52;
         static constexpr double semitones_per_ln_hi = 0x1.14ff58be0a23fp+4;
         static constexpr double semitones_per_ln_lo = -0x1.b9988d0071d89p-50;
+        static constexpr double midi_offset_hi = -0x1.2302b242001p+5;
+        static constexpr double midi_offset_lo = 0x1.e6414d0839ca2p-41;
     };
 }
