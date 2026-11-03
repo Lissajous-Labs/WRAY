@@ -345,7 +345,7 @@ namespace wray::inline WRAY_ABI::math::detail
         using S = scalar_t<V>;
         if constexpr (full<Tier>)
         {
-            if (simd::any(!(abs(x) < V(format<S>::exp_safe))))
+            if (!simd::all(abs(x) < V(format<S>::exp_safe)))
                 return exp_edge<Tier>(x);
             return exp_regular<Tier>(x);
         } else
@@ -387,7 +387,7 @@ namespace wray::inline WRAY_ABI::math::detail
     WRAY_INLINE V expm1(const V &x) noexcept
     {
         using S = scalar_t<V>;
-        if (simd::any(!(abs(x) < V(format<S>::exp_safe))))
+        if (!simd::all(abs(x) < V(format<S>::exp_safe)))
             return expm1_edge<Tier>(x);
         return expm1_regular<Tier>(x);
     }
@@ -420,7 +420,7 @@ namespace wray::inline WRAY_ABI::math::detail
         using S = scalar_t<V>;
         if constexpr (full<Tier>)
         {
-            if (simd::any(!(abs(hi) < V(format<S>::exp2_safe))))
+            if (!simd::all(abs(hi) < V(format<S>::exp2_safe)))
                 return exp2_edge<Tier>(hi, lo);
             const auto red = exp2_reduce<Tier>(hi, lo);
             return scale_by(exp_poly<Tier>(red.hi), red.lo);
@@ -555,7 +555,7 @@ namespace wray::inline WRAY_ABI::math::detail
     {
         if constexpr (full<Tier>)
         {
-            if (simd::any(!log_regular_mask(x)))
+            if (!simd::all(log_regular_mask(x)))
                 return log_edge<Tier>(x);
             return log_combine(log_reduce<Tier, false>(x));
         } else
@@ -591,7 +591,7 @@ namespace wray::inline WRAY_ABI::math::detail
     {
         using S = scalar_t<V>;
         const V u = V(S(1)) + x;
-        if (simd::any(!log_regular_mask(u)))
+        if (!simd::all(log_regular_mask(u)))
             return log1p_edge<Tier>(x);
         return log1p_combine<Tier, false>(x, V(S(0)), u);
     }
@@ -607,7 +607,7 @@ namespace wray::inline WRAY_ABI::math::detail
     {
         if constexpr (full<Tier>)
         {
-            if (simd::any(!log_regular_mask(x)))
+            if (!simd::all(log_regular_mask(x)))
                 return log2_edge<Tier>(x);
             return log2_combine(log_reduce<Tier, false>(x));
         } else
@@ -1232,7 +1232,7 @@ namespace wray::inline WRAY_ABI::math::detail
         pair<V> q;
         if constexpr (full<Tier>)
         {
-            if (simd::any(!both(both(n >= V(residual_floor<S>), d < V(ratio_ceiling<S>)), n >= d * V(residual_floor<S>))))
+            if (!simd::all(both(both(n >= V(residual_floor<S>), d < V(ratio_ceiling<S>)), n >= d * V(residual_floor<S>))))
                 q = ratio_edge(n, d);
             else
                 q = ratio(n, d);
@@ -1417,12 +1417,12 @@ namespace wray::inline WRAY_ABI::math::detail
         using S = scalar_t<V>;
         if constexpr (full<Tier>)
         {
-            if (simd::any(!both(log_regular_mask(x), abs(y) < V(format<S>::pow_y_safe))))
+            if (!simd::all(both(log_regular_mask(x), abs(y) < V(format<S>::pow_y_safe))))
                 return pow_edge<Tier>(x, y);
             const auto l = log2_pair_combine(log_reduce<Tier, false>(x));
             const auto z = two_product(y, l.hi);
             const V lo = fma(y, l.lo, z.lo);
-            if (simd::any(!(abs(z.hi) < V(format<S>::exp2_safe))))
+            if (!simd::all(abs(z.hi) < V(format<S>::exp2_safe)))
                 return pow_edge<Tier>(x, y);
             return exp2_pair_regular<Tier>(z.hi, lo);
         } else
@@ -1460,7 +1460,7 @@ namespace wray::inline WRAY_ABI::math::detail
         {
             const auto z = two_product(db, V(K::log2_per_db_hi));
             const V lo = fma(db, V(K::log2_per_db_lo), z.lo);
-            if (simd::any(!(abs(z.hi) < V(format<S>::exp2_safe))))
+            if (!simd::all(abs(z.hi) < V(format<S>::exp2_safe)))
                 return exp2_edge<Tier>(z.hi, finite_or_zero(z.hi, lo));
             return exp2_pair_regular<Tier>(z.hi, lo);
         } else
@@ -1492,7 +1492,7 @@ namespace wray::inline WRAY_ABI::math::detail
         using K = constants<scalar_t<V> >;
         if constexpr (full<Tier>)
         {
-            if (simd::any(!log_regular_mask(gain)))
+            if (!simd::all(log_regular_mask(gain)))
                 return gain_to_db_edge<Tier>(gain);
             return db_combine(log_reduce<Tier, false>(gain));
         } else
@@ -1698,7 +1698,7 @@ namespace wray::inline WRAY_ABI::math::detail
     WRAY_INLINE V hz_to_midi(const V &f) noexcept
     {
         using S = scalar_t<V>;
-        if (simd::any(either(!log_regular_mask(f), both(f > V(S(4)), f < V(S(16))))))
+        if (!simd::all(both(log_regular_mask(f), either(f <= V(S(4)), f >= V(S(16))))))
             return hz_to_midi_edge<Tier>(f);
         return hz_to_midi_far(log_reduce<Tier, false>(f));
     }
@@ -1738,12 +1738,12 @@ namespace wray::inline WRAY_ABI::math::detail
         using S = scalar_t<V>;
         const V one(S(1));
         const auto p = two_product(seconds, fs);
-        if (simd::any(!both(both(seconds > V(S(0)), fs > V(S(0))), both(p.hi >= V(format<S>::min_normal), p.hi < inf<V>()))))
+        if (!simd::all(both(both(seconds > V(S(0)), fs > V(S(0))), both(p.hi >= V(format<S>::min_normal), p.hi < inf<V>()))))
             return smoothing_coefficient_edge<Tier>(seconds, fs);
         const auto x = quotient(one, p.hi);
         const V xl = fma(-x.hi, p.lo / p.hi, x.lo);
 #if !WRAY_HAS_FMA
-        if (simd::any(!(abs(xl) < inf<V>())))
+        if (!simd::all(abs(xl) < inf<V>()))
             return smoothing_coefficient_edge<Tier>(seconds, fs);
 #endif
         const V e = expm1<Tier>(-x.hi);
@@ -1811,7 +1811,7 @@ namespace wray::inline WRAY_ABI::math::detail
         using C = typename table<Tier, S>::omega;
         const V one(S(1));
         V y = numerics::rational<C>(simd::min(simd::max(x, V(S(-2))), V(S(3))));
-        if (simd::any(!(x < V(S(3)))))
+        if (!simd::all(x < V(S(3))))
         {
             const V xs = simd::max(x, V(S(3)));
             const V l = log<Tier>(xs);
@@ -1880,7 +1880,7 @@ namespace wray::inline WRAY_ABI::math::detail
         const auto ex = two_product(x, V(K::e_hi));
         const V gap = ((one + ex.hi) + ex.lo) + x * V(K::e_lo);
         V v2 = x;
-        if (simd::any(!(x < V(S(0.5)))))
+        if (!simd::all(x < V(S(0.5))))
         {
             const auto lp = log_pair<Tier>(simd::max(x, V(S(0.5))));
             v2 = omega_pair<Tier>(lp.hi, lp.lo);
@@ -1938,7 +1938,7 @@ namespace wray::inline WRAY_ABI::math::detail
     template<class Tier, class V>
     WRAY_INLINE V log10(const V &x) noexcept
     {
-        if (simd::any(!log_regular_mask(x)))
+        if (!simd::all(log_regular_mask(x)))
             return log10_edge<Tier>(x);
         return log10_combine(log_reduce<Tier, false>(x));
     }
