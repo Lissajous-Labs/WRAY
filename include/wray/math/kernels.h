@@ -771,7 +771,7 @@ namespace wray::inline WRAY_ABI::math::detail
     }
 
     template<class Tier, class V>
-    WRAY_INLINE reduced<V> reduce_pio2(const V &input) noexcept
+    reduced<V> reduce_pio2_edge(const V &input) noexcept
     {
         using S = scalar_t<V>;
         using K = constants<S>;
@@ -781,6 +781,15 @@ namespace wray::inline WRAY_ABI::math::detail
         if (simd::any(both(!inside, abs(input) < inf<V>())))
             patch_huge(input, r.hi, r.lo, r.q);
         return r;
+    }
+
+    template<class Tier, class V>
+    WRAY_INLINE reduced<V> reduce_pio2(const V &input) noexcept
+    {
+        using S = scalar_t<V>;
+        if (simd::all(abs(input) <= V(constants<S>::trig_arg_max))) [[likely]]
+            return reduce_pio2_inside<Tier>(input);
+        return reduce_pio2_edge<Tier>(input);
     }
 
     template<class Tier, class V>
