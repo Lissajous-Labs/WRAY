@@ -64,8 +64,9 @@ def main():
                 subprocess.run(["cmake", "--build", str(build), "--target", "wray_bench", "--parallel", "2"],
                                env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
             executable = build / "bench" / ("wray_bench.exe" if os.name == "nt" else "wray_bench")
+            baseline = "sleef_u10" if platform.system() == "Linux" else "libm"
             with (out / f"bench-{backend}.log").open("w") as log:
-                subprocess.run([str(executable), str(out / f"bench-{backend}.json"), "--baseline", "libm"],
+                subprocess.run([str(executable), str(out / f"bench-{backend}.json"), "--baseline", baseline],
                                env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
             info["measured"].append(backend)
             manifest.write_text(json.dumps(info, indent=2) + "\n")

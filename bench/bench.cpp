@@ -407,7 +407,57 @@ namespace
             }});
         }
 #endif
+        const auto add_reference = [&](const char *name, wray_bench::function<T> f) {
+            if (!f)
+                return;
+            const auto position = std::find_if(s.throughput_rows.begin(), s.throughput_rows.end(), [](const auto &row) { return row.name.starts_with("wray"); });
+            s.throughput_rows.insert(position, {name, [f](const workload<T>& w, std::span<T> out, std::span<T> cos_out) {
+                f(w.a.data(), w.b.data(), out.data(), cos_out.data(), w.a.size());
+            }});
+        };
+#if defined(WRAY_BENCH_HAS_SLEEF)
+        add_reference("sleef_u10", wray_bench::sleef<T>(n, wray_bench::sleef_accuracy::u10));
+        add_reference("sleef_u35", wray_bench::sleef<T>(n, wray_bench::sleef_accuracy::u35));
+#endif
+#if defined(WRAY_BENCH_HAS_LIBMVEC)
+        add_reference("libmvec", wray_bench::libmvec<T>(n));
+#endif
         return s;
+    }
+
+    template <class T>
+    bool agrees(T got, T want)
+    {
+        if (std::isnan(want))
+            return std::isnan(got);
+        if (std::isinf(want))
+            return got == want;
+        const T scale = std::max(std::abs(want), T(1e-3));
+        return std::abs(got - want) <= scale * T(std::is_same_v<T, float> ? 1e-4 : 1e-10);
+    }
+
+    template <class T>
+    void validate(const char *type, const char *fn, suite<T> &s, const workload<T> &w)
+    {
+        const auto reference = std::find_if(s.throughput_rows.begin(), s.throughput_rows.end(), [](const auto &row) { return row.name == "libm"; });
+        if (reference == s.throughput_rows.end())
+            return;
+        std::vector<T> want(kSize), want_cos(kSize), got(kSize), got_cos(kSize);
+        reference->run(w, want, want_cos);
+        const bool pair = std::strcmp(fn, "sincos") == 0;
+        for (auto &row : s.throughput_rows)
+        {
+            if (&row == &*reference || row.name.starts_with("wray"))
+                continue;
+            row.run(w, got, got_cos);
+            for (std::size_t i = 0; i < kSize; ++i)
+                if (!agrees(got[i], want[i]) || (pair && !agrees(got_cos[i], want_cos[i])))
+                {
+                    std::fprintf(stderr, "%s %s: %s disagrees with libm at input %.9g: %.9g vs %.9g\n", type, fn, row.name.c_str(),
+                                 double(w.a[i]), double(got[i]), double(want[i]));
+                    std::exit(3);
+                }
+        }
     }
 
     struct timing
@@ -509,6 +559,7 @@ namespace
                 if (s.throughput_rows[k].name == selected_baseline)
                     baseline = selected_baseline;
             }
+            validate(type, n, s, w);
             std::vector<T> out(kSize), cos_out(kSize);
             for (auto &row : s.throughput_rows)
                 row.run(w, out, cos_out);
@@ -774,16 +825,18 @@ int main(int argc, char** argv)
         const std::string_view arg(argv[i]);
         if (arg == "--help")
         {
-            std::puts("Usage: wray_bench [output.json] [--baseline libm|vforce] [function ...]");
-            std::puts("macOS always records both baselines where available; selection sets the primary denominator.");
+            std::puts("Usage: wray_bench [output.json] [--baseline libm|vforce|sleef_u10|sleef_u35|libmvec] [function ...]");
+            std::puts("Every available baseline is recorded; selection sets the primary denominator.");
+            std::puts("Vector baselines in this build: " WRAY_BENCH_VECTOR_BASELINES);
             std::puts("Latency uses scalar libm. Throughput uses paired ABBA rounds, a self-control, and bootstrap intervals.");
             return 0;
         }
         if (arg == "--baseline")
         {
-            if (++i == argc || (std::strcmp(argv[i], "libm") != 0 && std::strcmp(argv[i], "vforce") != 0))
+            const std::string_view known[] = {"libm", "vforce", "sleef_u10", "sleef_u35", "libmvec"};
+            if (++i == argc || std::find(std::begin(known), std::end(known), std::string_view(argv[i])) == std::end(known))
             {
-                std::fputs("--baseline requires libm or vforce\n", stderr);
+                std::fputs("--baseline requires libm, vforce, sleef_u10, sleef_u35 or libmvec\n", stderr);
                 return 2;
             }
             baseline = argv[i];
@@ -808,6 +861,20 @@ int main(int argc, char** argv)
         return 2;
     }
 #endif
+#if !defined(WRAY_BENCH_HAS_SLEEF)
+    if (std::string_view(baseline).starts_with("sleef"))
+    {
+        std::fputs("This build has no SLEEF; install SLEEF 3.9 or newer where CMake can find it\n", stderr);
+        return 2;
+    }
+#endif
+#if !defined(WRAY_BENCH_HAS_LIBMVEC)
+    if (std::strcmp(baseline, "libmvec") == 0)
+    {
+        std::fputs("libmvec is available only with glibc 2.35 or newer on x86-64\n", stderr);
+        return 2;
+    }
+#endif
     std::FILE* json = std::fopen(path, "w");
     if (!json)
     {
@@ -817,10 +884,10 @@ int main(int argc, char** argv)
     const char *revision = std::getenv("WRAY_BENCH_REVISION");
     if (!revision)
         revision = std::getenv("GITHUB_SHA");
-    std::fprintf(json, "{\n\"meta\": {\"cpu\": \"%s\", \"platform\": \"%s\", \"compiler\": \"%s\", \"flags\": \"%s\", \"backend\": \"%s\", \"revision\": \"%s\", \"baseline\": \"%s\", \"libm_vectorization\": \"disabled\", \"libm_flags\": \"%s\", \"fma\": %s, \"rounds\": %d, \"repeats\": %d, \"sampling\": \"alternating ABBA; self-control; median paired ratios; 5000 bootstrap resamples; 95%% intervals\", \"statistic\": \"ns is minimum sample; median and p90 are sample quantiles\"},\n\"rows\": [",
+    std::fprintf(json, "{\n\"meta\": {\"cpu\": \"%s\", \"platform\": \"%s\", \"compiler\": \"%s\", \"flags\": \"%s\", \"backend\": \"%s\", \"revision\": \"%s\", \"baseline\": \"%s\", \"libm_vectorization\": \"disabled\", \"libm_flags\": \"%s\", \"vector_baselines\": \"%s\", \"fma\": %s, \"rounds\": %d, \"repeats\": %d, \"sampling\": \"alternating ABBA; self-control; median paired ratios; 5000 bootstrap resamples; 95%% intervals\", \"statistic\": \"ns is minimum sample; median and p90 are sample quantiles\"},\n\"rows\": [",
                  escaped(cpu_name()).c_str(), escaped(platform()).c_str(), escaped(compiler()).c_str(), escaped(WRAY_BENCH_FLAGS).c_str(),
                  backend(), escaped(revision ? revision : "unrecorded").c_str(), baseline, escaped(WRAY_BENCH_LIBM_FLAGS).c_str(),
-                 WRAY_HAS_FMA ? "true" : "false", kRounds, kRepeats);
+                 escaped(WRAY_BENCH_VECTOR_BASELINES).c_str(), WRAY_HAS_FMA ? "true" : "false", kRounds, kRepeats);
     bool first = true;
     run<float>("f32", json, first, only, baseline);
     run<double>("f64", json, first, only, baseline);

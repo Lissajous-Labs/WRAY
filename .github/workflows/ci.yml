@@ -423,7 +423,7 @@ jobs:
   benchmark:
     if: github.event_name == 'workflow_dispatch' && inputs.benchmarks
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 75
     strategy:
       fail-fast: false
       matrix:
@@ -447,6 +447,26 @@ jobs:
           arch: x64
 
       - run: python -m pip install ninja
+
+      - if: runner.os == 'Linux'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/sleef
+          key: sleef-3.9.0-${{ matrix.os }}-${{ matrix.cxx }}
+
+      - if: runner.os == 'Linux'
+        run: |
+          if [ ! -f "$HOME/sleef/lib/cmake/sleef/sleefConfig.cmake" ]; then
+            curl -fsSL https://github.com/shibatch/sleef/archive/refs/tags/3.9.0.tar.gz -o "$RUNNER_TEMP/sleef.tar.gz"
+            echo "af60856abac08a3b5e72a8d156dd71fec1f7ac23de8ee67793f45f9edcdf0908  $RUNNER_TEMP/sleef.tar.gz" | sha256sum -c -
+            tar -xzf "$RUNNER_TEMP/sleef.tar.gz" -C "$RUNNER_TEMP"
+            cmake -S "$RUNNER_TEMP/sleef-3.9.0" -B "$RUNNER_TEMP/sleef-build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_C_COMPILER="${CXX/g++/gcc}" -DCMAKE_CXX_COMPILER="$CXX" -DCMAKE_INSTALL_PREFIX="$HOME/sleef" -DSLEEF_BUILD_TESTS=OFF -DSLEEF_BUILD_DFT=OFF -DSLEEF_BUILD_QUAD=OFF \
+              -DSLEEF_BUILD_GNUABI_LIBS=OFF -DSLEEF_BUILD_SCALAR_LIB=OFF -DSLEEF_BUILD_INLINE_HEADERS=OFF
+            cmake --build "$RUNNER_TEMP/sleef-build"
+            cmake --install "$RUNNER_TEMP/sleef-build"
+          fi
+          echo "CMAKE_PREFIX_PATH=$HOME/sleef" >> "$GITHUB_ENV"
 
       - run: python tools/ci/benchmark.py --out benchmark-results
 
@@ -476,13 +496,19 @@ jobs:
           import json
           import pathlib
           measured = set()
+          competitors = []
           for path in pathlib.Path("benchmark-results").rglob("bench-*.json"):
               data = json.loads(path.read_text())
               measured.add(data["meta"]["backend"])
+              if data["meta"]["platform"].startswith("Linux"):
+                  competitors.append((path, data["meta"]["vector_baselines"]))
               print(data["meta"]["platform"], data["meta"]["cpu"], data["meta"]["backend"])
           missing = {"sse2", "avx2", "avx512"} - measured
           if missing:
               raise SystemExit("Native benchmark coverage missing: " + ", ".join(sorted(missing)))
+          absent = [str(path) for path, names in competitors if "sleef" not in names or "libmvec" not in names]
+          if not competitors or absent:
+              raise SystemExit("Linux benchmarks must measure SLEEF and glibc libmvec: " + ", ".join(absent or ["no Linux runs"]))
           PY
 
   ci-pass:

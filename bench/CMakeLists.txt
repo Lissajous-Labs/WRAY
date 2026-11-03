@@ -15,7 +15,35 @@ if(APPLE)
     target_sources(wray_bench PRIVATE vforce.cpp)
     target_link_libraries(wray_bench PRIVATE "-framework Accelerate")
 endif()
+set(wray_bench_vector_baselines "")
+if(NOT WRAY_SIMD STREQUAL "scalar")
+    find_package(sleef 3.9 CONFIG QUIET)
+    if(sleef_FOUND)
+        target_sources(wray_bench PRIVATE sleef.cpp)
+        target_link_libraries(wray_bench PRIVATE sleef::sleef)
+        target_compile_definitions(wray_bench PRIVATE WRAY_BENCH_HAS_SLEEF)
+        list(APPEND wray_bench_vector_baselines "sleef-${sleef_VERSION}")
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
+        include(CheckCXXSourceCompiles)
+        set(CMAKE_REQUIRED_LIBRARIES mvec m)
+        check_cxx_source_compiles([=[
+            #include <immintrin.h>
+            extern "C" __m128 _ZGVbN4v_expm1f(__m128);
+            int main() { return _mm_cvtss_si32(_ZGVbN4v_expm1f(_mm_set1_ps(0.5f))); }
+        ]=] wray_bench_has_libmvec)
+        unset(CMAKE_REQUIRED_LIBRARIES)
+        if(wray_bench_has_libmvec)
+            target_sources(wray_bench PRIVATE libmvec.cpp)
+            target_link_libraries(wray_bench PRIVATE mvec m)
+            target_compile_definitions(wray_bench PRIVATE WRAY_BENCH_HAS_LIBMVEC)
+            list(APPEND wray_bench_vector_baselines "glibc-libmvec")
+        endif()
+    endif()
+endif()
+string(JOIN " " wray_bench_vector_baselines ${wray_bench_vector_baselines})
 string(TOUPPER "${CMAKE_BUILD_TYPE}" wray_bench_config)
 target_compile_definitions(wray_bench PRIVATE
     WRAY_BENCH_FLAGS="${CMAKE_CXX_COMPILER_ID} ${CMAKE_BUILD_TYPE} ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${wray_bench_config}} CXX_STANDARD=${CMAKE_CXX_STANDARD} WRAY_SIMD=${WRAY_SIMD} $<JOIN:$<TARGET_PROPERTY:wray,INTERFACE_COMPILE_OPTIONS>, >"
-    WRAY_BENCH_LIBM_FLAGS="${wray_bench_scalar_flags}")
+    WRAY_BENCH_LIBM_FLAGS="${wray_bench_scalar_flags}"
+    WRAY_BENCH_VECTOR_BASELINES="${wray_bench_vector_baselines}")
