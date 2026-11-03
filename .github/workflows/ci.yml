@@ -16,6 +16,10 @@ on:
         description: Samples per double function in the dense sweep
         type: string
         default: "100000000"
+      benchmarks:
+        description: Collect native x86 throughput and latency artifacts
+        type: boolean
+        default: false
   schedule:
     - cron: "17 3 * * 0"
 
@@ -189,12 +193,13 @@ jobs:
       - if: runner.os == 'Linux'
         shell: bash
         run: |
-          flags="-std=c++20 -O1 -ffp-contract=off -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wdouble-promotion -Wold-style-cast -Wshadow -Werror -I include"
+          flags=(-std=c++20 -O1 -ffp-contract=off -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wdouble-promotion -Wold-style-cast -Wshadow -Werror -I include)
           if [ "$(uname -m)" = x86_64 ]; then simd=("-msse2 -mno-avx" "-mavx2 -mfma" "-mavx512f -mavx2 -mfma" "-DWRAY_SIMD_SCALAR=1"); else simd=("" "-DWRAY_SIMD_SCALAR=1"); fi
           for cxx in g++-14 clang++-18; do
             for s in "${simd[@]}"; do
               echo "$cxx $s"
-              $cxx $flags $s -c tests/consumer/strict.cpp -o strict.o
+              read -r -a isa <<< "$s"
+              "$cxx" "${flags[@]}" "${isa[@]}" -c tests/consumer/strict.cpp -o strict.o
             done
           done
 
@@ -239,13 +244,13 @@ jobs:
 
       - name: consumers without the CMake target
         run: |
-          extra=""
-          if [ "$(uname -m)" = x86_64 ]; then extra="-mavx2 -mfma"; fi
+          extra=()
+          if [ "$(uname -m)" = x86_64 ]; then extra=(-mavx2 -mfma); fi
           for std in -std=gnu++20 -std=c++20; do
             tools/ci/header_only.sh g++-14 $std
             tools/ci/header_only.sh clang++-18 $std
-            tools/ci/header_only.sh g++-14 $std $extra
-            tools/ci/header_only.sh clang++-18 $std $extra
+            tools/ci/header_only.sh g++-14 "$std" "${extra[@]}"
+            tools/ci/header_only.sh clang++-18 "$std" "${extra[@]}"
           done
 
       - name: translation units with different SIMD flags in one program
@@ -415,9 +420,74 @@ jobs:
           fi
           cat avx512/*/avx512-native.txt
 
+  benchmark:
+    if: github.event_name == 'workflow_dispatch' && inputs.benchmarks
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-22, os: ubuntu-22.04, cxx: g++ }
+          - { name: linux-24, os: ubuntu-24.04, cxx: g++-14 }
+          - { name: windows-22, os: windows-2022, cxx: cl }
+          - { name: windows-25, os: windows-2025, cxx: cl }
+    env:
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.12"
+
+      - if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+        with:
+          arch: x64
+
+      - run: python -m pip install ninja
+
+      - run: python tools/ci/benchmark.py --out benchmark-results
+
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: benchmark-${{ matrix.name }}
+          path: benchmark-results
+          if-no-files-found: error
+
+  benchmark-summary:
+    needs: benchmark
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.benchmarks
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "${{ github.run_id }}" --pattern "benchmark-*" --dir benchmark-results
+
+      - run: |
+          python - <<'PY'
+          import json
+          import pathlib
+          measured = set()
+          for path in pathlib.Path("benchmark-results").rglob("bench-*.json"):
+              data = json.loads(path.read_text())
+              measured.add(data["meta"]["backend"])
+              print(data["meta"]["platform"], data["meta"]["cpu"], data["meta"]["backend"])
+          missing = {"sse2", "avx2", "avx512"} - measured
+          if missing:
+              raise SystemExit("Native benchmark coverage missing: " + ", ".join(sorted(missing)))
+          PY
+
   ci-pass:
     if: always()
-    needs: [changes, docs, test, avx512-coverage, strict-warnings, hostility, hostility-windows, debug, mutants, exhaustive, double-dense]
+    needs: [changes, docs, test, avx512-coverage, strict-warnings, hostility, hostility-windows, debug, mutants, exhaustive, double-dense, benchmark-summary]
     runs-on: ubuntu-24.04
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')

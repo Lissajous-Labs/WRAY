@@ -46,7 +46,21 @@ A deep sweep checks 4000 random parameter sets per filter type and precision, pl
 - `WRAY_STRICT_FP` (on by default) stops consumers' compilers from contracting the library's arithmetic.
 - Every header lives in an inline namespace named after its backend and FMA class (for example `wray::abi_avx2_fma`), so translation units compiled with different SIMD flags can share one program without the linker merging their code.
 
-For a single value inside a dependency chain, such as a feedback loop, the precise tier is often slower than the platform libm: its compensated steps and special-value handling lengthen the chain. `docs/data/bench.json` records the machine, compiler, flags and backend, the fastest, median and 90th-percentile round for every row, and block timings for the filters, coefficient updates and each ADAA shape against its pointwise version.
+## Performance
+
+The speed charts measure **buffer throughput**, not scalar latency. A speedup above 1× means WRAY is faster than the named baseline; below 1× means it is slower. Do not transfer a ratio between platforms, processors or backends.
+
+On Apple, vForce is the primary baseline, with explicitly scalar libm shown alongside it. Precise `sincos` is slower than vForce on the M1 Max. WRAY instead offers its published error contracts and bit-reproducible results within one version and FMA class. Apple's `vForce.h` says exact results and subnormal handling may vary across microarchitectures and OS versions; it also permits subnormals to flush to zero. This is a reproducibility distinction, not evidence that vForce is inaccurate. [Apple vForce documentation](https://developer.apple.com/documentation/accelerate/vforce-library).
+
+Windows and Linux measurements use the explicitly scalar standard-library baseline. They are not comparisons against optional vector math libraries, and Apple ratios do not predict their performance.
+
+`wray_bench [output.json] --baseline libm|vforce [function ...]` selects the primary throughput denominator. macOS always measures both baselines where available. `libm.cpp` is compiled with Clang's `-fno-vectorize -fno-slp-vectorize`, GCC's `-fno-tree-vectorize`, or MSVC's `/Qvec-`: ordinary scalar optimization and fused scalar sine/cosine calls remain enabled. vForce uses its native array routines; compound audio functions include their input/output transforms. Smoothing uses the stable `-expm1(-1/(seconds*fs))` formula, and the gain baseline uses base-2 exponentiation rather than a general power.
+
+Each math comparison uses 4096 inputs, 40 repetitions per sample and 25 paired rounds, alternating ABBA and BAAB order. Speedups are medians of paired ratios, with 95% bootstrap intervals from 5000 resamples. A WRAY-vs-itself comparison records the timing noise. JSON retains every timing and ratio sample, the chosen denominator per row, CPU, OS, compiler, flags, backend and source revision when supplied through `WRAY_BENCH_REVISION` or GitHub Actions. `none` means there is no selected baseline for that row—not a hidden fallback. vForce has no `erf`, `omega` or `product_log` counterpart in this harness.
+
+`sincos` throughput computes and writes both outputs through the public fused range overload. Latency instead measures dependent scalar calls against scalar libm, including the chain scaffolding; vForce is a bulk API, not a scalar latency baseline. Precise kernels can lose to libm here because compensated arithmetic lengthens the dependency chain. The data also includes edge-input throughput, filter blocks, coefficient updates and each ADAA shape against its pointwise version.
+
+For native x86 measurements, run `python tools/ci/benchmark.py --out benchmark-results` or dispatch CI with `benchmarks=true`. Each host runs its supported backends sequentially, never under an instruction emulator. CI collects Linux and Windows hosts and requires native results for SSE2, AVX2 and AVX-512 across the collected artifacts. Hosted-VM timings are not bare-metal measurements; CPU, compiler, flags and host manifests stay with the data.
 
 ## How it is verified
 
