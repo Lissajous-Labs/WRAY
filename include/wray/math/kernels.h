@@ -1471,27 +1471,47 @@ namespace wray::inline WRAY_ABI::math::detail
         using Cl = typename table<Tier, S>::erfc;
         const V one(S(1));
         const V a = abs(x);
-        const V t = x * x;
-        const auto lead = two_product(x, V(K::two_over_sqrt_pi_hi));
-        const V small = lead.hi + (lead.lo + x * fma(t, numerics::rational<Cs>(t), V(K::two_over_sqrt_pi_lo)));
         const V cut(std::numeric_limits<S>::digits == 24 ? S(4) : S(6));
-        const V ac = simd::max(simd::min(a, cut), V(S(1.5)));
-        const auto sq = two_product(ac, ac);
-        const V e = exp_regular<Tier>(-sq.hi) * (one - sq.lo);
-        const V large = one - e * numerics::rational<Cl>(ac);
-        using Cm = typename table<Tier, S>::erf_mid;
-        const V d = a - V(S(0.75));
-        const V mid = V(K::erf_mid_hi) + fma(d, numerics::rational<Cm>(d), V(K::erf_mid_lo));
-        using Cm2 = typename table<Tier, S>::erf_mid2;
-        const V d2 = a - V(S(1.25));
-        const V mid2 = V(K::erf_mid2_hi) + fma(d2, numerics::rational<Cm2>(d2), V(K::erf_mid2_lo));
-        const V outer = copysign_from(select(a < one, mid, select(a < V(S(1.5)), mid2, select(a < cut, large, one))), x);
-        const V up(S(0x1p64));
-        const V xs = x * up;
-        const auto lead_s = two_product(xs, V(K::two_over_sqrt_pi_hi));
-        const V scaled = (lead_s.hi + (lead_s.lo + xs * V(K::two_over_sqrt_pi_lo))) * V(S(0x1p-64));
-        const V tiny = select(a < V(tiny_turn<S>), scaled, small);
-        const V v = select(a < V(S(0.5)), keep_zero(x, tiny), outer);
+        const auto inner = a < V(S(0.5));
+        V v = one;
+        if (!simd::all(inner))
+        {
+            V outer = one;
+            if (simd::any(both(a >= V(S(1.5)), a < cut)))
+            {
+                const V ac = simd::max(simd::min(a, cut), V(S(1.5)));
+                const auto sq = two_product(ac, ac);
+                const V e = exp_regular<Tier>(-sq.hi) * (one - sq.lo);
+                outer = select(a < cut, one - e * numerics::rational<Cl>(ac), outer);
+            }
+            if (simd::any(both(a >= one, a < V(S(1.5)))))
+            {
+                using Cm2 = typename table<Tier, S>::erf_mid2;
+                const V d2 = a - V(S(1.25));
+                outer = select(a < V(S(1.5)), V(K::erf_mid2_hi) + fma(d2, numerics::rational<Cm2>(d2), V(K::erf_mid2_lo)), outer);
+            }
+            if (simd::any(a < one))
+            {
+                using Cm = typename table<Tier, S>::erf_mid;
+                const V d = a - V(S(0.75));
+                outer = select(a < one, V(K::erf_mid_hi) + fma(d, numerics::rational<Cm>(d), V(K::erf_mid_lo)), outer);
+            }
+            v = copysign_from(outer, x);
+        }
+        if (simd::any(inner))
+        {
+            const V t = x * x;
+            const auto lead = two_product(x, V(K::two_over_sqrt_pi_hi));
+            V tiny = lead.hi + (lead.lo + x * fma(t, numerics::rational<Cs>(t), V(K::two_over_sqrt_pi_lo)));
+            const auto below = a < V(tiny_turn<S>);
+            if (simd::any(below))
+            {
+                const V xs = x * V(S(0x1p64));
+                const auto lead_s = two_product(xs, V(K::two_over_sqrt_pi_hi));
+                tiny = select(below, (lead_s.hi + (lead_s.lo + xs * V(K::two_over_sqrt_pi_lo))) * V(S(0x1p-64)), tiny);
+            }
+            v = select(inner, keep_zero(x, tiny), v);
+        }
         return select(isnan(x), x, v);
     }
 
