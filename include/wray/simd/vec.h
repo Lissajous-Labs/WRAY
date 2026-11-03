@@ -72,7 +72,7 @@ namespace wray::inline WRAY_ABI::simd
     {
 #if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
         return __builtin_roundevenf(x);
-#elif defined(__SSE4_1__) && !defined(WRAY_SIMD_SCALAR)
+#elif defined(WRAY_HAS_SSE4_1)
         return _mm_cvtss_f32(_mm_round_ss(_mm_setzero_ps(), _mm_set_ss(x), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
 #else
         return round_even<float, std::uint32_t>(x);
@@ -83,7 +83,7 @@ namespace wray::inline WRAY_ABI::simd
     {
 #if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
         return __builtin_roundeven(x);
-#elif defined(__SSE4_1__) && !defined(WRAY_SIMD_SCALAR)
+#elif defined(WRAY_HAS_SSE4_1)
         return _mm_cvtsd_f64(_mm_round_sd(_mm_setzero_pd(), _mm_set_sd(x), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
 #else
         return round_even<double, std::uint64_t>(x);
@@ -874,7 +874,7 @@ namespace wray::inline WRAY_ABI::simd
     WRAY_INLINE f32x4 sqrt(const f32x4 &a) noexcept { return _mm_sqrt_ps(a.v); }
     WRAY_INLINE f32x4 nearest(const f32x4 &a) noexcept
     {
-#if defined(__SSE4_1__)
+#if defined(WRAY_HAS_SSE4_1)
         return _mm_round_ps(a.v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
 #else
         const __m128 sign = _mm_set1_ps(-0.0f);
@@ -963,7 +963,7 @@ namespace wray::inline WRAY_ABI::simd
     WRAY_INLINE f64x2 sqrt(const f64x2 &a) noexcept { return _mm_sqrt_pd(a.v); }
     WRAY_INLINE f64x2 nearest(const f64x2 &a) noexcept
     {
-#if defined(__SSE4_1__)
+#if defined(WRAY_HAS_SSE4_1)
         return _mm_round_pd(a.v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
 #else
         const __m128d sign = _mm_set1_pd(-0.0);
