@@ -28,7 +28,7 @@ namespace
         return edge(x) || edge(y) || std::fabs(x) == T(1);
     }
 
-    template <class T>
+    template <class T, bool Balanced = false>
     void annex_f_pow()
     {
         using V = wray::simd::native<T>;
@@ -42,14 +42,20 @@ namespace
                         std::nextafter(T(1), T(2)), -std::nextafter(T(1), T(2)), std::nextafter(T(1), T(0)), -std::nextafter(T(1), T(0))};
         const T ys[] = {T(0), -T(0), T(0.5), T(-0.5), T(1), T(-1), T(2), T(-2), T(3), T(-3), inf, -inf, nan, huge, -huge,
                         big_odd, -big_odd, big_even, -big_even, big_odd - T(2), T(1) + std::numeric_limits<T>::epsilon()};
+        const auto power = [](auto x, auto y) {
+            if constexpr (Balanced)
+                return wray::balanced::pow(x, y);
+            else
+                return wray::pow(x, y);
+        };
         int mismatches = 0;
         for (const T x: xs)
         {
             for (const T y: ys)
             {
                 const T want = static_cast<T>(std::pow(static_cast<long double>(x), static_cast<long double>(y)));
-                const T got = wray::pow(x, y);
-                const T lane = wray::pow(V(x), V(y))[V::size - 1];
+                const T got = power(x, y);
+                const T lane = power(V(x), V(y))[V::size - 1];
                 CHECK(same(lane, got));
                 bool ok;
                 if (annex_f_case(x, y) || !std::isfinite(want))
@@ -138,6 +144,42 @@ namespace
             }
         }
     }
+    template <class T, class V>
+    void balanced_power_lanes()
+    {
+        const T inf = std::numeric_limits<T>::infinity();
+        const T nan = std::numeric_limits<T>::quiet_NaN();
+        const T odd = std::ldexp(T(1), std::numeric_limits<T>::digits) - T(1);
+        const T xs[] = {T(0), -T(0), T(1), T(-1), T(-2), T(0.5), inf, -inf, nan,
+                        std::numeric_limits<T>::denorm_min(), std::numeric_limits<T>::max(),
+                        std::nextafter(T(1), T(0)), std::nextafter(T(1), T(2))};
+        const T ys[] = {T(0), -T(0), T(1), T(-1), T(0.5), T(3), T(-3), T(2), odd, odd + T(1), inf, -inf, nan};
+        for (T x : xs)
+            for (T y : ys)
+                for (int lane = 0; lane < V::size; ++lane)
+                {
+                    T a[V::size], b[V::size];
+                    for (int i = 0; i < V::size; ++i)
+                    {
+                        a[i] = i == lane ? x : T(1.75) + T(i) * T(0.125);
+                        b[i] = i == lane ? y : T(-0.75) + T(i) * T(0.25);
+                    }
+                    const V out = wray::balanced::pow(V::load(a), V::load(b));
+                    bool ok = true;
+                    for (int i = 0; i < V::size; ++i)
+                        ok = ok && same(out[i], wray::balanced::pow(a[i], b[i]));
+                    CHECK(ok);
+                }
+        for (T x : {T(0.25), T(0.75), T(1.25), T(3.5)})
+            for (int k = -9; k <= 9; ++k)
+            {
+                const T positive = wray::balanced::pow(x, T(k));
+                const T negative = wray::balanced::pow(-x, T(k));
+                CHECK(same(negative, k % 2 ? -positive : positive));
+                CHECK(same(wray::balanced::pow(x, T(0)), T(1)));
+            }
+    }
+
 
     template <class T, class V>
     void metamorphic(std::uint64_t seed)
@@ -210,6 +252,7 @@ namespace
     {
         mixed_lanes<T, V>(precise_rows<T, V>());
         mixed_lanes<T, V>(balanced_rows<T, V>());
+        balanced_power_lanes<T, V>();
         if constexpr (std::is_same_v<T, float>)
             mixed_lanes<T, V>(fast_rows<T, V>());
         metamorphic<T, V>(seed);
@@ -222,6 +265,8 @@ int main(int argc, char **argv)
     std::printf("identity: seed %llu\n", static_cast<unsigned long long>(seed));
     annex_f_pow<float>();
     annex_f_pow<double>();
+    annex_f_pow<float, true>();
+    annex_f_pow<double, true>();
     widths<float, wray::f32x4>(seed);
     widths<double, wray::f64x2>(seed);
     widths<float, wray::simd::native<float> >(seed);

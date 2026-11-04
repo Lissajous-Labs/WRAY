@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <iterator>
 #include <limits>
 #include <mutex>
 #include <random>
@@ -277,6 +278,38 @@ namespace
                 }
             };
         };
+        const auto powers = [](std::mt19937_64 &g, std::size_t n, std::vector<double> &a, std::vector<double> &b) {
+            for (std::size_t i = 0; i < n; ++i)
+            {
+                const auto k = g() % 4;
+                if (k == 0)
+                {
+                    a[i] = -bit_uniform(g, 1e-3, 1e3, false);
+                    b[i] = static_cast<double>(static_cast<std::int64_t>(g() % 25) - 12);
+                } else if (k == 1)
+                {
+                    a[i] = std::exp2(uniform(g, -1, 1));
+                    b[i] = uniform(g, -1000, 1000) / std::log2(a[i]);
+                } else
+                {
+                    a[i] = bit_uniform(g, 1e-10, 1e10, false);
+                    b[i] = uniform(g, -3, 3);
+                }
+            }
+        };
+        const auto balanced_powers = [powers](std::mt19937_64 &g, std::size_t n, std::vector<double> &a, std::vector<double> &b) {
+            powers(g, n, a, b);
+            const double anchors[] = {tiny, std::numeric_limits<double>::min(), 0.5, std::nextafter(1.0, 0.0),
+                                      std::nextafter(1.0, 2.0), std::nextafter(std::sqrt(2.0), 0.0),
+                                      std::sqrt(2.0), std::nextafter(std::sqrt(2.0), 2.0), 2.0, huge};
+            const double targets[] = {-1075, -1074, -1022, -4, 0, 4, 1023, 1024, 1025};
+            for (std::size_t i = 0; i < n; i += 4)
+            {
+                a[i] = (g() & 1) ? anchors[g() % std::size(anchors)] : bit_uniform(g, tiny, huge, false);
+                const double z = (g() & 1) ? targets[g() % std::size(targets)] : uniform(g, -1076, 1025);
+                b[i] = z / std::max(std::fabs(std::log2(a[i])), std::numeric_limits<double>::epsilon());
+            }
+        };
         return {
             {"atan2", [](std::mt19937_64 &g, std::size_t n, std::vector<double> &a, std::vector<double> &b) {
                  for (std::size_t i = 0; i < n; ++i)
@@ -285,25 +318,8 @@ namespace
                      b[i] = (g() & 1) ? bit_uniform(g, tiny, huge, true) : uniform(g, -4, 4);
                  }
              }, vector_run2([](auto y, auto x) { return wray::atan2(y, x); }), [](double y, double x) { return atan2q(y, x); }},
-            {"pow", [](std::mt19937_64 &g, std::size_t n, std::vector<double> &a, std::vector<double> &b) {
-                 for (std::size_t i = 0; i < n; ++i)
-                 {
-                     const auto k = g() % 4;
-                     if (k == 0)
-                     {
-                         a[i] = -bit_uniform(g, 1e-3, 1e3, false);
-                         b[i] = static_cast<double>(static_cast<std::int64_t>(g() % 25) - 12);
-                     } else if (k == 1)
-                     {
-                         a[i] = std::exp2(uniform(g, -1, 1));
-                         b[i] = uniform(g, -1000, 1000) / std::log2(a[i]);
-                     } else
-                     {
-                         a[i] = bit_uniform(g, 1e-10, 1e10, false);
-                         b[i] = uniform(g, -3, 3);
-                     }
-                 }
-             }, vector_run2([](auto x, auto y) { return wray::pow(x, y); }), [](double x, double y) { return powq(x, y); }},
+            {"pow", powers, vector_run2([](auto x, auto y) { return wray::pow(x, y); }), [](double x, double y) { return powq(x, y); }},
+            {"balanced_pow", balanced_powers, vector_run2([](auto x, auto y) { return wray::balanced::pow(x, y); }), [](double x, double y) { return powq(x, y); }},
             {"smoothing_coefficient", maps(true), vector_run2([](auto s, auto fs) { return wray::smoothing_coefficient(s, fs); }),
              [](double s, double fs) { return -expm1q(-1 / (static_cast<quad>(s) * fs)); }},
             {"pole_from_cutoff", maps(false), vector_run2([](auto hz, auto fs) { return wray::pole_from_cutoff(hz, fs); }),
@@ -422,7 +438,7 @@ int main(int argc, char **argv)
     {
         if (!wanted(b.name))
             continue;
-        const bool is_pow = std::strcmp(b.name, "pow") == 0;
+        const bool is_pow = std::strcmp(b.name, "pow") == 0 || std::strcmp(b.name, "balanced_pow") == 0;
         const worst w = parallel(samples, seed, [&](std::mt19937_64 &g, std::size_t n, worst &mine) {
             std::vector<double> x(n), y(n), out(n);
             b.sample(g, n, x, y);

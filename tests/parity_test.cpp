@@ -112,6 +112,9 @@ namespace
     void balanced(std::mt19937_64& g)
     {
         const auto x = inputs<T>(g);
+        auto y = inputs<T>(g);
+        shuffle(y, g);
+        binary(x, y, [](auto a, auto b) { return wray::balanced::pow(a, b); });
         unary(x, [](auto v) { return wray::balanced::sin(v); });
         unary(x, [](auto v) { return wray::balanced::cos(v); });
         unary(x, [](auto v) { return wray::balanced::sincos(v).sin; });

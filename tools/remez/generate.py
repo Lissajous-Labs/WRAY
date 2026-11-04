@@ -18,6 +18,7 @@ TIERS = {"f32": ("float", 24), "f64": ("double", 53), "fast": ("float", 24), "ba
 PLAN = {
     "exp": {"f32": (4, 0), "f64": (9, 0), "fast": (2, 0)},
     "log": {"f32": (2, 0), "f64": (6, 0), "fast": (1, 0)},
+    "log_direct": {"balanced_f32": (8, 0), "balanced_f64": (19, 0)},
     "sin": {"f32": (2, 0), "f64": (5, 0), "fast": (1, 0)},
     "sin_half": {"balanced_f32": (4, 0), "balanced_f64": (7, 0)},
     "cos": {"f32": (2, 0), "f64": (5, 0), "fast": (1, 0)},

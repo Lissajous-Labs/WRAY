@@ -496,13 +496,15 @@ namespace
         return a != T(0) && (b == T(0) || std::fabs(a) < std::fabs(b)) ? a : b;
     }
 
-    void binary_checks(std::size_t samples, bool report, bool with_atan2, bool with_pow, host h = host::nearest)
+    void binary_checks(std::size_t samples, bool report, bool with_atan2, bool with_pow, bool with_balanced_pow, host h = host::nearest)
     {
         const double slack = h == host::nearest || h == host::flush ? 0.0 : 1.0 + margin;
         const char* label = host_names[static_cast<int>(h)];
         std::mt19937_64 g(9);
         std::vector<float> y(samples), x(samples), out(samples), fout(samples);
         std::vector<double> yd(samples), xd(samples), outd(samples);
+        std::vector<float> bout(samples);
+        std::vector<double> boutd(samples);
         for (std::size_t i = 0; i < samples; ++i)
         {
             y[i] = float(signed_bits(g, 0x1p-149, 0x1.fffffep+127));
@@ -541,8 +543,11 @@ namespace
         wray::math::apply(x, y, out, [](auto a, auto b) { return wray::pow(a, b); });
         wray::math::apply(x, y, fout, [](auto a, auto b) { return wray::fast::pow(a, b); });
         wray::math::apply(xd, yd, outd, [](auto a, auto b) { return wray::pow(a, b); });
+        wray::math::apply(x, y, bout, [](auto a, auto b) { return wray::balanced::pow(a, b); });
+        wray::math::apply(xd, yd, boutd, [](auto a, auto b) { return wray::balanced::pow(a, b); });
         enter(host::nearest);
         w32 = wf = w64 = 0.0;
+        double wb32 = 0.0, wb64 = 0.0;
         for (std::size_t i = 0; i < samples; ++i)
         {
             const double r = std::pow(double(x[i]), double(y[i]));
@@ -551,12 +556,20 @@ namespace
             if (z < 120.0)
                 wf = std::max(wf, host_error(x[i], fout[i], r, true, h, 24, -126) / (1.0 + z));
             w64 = std::max(w64, host_error(xd[i], outd[i], std::pow(xd[i], yd[i]), false, h, 53, -1022));
+            wb32 = std::max(wb32, host_error(x[i], bout[i], r, false, h, 24, -126) / std::max(1.0, z / 4.0));
+            const double zd = std::fabs(yd[i] * std::log2(std::fabs(xd[i])));
+            wb64 = std::max(wb64, host_error(xd[i], boutd[i], std::pow(xd[i], yd[i]), false, h, 53, -1022) / std::max(1.0, zd / 4.0));
         }
         if (report && with_pow)
             std::printf("%-11s f32 %8.3f ulp   fast %.3e   f64 %8.3f ulp (vs libm) %s\n", "pow", w32, wf, w64, label);
         CHECK(!with_pow || w32 <= 2.0 + margin + slack);
         CHECK(!with_pow || wf <= 0x1p-16 + slack * 0x1p-23);
         CHECK(!with_pow || w64 <= 2.5 + margin + slack);
+        const double balanced_bound = (h == host::nearest || h == host::flush ? 4.0 : 8.0) + margin;
+        if (report && with_balanced_pow)
+            std::printf("%-11s balanced_f32 %8.3f scaled ulp   balanced_f64 %8.3f scaled ulp (vs libm) %s\n", "pow", wb32, wb64, label);
+        CHECK(!with_balanced_pow || wb32 <= balanced_bound);
+        CHECK(!with_balanced_pow || wb64 <= balanced_bound + 2.0);
     }
 
     void host_checks(const std::function<bool(const char*)>& selected, std::uint64_t stride, std::size_t samples, bool report)
@@ -584,7 +597,7 @@ namespace
                 CHECK(f.worst <= c.contract_fast + slack * 0x1p-23);
                 CHECK(d <= c.contract_f64 + 2.0 + margin + slack);
             }
-            binary_checks(samples, report, selected("atan2"), selected("pow"), h);
+            binary_checks(samples, report, selected("atan2"), selected("pow"), selected("pow") || selected("balanced") || selected("balanced_pow"), h);
             balanced_checks(selected, stride, samples, report, h);
         }
     }
@@ -1078,7 +1091,7 @@ int main(int argc, char** argv)
         CHECK(d <= c.contract_f64 + 2.0 + margin);
     }
     balanced_checks(selected, stride, samples64, report);
-    binary_checks(1u << 22, report, selected("atan2"), selected("pow"));
+    binary_checks(1u << 22, report, selected("atan2"), selected("pow"), selected("pow") || selected("balanced") || selected("balanced_pow"));
     if (selected("parameter_maps"))
         parameter_maps(report);
     shape_checks(selected, stride, samples64 / 16, report);

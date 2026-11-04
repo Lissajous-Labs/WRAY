@@ -106,7 +106,7 @@ def main():
         for fn in functions:
             check(float(f32) == oracle.CONTRACTS["balanced_f32"].get(fn)
                   and float(f64) == oracle.CONTRACTS["balanced_f64"].get(fn), f"balanced contract row {fn}")
-    check({r[0] for r in table_rows(section(text, "Balanced tier"))} == {"sin", "cos", "sincos", "tanh"},
+    check({r[0] for r in table_rows(section(text, "Balanced tier"))} == {"sin", "cos", "sincos", "tanh", "pow"},
           "balanced contract table lists every function")
     for tier, dt in (("balanced_f32", np.float32), ("balanced_f64", np.float64)):
         probes = [0.0, -0.0, 0.5, -100.0, 2.0e7, -float(np.finfo(dt).max), float(np.finfo(dt).max)]
@@ -138,6 +138,31 @@ def main():
         special = dump("tanh", tier, [np.inf, -np.inf, np.nan, np.finfo(dt).max, -np.finfo(dt).max])
         check(bool(special[0] == 1 and special[1] == -1 and np.isnan(special[2])
                    and special[3] == 1 and special[4] == -1), f"tanh {tier} infinity, NaN and saturation")
+        bases = [0.5, 2.0, 1.0001, -2.0, -2.0, float(np.finfo(dt).tiny)]
+        powers = [-30.25, 30.25, 1000.0, 3.0, 2.0, 0.5]
+        values = dump("pow", tier, bases, powers)
+        with mp.workdps(400):
+            for base, power, got in zip(bases, powers, values):
+                x, y = mp.mpf(float(dt(base))), mp.mpf(float(dt(power)))
+                want = mp.power(x, y)
+                scale = max(mp.mpf(1), abs(y * mp.log(abs(x), 2)) / 4)
+                bound = (oracle.CONTRACTS[tier]["pow"] + margin) * scale
+                check(np.isfinite(got) and abs(mp.mpf(float(got)) - want) <= bound * ulp_of(want, dt),
+                      f"pow {tier} exponent-product-scaled contract probe {base}, {power}")
+        bases = [-2, -2, -2, 0.0, -0.0, -0.0, -0.0, np.inf, -np.inf, -np.inf,
+                 np.nan, 1, np.nan, -1, 0.5, 2, 0.5, 2]
+        powers = [3, 2, 0.5, -2, 3, -3, 0.5, -2, 3, -3,
+                  0, np.nan, 2, np.inf, np.inf, np.inf, -np.inf, -np.inf]
+        values = dump("pow", tier, bases, powers)
+        expected = [-8, 4, np.nan, np.inf, -0.0, -np.inf, 0.0, 0.0, -np.inf, -0.0,
+                    1, 1, np.nan, 1, 0.0, np.inf, np.inf, 0.0]
+        check(all(np.isnan(got) if np.isnan(want) else got == want and np.signbit(got) == np.signbit(want)
+                  for got, want in zip(values, expected)), f"pow {tier} negative-base and zero/infinity/NaN semantics")
+        top, bottom = (128, -150) if dt is np.float32 else (1024, -1075)
+        values = dump("pow", tier, [2, 2, 2, 2],
+                      [np.nextafter(dt(top), dt(0)), top, bottom + 1, bottom])
+        check(np.isfinite(values[0]) and np.isinf(values[1]) and values[2] > 0 and values[3] == 0,
+              f"pow {tier} overflow and subnormal underflow")
 
     neg = dump("pow", "f64", [-2.0, -2.0, -2.0], [3.0, 2.0, 0.5])
     check(neg[0] == -8.0 and neg[1] == 4.0 and np.isnan(neg[2]), "pow negative bases follow C")

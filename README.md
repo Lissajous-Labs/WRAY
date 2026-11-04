@@ -45,7 +45,7 @@ Every function takes a scalar, a SIMD vector, or a range (any length, no alignme
 
 `sincos` and `sincos_turns` write both outputs in one pass, stopping at the shortest range. Their outputs must not overlap; either output can be the input itself.
 
-`wray::balanced::` provides `sin`, `cos`, `sincos` and `tanh` for `float` and `double`, scalar calls, SIMD and ranges. Round-to-nearest bounds are 2.5 ulp for trig and 3 ulp for `tanh`. [Bounds and behavior](docs/details.md#balanced-tier).
+`wray::balanced::` provides `sin`, `cos`, `sincos`, `tanh` and full-domain `pow` for `float` and `double`, scalar calls, SIMD and ranges. Round-to-nearest bounds are 2.5 ulp for trig and 3 ulp for `tanh`; `pow` has a 4-ulp bound scaled by its exponent product. [Bounds and behavior](docs/details.md#balanced-tier).
 
 `wray::fast::` is a quicker `float`-only tier, accurate to 2^-16 relative error.
 
@@ -96,6 +96,7 @@ wray_balanced_sin_f32(in, out, n);
 wray_balanced_sincos_f64(in, sin_out, cos_out, n);
 wray_balanced_tanh_f64(in, out, n);
 wray_pow_f32(x, y, out, n);
+wray_balanced_pow_f64(x, y, out, n);
 wray_fast_tanh_f32(in, out, n);
 ```
 

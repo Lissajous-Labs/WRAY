@@ -74,7 +74,7 @@ namespace
     template <class V>
     double all(const V &x)
     {
-        const V r = precise(x) + shapes(x) + filtered(x);
+        const V r = precise(x) + wray::balanced::pow(x, x) + shapes(x) + filtered(x);
         return static_cast<double>(wray::simd::first(r));
     }
 }
@@ -87,6 +87,7 @@ int main()
     in.fill(0.5f);
     wray::exp(in, out);
     wray::fast::exp(in, out);
+    wray::balanced::pow(in, in, out);
     double sum = static_cast<double>(out[0]) + all(0.5f) + all(0.5) + all(wray::f32x4(0.5f)) + all(wray::f64x2(0.5));
     sum += all(wray::simd::native<float>(0.5f)) + all(wray::simd::native<double>(0.5));
     sum += static_cast<double>(fast(0.5f)) + static_cast<double>(wray::simd::first(fast(wray::simd::native<float>(0.5f))));

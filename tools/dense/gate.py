@@ -17,7 +17,7 @@ def verify(dense, seed, count):
     for line in out.splitlines()[1:]:
         name, x, y, ref = line.split()
         function = BALANCED.get(name, name)
-        args = (mp.mpf(float.fromhex(x)),) if function in oracle.UNARY or name in BALANCED else (mp.mpf(float.fromhex(x)), mp.mpf(float.fromhex(y)))
+        args = (mp.mpf(float.fromhex(x)), mp.mpf(float.fromhex(y))) if function in oracle.BINARY else (mp.mpf(float.fromhex(x)),)
         want = oracle.REFERENCE[function](*args)
         got = mp.mpf(ref)
         if not mp.isfinite(want) or want == 0:

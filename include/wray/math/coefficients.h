@@ -203,6 +203,20 @@ namespace wray::inline WRAY_ABI::math::coeff
         static constexpr std::array<float, 1> q{ 0x1p+0f };
     };
 
+    struct log_direct_balanced_f32
+    {
+        using value_type = float;
+        static constexpr std::array<float, 9> p{ -0x1.fffffep-2f, 0x1.55555p-2f, -0x1.00020ap-2f, 0x1.99a22ep-3f, -0x1.5485dcp-3f, 0x1.22bcbp-3f, -0x1.0c9352p-3f, 0x1.05ae0cp-3f, -0x1.3e96b2p-4f };
+        static constexpr std::array<float, 1> q{ 0x1p+0f };
+    };
+
+    struct log_direct_balanced_f64
+    {
+        using value_type = double;
+        static constexpr std::array<double, 20> p{ -0x1p-1, 0x1.555555555554cp-2, -0x1.ffffffffff5bap-3, 0x1.999999999b66bp-3, -0x1.5555555605ae4p-3, 0x1.249249241f0dfp-3, -0x1.ffffff6dbf091p-4, 0x1.c71c71757b75p-4, -0x1.9999b7e3d27b2p-4, 0x1.745d4331111ap-4, -0x1.5551de2540072p-4, 0x1.3b0bf964818b6p-4, -0x1.24cb2b9677656p-4, 0x1.11bf741e92765p-4, -0x1.fc4becc35bca5p-5, 0x1.d1732201d8f2p-5, -0x1.cf0ba5fbf866p-5, 0x1.081b21b47fb74p-4, -0x1.eb2d695dbfb56p-5, 0x1.b565723e776cep-6 };
+        static constexpr std::array<double, 1> q{ 0x1p+0 };
+    };
+
     struct omega_f32
     {
         using value_type = float;

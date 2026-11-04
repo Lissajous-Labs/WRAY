@@ -403,8 +403,12 @@ namespace
             unary(s, [](T x) { return T(1) / (T(1) + std::exp(-x)); }, [](auto x) { return wray::sigmoid(x); },
                   [](auto x) { return wray::fast::sigmoid(x); });
         if (n == "pow")
+        {
             binary(s, [](T x, T y) { return std::pow(x, y); }, [](auto x, auto y) { return wray::pow(x, y); },
                    [](auto x, auto y) { return wray::fast::pow(x, y); });
+            s.throughput_rows.push_back(simd_loop2<T>("wray balanced", [](auto x, auto y) { return wray::balanced::pow(x, y); }));
+            s.latency_rows.push_back(chain2<T>("wray balanced", [](T x, T y) { return wray::balanced::pow(x, y); }));
+        }
         if (n == "db_to_gain")
             unary(s, [](T x) { return std::exp2(x * (std::numbers::ln10_v<T> / (T(20) * std::numbers::ln2_v<T>))); }, [](auto x) { return wray::db_to_gain(x); },
                   [](auto x) { return wray::fast::db_to_gain(x); });

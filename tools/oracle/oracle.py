@@ -132,8 +132,8 @@ CONTRACTS = {
             "sigmoid": 1.75, "db_to_gain": 1.5, "gain_to_db": 1.5, "atan2": 1.35, "pow": 2.0},
     "fast": {name: 2.0 ** -16 for name in ["product_log", "omega", "tanpi", "tan_turns", "cos_turns", "sin_turns", "exp", "exp2", "log", "log2", "sin", "cos", "tan", "atan", "tanh", "sigmoid",
                                            "db_to_gain", "gain_to_db", "atan2", "pow"]},
-    "balanced_f32": {**{name: 2.5 for name in ("sin", "cos", "sincos_sin", "sincos_cos")}, "tanh": 3.0},
-    "balanced_f64": {**{name: 2.5 for name in ("sin", "cos", "sincos_sin", "sincos_cos")}, "tanh": 3.0},
+    "balanced_f32": {**{name: 2.5 for name in ("sin", "cos", "sincos_sin", "sincos_cos")}, "tanh": 3.0, "pow": 4.0},
+    "balanced_f64": {**{name: 2.5 for name in ("sin", "cos", "sincos_sin", "sincos_cos")}, "tanh": 3.0, "pow": 4.0},
 }
 ADAA_CONTRACTS = {"hard_clip": (0.8, 1.0), "soft_clip": (1.5, 3.0), "tanh": (3.0, 10.0), "atan": (3.5, 15.0), "algebraic": (6.0, 62.0),
                   "radical": (3.0, 5.0)}
@@ -303,6 +303,17 @@ def domain(fn, tier, rng, n):
         wx = np.exp2(rng.uniform(-1.0, 1.0, w)).astype(fmt["dtype"])
         wy = (rng.uniform(-top, top, w) / np.log2(wx.astype(np.float64))).astype(fmt["dtype"])
         x, y = x[: n - q - w], y[: n - q - w]
+        if tier.startswith("balanced_"):
+            dtype = fmt["dtype"]
+            anchors = np.array([tiny, np.finfo(dtype).tiny, 0.5, 1.0, np.sqrt(2.0), 2.0, huge], dtype=dtype)
+            bases = np.concatenate([anchors, np.nextafter(anchors, dtype(0)), np.nextafter(anchors, dtype(huge))])
+            bases = bases[(bases > 0) & np.isfinite(bases)]
+            broad = bit_uniform(rng, fmt, tiny, huge, q)
+            targets = [-150.0, -149.0, -126.0, -4.0, 0.0, 4.0, 127.0, 128.0, 129.0] if f32 else [-1075.0, -1074.0, -1022.0, -4.0, 0.0, 4.0, 1023.0, 1024.0, 1025.0]
+            bx = np.concatenate([broad, np.repeat(bases, len(targets))])
+            z = np.concatenate([rng.uniform(-top, top, q), np.tile(targets, len(bases))])
+            by = (z / np.maximum(np.abs(np.log2(bx.astype(np.float64))), np.finfo(dtype).eps)).astype(dtype)
+            return (np.concatenate([x, nx, wx, bx]).astype(dtype), np.concatenate([y, ny, wy, by]).astype(dtype))
         return (np.concatenate([x, nx, wx]).astype(fmt["dtype"]), np.concatenate([y, ny, wy]).astype(fmt["dtype"]))
     raise KeyError(fn)
 

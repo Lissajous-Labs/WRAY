@@ -145,6 +145,50 @@ namespace
         for (std::size_t i = 0; i < std::size(edge); ++i)
             CHECK(same(s[i], wray::balanced::tanh(edge[i])));
     }
+    template <class T, class C>
+    void balanced_power_abi(C power)
+    {
+        constexpr std::size_t w = std::size_t(wray::simd::native<T>::size);
+        const T inf = std::numeric_limits<T>::infinity();
+        const T nan = std::numeric_limits<T>::quiet_NaN();
+        const T bases[] = {T(1.75), T(-2), -T(0), T(0.5), inf, -inf, nan,
+                           std::numeric_limits<T>::denorm_min(), std::nextafter(T(1), T(2)), T(1)};
+        const T exponents[] = {T(0.3), T(3), T(-3), T(0.5), T(-1), T(0), T(2), T(1), T(1e6), inf};
+        power(nullptr, nullptr, nullptr, 0);
+        for (std::size_t n = 0; n <= 4 * w + 1; ++n)
+            for (std::size_t offset = 0; offset < w; ++offset)
+            {
+                std::vector<T> a(offset + n + 1), b(offset + n + 1), out(offset + n + 1, T(7));
+                for (std::size_t i = 0; i < a.size(); ++i)
+                {
+                    a[i] = bases[i % std::size(bases)];
+                    b[i] = exponents[i % std::size(exponents)];
+                }
+                power(a.data() + offset, b.data() + offset, out.data() + offset, n);
+                bool ok = true;
+                for (std::size_t i = 0; i < out.size(); ++i)
+                    ok = ok && (i >= offset && i < offset + n ? same(out[i], wray::balanced::pow(a[i], b[i])) : out[i] == T(7));
+                CHECK(ok);
+                for (bool base_in_place : {false, true})
+                {
+                    auto io = base_in_place ? a : b;
+                    power(base_in_place ? io.data() + offset : a.data() + offset,
+                          base_in_place ? b.data() + offset : io.data() + offset, io.data() + offset, n);
+                    ok = true;
+                    for (std::size_t i = 0; i < io.size(); ++i)
+                        ok = ok && same(io[i], i >= offset && i < offset + n ?
+                                         wray::balanced::pow(a[i], b[i]) : (base_in_place ? a[i] : b[i]));
+                    CHECK(ok);
+                }
+                auto shared = a;
+                power(shared.data() + offset, shared.data() + offset, shared.data() + offset, n);
+                ok = true;
+                for (std::size_t i = 0; i < shared.size(); ++i)
+                    ok = ok && same(shared[i], i >= offset && i < offset + n ? wray::balanced::pow(a[i], a[i]) : a[i]);
+                CHECK(ok);
+            }
+    }
+
 
 
 #define WRAY_C_UNARY(ns, prefix, f, T, t) unary<T>(g, wray_##prefix##f##_##t, [](auto in, auto out) { ns::f(in, out); });
@@ -249,6 +293,10 @@ namespace
         WRAY_C_PAIR(wray::fast, fast_, sincos_turns, float, f32)
         WRAY_C_BINARY(wray::fast, fast_, atan2, float, f32)
         WRAY_C_BINARY(wray::fast, fast_, pow, float, f32)
+        WRAY_C_BINARY(wray::balanced, balanced_, pow, float, f32)
+        WRAY_C_BINARY(wray::balanced, balanced_, pow, double, f64)
+        balanced_power_abi<float>(wray_balanced_pow_f32);
+        balanced_power_abi<double>(wray_balanced_pow_f64);
         balanced_abi<float>(g, wray_balanced_sin_f32, wray_balanced_cos_f32, wray_balanced_sincos_f32, wray_balanced_tanh_f32);
         balanced_abi<double>(g, wray_balanced_sin_f64, wray_balanced_cos_f64, wray_balanced_sincos_f64, wray_balanced_tanh_f64);
     }

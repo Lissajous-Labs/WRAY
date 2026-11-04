@@ -52,6 +52,11 @@ def log_tail(t):
     return (log_core(t) - 2) / t
 
 
+def log_direct_tail(f):
+    with mp.workprec(mp.mp.prec + 2 * max(0, -int(mp.floor(mp.log(abs(f), 2)))) + 16):
+        return (mp.log1p(f) - f) / (f * f)
+
+
 def tan_tail(t):
     return (tan_core(t) - 1) / t
 
@@ -161,6 +166,7 @@ CORES = {
     "exp": dict(g=_limit(exp_tail, lambda: mp.mpf(1) / 2), interval=lambda tier: (-ln2_half(), ln2_half()), weight=exp_weight,
                 pin=lambda tier: [-ln2_half(), ln2_half()] if tier == "fast" else []),
     "log": dict(g=_limit(log_tail, lambda: mp.mpf(2) / 3), interval=lambda tier: (0, log_t())),
+    "log_direct": dict(g=_limit(log_direct_tail, lambda: -mp.mpf(1) / 2), interval=lambda tier: (mp.sqrt(mp.mpf("0.5")) - 1, mp.sqrt(2) - 1)),
     "sin": dict(g=_limit(sin_core, lambda: mp.mpf(-1) / 6), interval=lambda tier: (0, pi4_sq()), pin=fast_pi4),
     "sin_half": dict(g=_limit(sin_core, lambda: mp.mpf(-1) / 6), interval=lambda tier: (0, pi2_sq())),
     "cos": dict(g=_limit(cos_core, lambda: mp.mpf(1) / 24), interval=lambda tier: (0, pi4_sq()), pin=fast_pi4),

@@ -1,5 +1,6 @@
 #include <wray/wray.h>
 
+#include <algorithm>
 #include <array>
 #include <bit>
 #include <cmath>
@@ -197,6 +198,65 @@ namespace
             }
         }
     }
+    template<class T>
+    void balanced_power_ranges()
+    {
+        constexpr std::size_t w = static_cast<std::size_t>(wray::simd::native<T>::size);
+        const T inf = std::numeric_limits<T>::infinity();
+        const T nan = std::numeric_limits<T>::quiet_NaN();
+        const T bases[] = {T(1.75), T(-2), -T(0), T(0.5), inf, -inf, nan,
+                           std::numeric_limits<T>::denorm_min(), std::nextafter(T(1), T(2))};
+        const T exponents[] = {T(0.3), T(3), T(-3), T(0.5), T(-1), T(0), T(2), T(1), T(1e6)};
+        const auto equal = [](T a, T b) { return same(a, b) || (std::isnan(a) && std::isnan(b)); };
+        for (std::size_t n = 0; n <= 8 * w + 1; ++n)
+            for (std::size_t offset = 0; offset < w; ++offset)
+            {
+                std::vector<T> a(offset + n + 3), b(offset + n + 3);
+                for (std::size_t i = 0; i < a.size(); ++i)
+                {
+                    a[i] = bases[i % std::size(bases)];
+                    b[i] = exponents[i % std::size(exponents)];
+                }
+                for (int shorter : {0, 1, 2, 3})
+                {
+                    const std::size_t na = shorter == 1 && n ? n - 1 : n;
+                    const std::size_t nb = shorter == 2 && n ? n - 1 : n;
+                    const std::size_t count = shorter == 3 && n ? n - 1 : n + 2;
+                    const std::size_t used = std::min({na, nb, count});
+                    std::vector<T> out(offset + count + 2, T(7));
+                    wray::balanced::pow(std::span<const T>(a.data() + offset, na), std::span<const T>(b.data() + offset, nb),
+                                        std::span<T>(out.data() + offset, count));
+                    bool ok = true;
+                    for (std::size_t i = 0; i < out.size(); ++i)
+                        ok = ok && (i >= offset && i < offset + used ?
+                                    equal(out[i], wray::balanced::pow(a[i], b[i])) : out[i] == T(7));
+                    CHECK(ok);
+                }
+                for (bool base_in_place : {false, true})
+                {
+                    auto io = base_in_place ? a : b;
+                    const std::span<T> place(io.data() + offset, n);
+                    const std::span<const T> x(a.data() + offset, n), y(b.data() + offset, n);
+                    if (base_in_place)
+                        wray::balanced::pow(place, y, place);
+                    else
+                        wray::balanced::pow(x, place, place);
+                    bool ok = true;
+                    for (std::size_t i = 0; i < io.size(); ++i)
+                        ok = ok && equal(io[i], i >= offset && i < offset + n ?
+                                         wray::balanced::pow(a[i], b[i]) : (base_in_place ? a[i] : b[i]));
+                    CHECK(ok);
+                }
+                auto shared = a;
+                const std::span<T> place(shared.data() + offset, n);
+                wray::balanced::pow(place, place, place);
+                bool ok = true;
+                for (std::size_t i = 0; i < shared.size(); ++i)
+                    ok = ok && equal(shared[i], i >= offset && i < offset + n ? wray::balanced::pow(a[i], a[i]) : a[i]);
+                CHECK(ok);
+            }
+    }
+
 
 
     template<class T>
@@ -211,6 +271,7 @@ namespace
         balanced_unary_ranges<T>([](auto in, auto out) { wray::balanced::sin(in, out); }, [](T x) { return wray::balanced::sin(x); });
         balanced_unary_ranges<T>([](auto in, auto out) { wray::balanced::cos(in, out); }, [](T x) { return wray::balanced::cos(x); });
         balanced_unary_ranges<T>([](auto in, auto out) { wray::balanced::tanh(in, out); }, [](T x) { return wray::balanced::tanh(x); });
+        balanced_power_ranges<T>();
         if constexpr (std::is_same_v<T, float>)
         {
             paired_ranges<T>([](auto in, auto s, auto c) { wray::fast::sincos(in, s, c); },

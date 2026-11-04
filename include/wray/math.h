@@ -566,6 +566,9 @@ namespace wray::inline WRAY_ABI::balanced
     template<simd::real V>
     WRAY_INLINE V tanh(const V &x) noexcept { return math::lift(x, [](const auto &v) { return math::detail::tanh<math::balanced>(v); }); }
 
+    template<simd::real V>
+    WRAY_INLINE V pow(const V &x, const V &y) noexcept { return math::lift(x, y, [](const auto &a, const auto &b) { return math::detail::pow<math::balanced>(a, b); }); }
+
     template<math::real_range In, class Out>
     void sin(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return balanced::sin(v); }); }
 
@@ -580,6 +583,9 @@ namespace wray::inline WRAY_ABI::balanced
 
     template<math::real_range In, class Out>
     void tanh(const In &in, Out &&out) noexcept { math::apply(in, out, [](auto v) { return balanced::tanh(v); }); }
+
+    template<math::real_range A, math::real_range B, class Out>
+    void pow(const A &x, const B &y, Out &&out) noexcept { math::apply(x, y, out, [](auto a, auto b) { return balanced::pow(a, b); }); }
 }
 
 WRAY_FP_END

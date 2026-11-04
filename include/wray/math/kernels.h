@@ -84,12 +84,14 @@ namespace wray::inline WRAY_ABI::math
     struct table<balanced, float> : table<precise, float>
     {
         using sin_half = coeff::sin_half_balanced_f32;
+        using log_direct = coeff::log_direct_balanced_f32;
     };
 
     template<>
     struct table<balanced, double> : table<precise, double>
     {
         using sin_half = coeff::sin_half_balanced_f64;
+        using log_direct = coeff::log_direct_balanced_f64;
     };
 
     template<>
@@ -492,7 +494,6 @@ namespace wray::inline WRAY_ABI::math::detail
         using K = constants<S>;
         using F = format<S>;
         using I = integer_t<V>;
-        using C = typename table<Tier, S>::log;
         V xs = x;
         V adjust(S(0));
         if constexpr (Subnormal)
@@ -526,16 +527,25 @@ namespace wray::inline WRAY_ABI::math::detail
         if constexpr (Subnormal) e = e + adjust;
 
         const V f = m - V(S(1));
-        const V d = m + V(S(1));
-        const V s = f / d;
-        const V t = s * s;
-        const V tail = numerics::rational<C>(t);
-        const V w = t * tail;
-        const V g = f - w;
-        const V a = s * g;
-        const V hi = f - a;
-        const V lo = (f - hi) - a;
-        return {e, hi, lo};
+        if constexpr (std::is_same_v<Tier, balanced>)
+        {
+            using C = typename table<Tier, S>::log_direct;
+            const V hi = fma(f * f, numerics::polynomial(C::p, f), f);
+            return {e, hi, V(S(0))};
+        } else
+        {
+            using C = typename table<Tier, S>::log;
+            const V d = m + V(S(1));
+            const V s = f / d;
+            const V t = s * s;
+            const V tail = numerics::rational<C>(t);
+            const V w = t * tail;
+            const V g = f - w;
+            const V a = s * g;
+            const V hi = f - a;
+            const V lo = (f - hi) - a;
+            return {e, hi, lo};
+        }
     }
 
     template<class V>
@@ -1525,6 +1535,50 @@ namespace wray::inline WRAY_ABI::math::detail
         return scale_by(exp_poly<Tier>(red.hi), red.lo);
     }
 
+    template<class V>
+    pair<V> pow_log2_boundary(const V &x) noexcept
+    {
+        using S = scalar_t<V>;
+        using F = format<S>;
+        using K = constants<S>;
+        using I = integer_t<V>;
+        const auto add = [](const pair<V> &a, const pair<V> &b) {
+            const auto sum = two_sum(a.hi, b.hi);
+            return two_sum(sum.hi, sum.lo + (a.lo + b.lo));
+        };
+        const auto multiply = [](const pair<V> &a, const pair<V> &b) {
+            const auto product = two_product(a.hi, b.hi);
+            const V cross = fma(a.hi, b.lo, a.lo * b.hi);
+            return two_sum(product.hi, product.lo + cross);
+        };
+        const auto subnormal = x < V(F::min_normal);
+        const V xs = select(subnormal, x * V(F::subnormal_scale), x);
+        const I bits = as_bits(xs);
+        V e = from_bits<V>(shift_right_logical(bits, F::mantissa) | as_bits(V(F::two_mantissa))) - V(F::exponent_offset);
+        V m = from_bits<V>((bits & I(F::mantissa_mask)) | I(F::one_bits));
+        const auto big = m > V(K::sqrt2);
+        m = select(big, m * V(S(0.5)), m);
+        e = e + select(big, V(S(1)), V(S(0)));
+        e = e + select(subnormal, V(-F::subnormal_exponent), V(S(0)));
+        const V f = m - V(S(1));
+        const auto denominator = two_sum(m, V(S(1)));
+        const V hi = f / denominator.hi;
+        const V lo = (residual(hi, denominator.hi, f) - hi * denominator.lo) / denominator.hi;
+        const pair<V> s{hi, lo};
+        const auto square = multiply(s, s);
+        constexpr int terms = std::is_same_v<S, float> ? 12 : 25;
+        pair<V> p{V(S(0)), V(S(0))};
+        for (int i = terms; i >= 0; --i)
+        {
+            const V odd(S(2 * i + 1));
+            const V coefficient = V(S(1)) / odd;
+            const pair<V> c{coefficient, residual(coefficient, odd, V(S(1))) / odd};
+            p = add(multiply(p, square), c);
+        }
+        const auto logarithm = multiply(s, p);
+        return log2_pair_combine(log_parts<V>{e, logarithm.hi * V(S(2)), logarithm.lo * V(S(2))});
+    }
+
     template<class Tier, class V>
     V pow_edge(const V &x, const V &y) noexcept
     {
@@ -1533,7 +1587,31 @@ namespace wray::inline WRAY_ABI::math::detail
         const V lh = log_specials(x, l.hi);
         const auto z = two_product(y, lh);
         const V cross = fma(y, l.lo, z.lo);
-        const V r = exp2_edge<Tier>(z.hi, finite_or_zero(z.hi, cross));
+        V r = exp2_edge<Tier>(z.hi, finite_or_zero(z.hi, cross));
+        if constexpr (std::is_same_v<Tier, balanced>)
+        {
+            const auto boundary = both(abs(z.hi - V(constants<S>::exp2_max)) < V(S(1)),
+                                       both(both(x > V(S(0)), x < inf<V>()), abs(y) < inf<V>()));
+            if (simd::any(boundary))
+            {
+                const auto wide = pow_log2_boundary(select(boundary, x, V(S(1))));
+                const V exponent = select(boundary, y, V(S(0)));
+                const auto product = two_product(exponent, wide.hi);
+                const V tail = fma(exponent, wide.lo, product.lo);
+                const V limit(constants<S>::exp2_max);
+                const auto below_limit = either(product.hi < limit, both(product.hi == limit, tail < V(S(0))));
+                V value = exp2_edge<Tier>(product.hi, tail);
+                value = select(both(below_limit, value == inf<V>()), V(std::numeric_limits<S>::max()), value);
+                r = select(boundary, value, r);
+            }
+            const auto infinite_exponent = abs(y) == inf<V>();
+            const auto high = either(both(x == V(S(0)), y < V(S(0))), both(x == inf<V>(), y > V(S(0))));
+            const auto low = either(both(x == V(S(0)), y > V(S(0))), both(x == inf<V>(), y < V(S(0))));
+            const auto growing = either(both(x < V(S(1)), y < V(S(0))), both(x > V(S(1)), y > V(S(0))));
+            const auto shrinking = either(both(x < V(S(1)), y > V(S(0))), both(x > V(S(1)), y < V(S(0))));
+            r = select(either(high, both(infinite_exponent, growing)), inf<V>(),
+                       select(either(low, both(infinite_exponent, shrinking)), V(S(0)), r));
+        }
         return select(either(y == V(S(0)), x == V(S(1))), V(S(1)), r);
     }
 
@@ -1541,7 +1619,7 @@ namespace wray::inline WRAY_ABI::math::detail
     WRAY_INLINE V pow_magnitude(const V &x, const V &y) noexcept
     {
         using S = scalar_t<V>;
-        if constexpr (full<Tier>)
+        if constexpr (full<Tier> || std::is_same_v<Tier, balanced>)
         {
             if (!simd::all(both(log_regular_mask(x), abs(y) < V(format<S>::pow_y_safe))))
                 return pow_edge<Tier>(x, y);

@@ -223,16 +223,20 @@ def accuracy_chart(acc, tier, out):
             x = ys * np.log2(np.abs(x))
             if tier == "fast":
                 y = y / (1 + np.abs(x))
+            elif tier.startswith("balanced_"):
+                y = y / np.maximum(1, np.abs(x) / 4)
         finite = np.isfinite(y) & np.isfinite(x)
         xv, label = axis_values(x[finite])
         ax.scatter(xv, y[finite], s=2.4, color=COLORS[tier], alpha=0.6, linewidths=0, rasterized=True)
         ax.axhline(r["contract"], color=COLORS["contract"], linewidth=0.9, linestyle=(0, (4, 3)))
-        ax.set_xlabel("y log2 x" if name == "pow" else label, fontsize=8.5)
+        ax.set_xlabel(("y log2 |x|" if label == "x" else "sign(p) log10(1 + |p|), p = y log2 |x|") if name == "pow" else label, fontsize=8.5)
         ax.set_ylim(0, r["contract"] * 1.25)
         if tier == "fast":
             ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
         panel_title(ax, name, f"{r['score']:.3g} / {r['contract']:.3g}")
     unit = "relative error, pow scaled by 1 + |y log2 x|" if tier == "fast" else "error in ulp against mpmath at 40 digits"
+    if tier.startswith("balanced_"):
+        unit += "; pow ulp divided by max(1, |y log2 |x|| / 4)"
     fig.tight_layout(h_pad=2.0)
     header(fig, f"Accuracy · {TIER_LABEL[tier]}", f"{unit}; dashed line is the contract, corner shows worst / contract")
     save(fig, out, f"accuracy_{tier}")
@@ -290,7 +294,7 @@ def summary_chart(acc, out):
         ax.set_yticks(idx, names)
         mono_ticks(ax.get_yticklabels())
         ax.invert_yaxis()
-        ax.set_xlabel("worst error (ulp)")
+        ax.set_xlabel("worst error (ulp; pow product-scaled)")
         ax.set_title("Balanced tier")
         ax.legend(loc="upper right", bbox_to_anchor=(1, 1.2))
         value_axis(ax, "x")

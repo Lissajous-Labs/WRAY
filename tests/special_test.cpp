@@ -1,5 +1,6 @@
 #include <wray/wray.h>
 
+#include <array>
 #include <cfenv>
 #include <cmath>
 #include <limits>
@@ -293,12 +294,70 @@ namespace
             }
         }
         const int saved_rounding = std::fegetround();
+        struct power_case { T x; T y; T expected; };
+        const power_case powers[] = {
+            {nan, T(0), T(1)}, {T(1), nan, T(1)}, {T(-1), inf, T(1)}, {T(-1), -inf, T(1)},
+            {T(-1), nan, nan}, {T(-3), T(0.5), nan}, {nan, T(2), nan},
+            {-T(0), T(3), -T(0)}, {-T(0), T(2), T(0)}, {-T(0), T(-3), -inf}, {-T(0), T(-2), inf},
+            {-inf, T(3), -inf}, {-inf, T(2), inf}, {-inf, T(-3), -T(0)}, {-inf, T(-2), T(0)},
+            {-inf, T(0.5), inf}, {inf, T(-2), T(0)}, {T(0.5), inf, T(0)}, {T(2), -inf, T(0)},
+            {T(2), inf, inf}, {T(0.5), -inf, inf},
+            {T(1), std::numeric_limits<T>::max(), T(1)}, {T(1), -std::numeric_limits<T>::max(), T(1)}
+        };
+        struct boundary_case { T x; T y; long double normalized; };
+        const auto boundaries = [] {
+            if constexpr (std::is_same_v<T, float>)
+                return std::array<boundary_case, 3>{{
+                    {T(0x1.6a09e6p+0), T(0x1p+8), 1.99999123751235004176550776295623487007840394559754L},
+                    {std::numeric_limits<T>::max(), T(1), 0x1.fffffep0L},
+                    {std::nextafter(std::numeric_limits<T>::max(), T(0)), T(1), 0x1.fffffcp0L}
+                }};
+            else
+                return std::array<boundary_case, 5>{{
+                    {T(0x1.6a09e667f3bcdp+0), T(0x1.ffffffffffffep+10), 1.99999999999996478787848377585267927892907663667362L},
+                    {T(0x1.6a09e667f3bccp+0), T(0x1.0000000000001p+11), 1.99999999999995209169567501532784875406877473735936L},
+                    {T(0x1.6a09e667f3bcep+0), T(0x1.ffffffffffffap+10), 1.99999999999997748406129253578593582789122228331441L},
+                    {std::numeric_limits<T>::max(), T(1), 0x1.fffffffffffffp0L},
+                    {std::nextafter(std::numeric_limits<T>::max(), T(0)), T(1), 0x1.ffffffffffffep0L}
+                }};
+        }();
         for (int mode : {FE_TONEAREST, FE_UPWARD, FE_DOWNWARD, FE_TOWARDZERO})
         {
             CHECK(std::fesetround(mode) == 0);
             volatile T infinity = inf;
             CHECK(same(wray::balanced::tanh(T(infinity)), T(1)));
             CHECK(same(wray::balanced::tanh(-T(infinity)), T(-1)));
+            for (const auto& p : powers)
+            {
+                CHECK(same(wray::balanced::pow(p.x, p.y), p.expected));
+                const V got = wray::balanced::pow(V(p.x), V(p.y));
+                for (int i = 0; i < V::size; ++i)
+                    CHECK(same(got[i], p.expected));
+            }
+            const long double bound = (mode == FE_TONEAREST ? 4.0L : 8.0L) + (WRAY_HAS_FMA ? 0.0L : 0.5L);
+            for (const auto& p : boundaries)
+            {
+                const T got = wray::balanced::pow(p.x, p.y);
+                CHECK(std::isfinite(got));
+                const long double scale = std::fmax(1.0L, std::fabs(static_cast<long double>(p.y) * std::log2(static_cast<long double>(p.x))) / 4.0L);
+                const long double normalized = std::ldexp(static_cast<long double>(got), 1 - std::numeric_limits<T>::max_exponent);
+                const long double ulp = std::ldexp(1.0L, 1 - std::numeric_limits<T>::digits);
+                CHECK(std::fabs(normalized - p.normalized) / ulp / scale <= bound);
+                for (int kind = 0; kind < 3; ++kind)
+                    for (int lane = 0; lane < V::size; ++lane)
+                    {
+                        T bases[V::size], exponents[V::size];
+                        for (int i = 0; i < V::size; ++i)
+                        {
+                            const int ambient = (i + kind) % 3;
+                            bases[i] = i == lane ? p.x : ambient == 0 ? T(1.75) : ambient == 1 ? inf : nan;
+                            exponents[i] = i == lane ? p.y : ambient == 0 ? T(0.3) : ambient == 1 ? T(-1) : T(2);
+                        }
+                        const V result = wray::balanced::pow(V::load(bases), V::load(exponents));
+                        for (int i = 0; i < V::size; ++i)
+                            CHECK(same(result[i], i == lane ? got : wray::balanced::pow(bases[i], exponents[i])));
+                    }
+            }
         }
         CHECK(std::fesetround(saved_rounding) == 0);
     }

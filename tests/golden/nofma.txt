@@ -129,11 +129,13 @@ balanced_f32 sin 39c12067a197ea2d
 balanced_f32 sincos_cos 7baf26228dfa23b4
 balanced_f32 sincos_sin 24a325aacac88534
 balanced_f32 tanh 931d0f056162a0ec
+balanced_f32 pow 045b0eaadaa9e23d
 balanced_f64 cos 0923d5f6e44f30a2
 balanced_f64 sin 8736efa463086843
 balanced_f64 sincos_cos b63ba3c10447efbd
 balanced_f64 sincos_sin 6c8de7d20564fefc
 balanced_f64 tanh 1c8a8d8fda04bbf8
+balanced_f64 pow 6a9233f352535849
 f32 one_pole_0 b75154b11299e639
 f32 one_pole_1 579d7a42765638ff
 f32 one_pole_2 5de4c1691062dfb2

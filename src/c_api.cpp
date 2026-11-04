@@ -144,6 +144,8 @@ extern "C"
     WRAY_C_PAIR(wray::balanced, balanced_, sincos, double, f64)
     WRAY_C_UNARY(wray::balanced, balanced_, tanh, float, f32)
     WRAY_C_UNARY(wray::balanced, balanced_, tanh, double, f64)
+    WRAY_C_BINARY(wray::balanced, balanced_, pow, float, f32)
+    WRAY_C_BINARY(wray::balanced, balanced_, pow, double, f64)
 
 #undef WRAY_C_UNARY
 #undef WRAY_C_PAIR

@@ -134,6 +134,8 @@ WRAY_C_API void wray_balanced_cos_f64(const double *in, double *out, size_t n);
 WRAY_C_API void wray_balanced_sincos_f64(const double *in, double *sin_out, double *cos_out, size_t n);
 WRAY_C_API void wray_balanced_tanh_f32(const float *in, float *out, size_t n);
 WRAY_C_API void wray_balanced_tanh_f64(const double *in, double *out, size_t n);
+WRAY_C_API void wray_balanced_pow_f32(const float *x, const float *y, float *out, size_t n);
+WRAY_C_API void wray_balanced_pow_f64(const double *x, const double *y, double *out, size_t n);
 
 #ifdef __cplusplus
 }
