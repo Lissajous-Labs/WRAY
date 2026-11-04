@@ -544,5 +544,36 @@ jobs:
     needs: [changes, docs, test, avx512-coverage, strict-warnings, hostility, hostility-windows, debug, mutants, exhaustive, double-dense, benchmark-summary, landed]
     runs-on: ubuntu-24.04
     steps:
-      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: exit 1
+      - env:
+          NEEDS: ${{ toJSON(needs) }}
+          EVENT: ${{ github.event_name }}
+          EXHAUSTIVE: ${{ github.event_name == 'schedule' || inputs.exhaustive == true }}
+          DENSE: ${{ github.event_name == 'schedule' || inputs.exhaustive == true || inputs.dense == true }}
+          BENCHMARKS: ${{ github.event_name == 'workflow_dispatch' && inputs.benchmarks == true }}
+        shell: bash
+        run: |
+          if [ "$EVENT" = push ]; then
+            required=(landed)
+          elif [ "$(jq -r '.changes.outputs.code' <<< "$NEEDS")" = true ]; then
+            required=(changes test avx512-coverage strict-warnings hostility hostility-windows debug mutants)
+          else
+            required=(changes docs)
+          fi
+          if [ "$EXHAUSTIVE" = true ]; then required+=(exhaustive); fi
+          if [ "$DENSE" = true ]; then required+=(double-dense); fi
+          if [ "$BENCHMARKS" = true ]; then required+=(benchmark-summary); fi
+          status=0
+          for job in $(jq -r 'keys[]' <<< "$NEEDS"); do
+            result=$(jq -r --arg job "$job" '.[$job].result' <<< "$NEEDS")
+            if [[ " ${required[*]} " == *" $job "* ]]; then
+              expected=success
+            else
+              expected=success-or-skipped
+            fi
+            echo "$job: $result (expected $expected)"
+            if [ "$result" != success ] && { [ "$expected" = success ] || [ "$result" != skipped ]; }; then
+              echo "::error::$job finished as $result"
+              status=1
+            fi
+          done
+          exit "$status"

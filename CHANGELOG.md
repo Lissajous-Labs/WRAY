@@ -18,6 +18,7 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 
 ### Changed
 
+- `ci-pass` requires success from every job the event and change set should run. It previously failed only on `failure` or `cancelled` results, and passed #107 when both macOS arm64 test jobs were cancelled for lack of a runner (#109).
 - A push to `main` runs a single job that checks the pushed commit already passed `ci` in its pull request, instead of no run at all. The README badge reads `main`'s runs, so it had stayed on a stale failure from before #79 (#106).
 - Balanced `pow` accuracy and throughput are published in the dark/light figures. High-precision checks passed 250,180 pairs per precision and FMA class; worst scaled nearest error was 3.540 ulp. On M1 Max NEON, ratios of median costs show 25.5%/18.1% higher float/double ordinary-buffer throughput and 19.0%/18.2% lower scalar-chain cost than WRAY precise. It remains below vForce (0.782×/0.654×), below scalar libm in latency, and its subnormal-base edge cost rose about 33%/32% (#101).
 
