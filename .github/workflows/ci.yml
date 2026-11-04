@@ -525,15 +525,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          runs="repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=${{ github.sha }}&event=pull_request"
+          runs="repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=${{ github.sha }}&event=pull_request&per_page=100"
           for _ in $(seq 20); do
-            passed=$(gh api "$runs&status=success" --jq .total_count)
+            passed=$(gh api "$runs" --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')
             if [ "$passed" -ge 1 ]; then
               echo "${{ github.sha }} passed ci in $passed pull_request run(s)"
               exit 0
             fi
-            pending=$(gh api "$runs" --jq '[.workflow_runs[] | select(.status != "completed")] | length')
-            [ "$pending" -ge 1 ] || break
             sleep 15
           done
           echo "::error::${{ github.sha }} reached main without a successful pull_request ci run"
