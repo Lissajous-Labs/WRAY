@@ -18,6 +18,8 @@ All notable changes to WRAY are listed here. The format follows [Keep a Changelo
 
 ### Changed
 
+- Balanced `pow` accuracy and throughput are published in the dark/light figures. High-precision checks passed 250,180 pairs per precision and FMA class; worst scaled nearest error was 3.540 ulp. On M1 Max NEON, ratios of median costs show 25.5%/18.1% higher float/double ordinary-buffer throughput and 19.0%/18.2% lower scalar-chain cost than WRAY precise. It remains below vForce (0.782×/0.654×), below scalar libm in latency, and its subnormal-base edge cost rose about 33%/32% (#101).
+
 - Balanced trig accuracy and throughput are included in the dark/light figures. Every finite float passed on NEON and non-FMA SSE2 with a worst error of 2.454 ulp. M1 Max buffer throughput remains below vForce (0.76–0.95× float, 0.87–0.99× double), and separate-call scalar latency is slower than WRAY precise (#93).
 - Charts render on transparent backgrounds in a dark and a light variant, and the README picks the one matching the reader's GitHub theme. Throughput and latency use a log axis so the slowest functions no longer flatten the rest. Series and text colours keep at least 4.5:1 contrast on GitHub's default light and dark pages, and spectra are drawn as a peak-hold envelope rather than every FFT bin, which removes moiré without hiding any spur (#83).
 - CI runs AVX-512 tests in three jobs (GCC, Clang, MSVC); each runs natively when its runner has AVX-512 and is compile-only otherwise, and an `avx512-coverage` gate requires at least one native run, so a runner without AVX-512 no longer fails `main` on its own (#71).

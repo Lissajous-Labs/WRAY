@@ -116,7 +116,17 @@ Balanced `sin`, `cos` and `sincos` have float and double throughput, edge-input 
 
 Balanced `tanh` uses the same `wray balanced` throughput, edge-input and dependent scalar latency harness in float and double. No measured throughput or latency claim is made here for balanced `tanh`.
 
-Balanced `pow` uses the same binary throughput, edge-input throughput and dependent scalar latency harness in float and double under `wray balanced`, with the same subnormal-base edge workload as precise and fast `pow`. Accuracy plots divide its ulp error by `max(1, abs(y * log2(abs(x))) / 4)` before comparison with the candidate base bound. No balanced `pow` timing or accuracy measurement is claimed here.
+Balanced `pow` uses the same binary throughput, subnormal-base edge workload and dependent scalar latency harness in both precisions. Accuracy plots divide its ulp error by `max(1, abs(y * log2(abs(x))) / 4)` before comparison with the base bound.
+
+On Apple M1 Max NEON, revision `9475736`, paired ordinary-buffer throughput was 0.782× vForce in float (95% interval 0.774–0.786) and 0.654× in double (0.649–0.660). Against SLEEF's 1-ulp `pow`, the ratios were 3.641× (3.588–3.657) and 2.354× (2.329–2.379); that library does not offer a 3.5-ulp `pow` entry. These are different accuracy contracts, not equal-error comparisons.
+
+| median cost | float precise | float balanced | double precise | double balanced |
+|---|---:|---:|---:|---:|
+| ordinary buffer, ns/input | 2.516 | 2.004 | 7.523 | 6.373 |
+| edge buffer, ns/input | 3.714 | 4.930 | 10.133 | 13.384 |
+| dependent scalar, ns/call | 40.830 | 33.089 | 47.868 | 39.162 |
+
+Ratios of these medians give about 25.5% higher ordinary float throughput and 18.1% higher double throughput than WRAY precise, and 19.0%/18.2% lower scalar-chain cost. Edge-buffer cost instead rose by about 33%/32%. Balanced scalar latency still loses to libm (24.018 ns float, 32.906 ns double); neither precision beats vForce buffer throughput. No x86 speed claim is inferred from the local SSE2 correctness checks.
 
 For native x86 measurements, run `python tools/ci/benchmark.py --out benchmark-results` or dispatch CI with `benchmarks=true`. Each host runs its supported backends sequentially, never under an instruction emulator. CI collects Linux and Windows hosts and requires native results for SSE2, AVX2 and AVX-512 across the collected artifacts. Hosted-VM timings are not bare-metal measurements; CPU, compiler, flags and host manifests stay with the data.
 
@@ -126,7 +136,7 @@ Pull requests run CI. `main` only advances by fast-forwarding to a pull request 
 
 Documentation-only pull requests run the README checks instead of the full matrix. A failed change comparison blocks CI rather than skipping the code checks.
 
-Balanced functions use separate `balanced_f32` and `balanced_f64` accuracy and determinism tiers. The exhaustive finite-float and sampled high-precision double measurements for balanced trig are described in [Balanced tier](#balanced-tier); they do not describe balanced `tanh`. The older quad-precision sweep counts below are not claims about this new tier.
+Balanced functions use separate `balanced_f32` and `balanced_f64` accuracy and determinism tiers. Completed measurements for trig, `tanh` and `pow` are described in [Balanced tier](#balanced-tier). Binary `pow` uses sampled checks, not an exhaustive sweep. The older quad-precision sweep counts below are not claims about this new tier.
 
 - Exhaustive: every `float` input (all 2^32 bit patterns) for each unary function, `wray_accuracy_test --exhaustive`, weekly on NEON, SSE2, AVX2, AVX-512 and the scalar backend; the same run repeats every fourth input under flush-to-zero and each rounding mode, after reading back that the mode took effect.
 - Double: 10^8 inputs per `double` function weekly against a quad-precision reference (`tools/dense`, GCC on x86-64), with a rotating seed and the contracts as the gate; the reference is itself checked against mpmath on every run.
@@ -143,7 +153,7 @@ Balanced functions use separate `balanced_f32` and `balanced_f64` accuracy and d
 
 - x86 builds without FMA (SSE2, and the scalar backend on x86) add 0.5 ulp to every precise and balanced contract; arm64 always has FMA, scalar backend included.
 - For the established precise and fast tiers, flush-to-zero measurements stay within contract for normal inputs and outputs; subnormals read and write as zero.
-- For those established tiers, directed-rounding measurements grow by at most 1 ulp. Balanced functions have a separate 8-ulp directed-rounding bound, with the no-FMA margin above; the `tanh` bound is a candidate.
+- For those established tiers, directed-rounding measurements grow by at most 1 ulp. Balanced functions have a separate 8-ulp directed-rounding base bound, with the no-FMA margin above and the exponent-product scaling for `pow`.
 
 ### Large trig arguments
 
