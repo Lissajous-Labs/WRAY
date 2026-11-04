@@ -74,7 +74,7 @@ A deep sweep checks 4000 random parameter sets per filter type and precision, pl
 ## Backends and determinism
 
 - NEON covers arm64 with GCC, Clang and MSVC (Windows on ARM).
-- The headers compile without warnings under `-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wdouble-promotion -Wold-style-cast -Wshadow` and MSVC `/W4`.
+- The headers compile without warnings under `-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wdouble-promotion -Wold-style-cast -Wshadow -Wfloat-equal` and MSVC `/W4`, so they stay quiet under JUCE's recommended warning flags.
 - Scalar and SIMD results are bit-identical apart from the sign and payload of NaN results.
 - Results depend only on whether the build has FMA. Golden digests in `tests/golden` pin every function's output for the FMA class (NEON, AVX2, AVX-512) and the no-FMA class (SSE2, and scalar on x86), across compilers.
 - `WRAY_STRICT_FP` (on by default) stops consumers' compilers from contracting the library's arithmetic.
@@ -89,6 +89,74 @@ A deep sweep checks 4000 random parameter sets per filter type and precision, pl
 - Results are those of the matching C++ range function, bit for bit, for the backend and FMA class the library was compiled with. `wray_c_backend()` returns `"neon"`, `"sse2"`, `"avx2"`, `"avx512"` or `"scalar"`, and `wray_c_has_fma()` returns 1 or 0. Build `wray_c` with the most capable `WRAY_SIMD` your deployment targets support; one binary does not switch backends at run time.
 - No C++ symbols are exported, and no structs or callbacks cross the boundary, so Rust (`extern "C"`), Python (`ctypes` or `cffi`), Swift (a module map over the header), C# (`DllImport`) and LuaJIT FFI bind it directly.
 - `WRAY_C_ABI_VERSION` and `wray_c_abi_version()` start at 1. Existing names and signatures stay unchanged within a major version; new functions only add symbols.
+
+## Packages
+
+Every route installs the same headers. All but the JUCE module give you WRAY's own `wray::wray` target, which carries `-ffp-contract=off` (MSVC `/fp:precise`), C++20 and the `WRAY_SIMD` choice.
+
+### FetchContent and CPM
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(wray GIT_REPOSITORY https://github.com/Lissajous-Labs/WRAY.git GIT_TAG v1.0.5 GIT_SHALLOW TRUE)
+FetchContent_MakeAvailable(wray)
+target_link_libraries(your_target PRIVATE wray::wray)
+```
+
+```cmake
+CPMAddPackage("gh:Lissajous-Labs/WRAY@1.0.5")
+```
+
+When WRAY is not the top-level project, its tests, tools, benchmarks and install rules default to off, so fetching it builds nothing of its own. `FETCHCONTENT_SOURCE_DIR_WRAY` (FetchContent) or `CPM_WRAY_SOURCE` (CPM) points either at a local checkout instead. CI builds `tests/consumer/fetch_content` from the commit under test.
+
+### vcpkg
+
+`packaging/vcpkg/ports/wray` is an overlay port for the latest release tag; WRAY is not in the vcpkg registry.
+
+```sh
+vcpkg install wray --overlay-ports=WRAY/packaging/vcpkg/ports
+```
+
+In manifest mode, add `"wray"` to your `vcpkg.json` dependencies and list the same directory in `VCPKG_OVERLAY_PORTS`. With the vcpkg toolchain, `find_package(wray CONFIG REQUIRED)` finds the installed package.
+
+### Conan
+
+`packaging/conan` is a Conan 2 recipe; WRAY is not on ConanCenter.
+
+```sh
+conan create WRAY/packaging/conan --version 1.0.5 -s compiler.cppstd=20
+```
+
+- A version listed in `conandata.yml` downloads that release tag and checks its SHA-256. Any other version, such as `--version dev`, packages the checkout the recipe sits in; CI does this.
+- The recipe rejects a `compiler.cppstd` below 20.
+- The package installs WRAY's own CMake config, so `find_package(wray CONFIG REQUIRED)` under `CMakeToolchain` gives the same `wray::wray` target. Other generators get the floating-point flag from `cpp_info.cxxflags`.
+
+### JUCE
+
+`include/wray` is a JUCE module with ID `wray`; `wray.h` carries the module declaration, and the other headers already include each other by relative path.
+
+```cmake
+juce_add_module(WRAY/include/wray)
+target_link_libraries(YourPlugin PRIVATE wray)
+target_compile_options(YourPlugin PRIVATE $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-ffp-contract=off>)
+```
+
+- The module format has no field for compiler flags, so the module cannot add `-ffp-contract=off` itself. Under Clang the headers' pragmas keep WRAY's own arithmetic uncontracted unless `-ffp-contract=fast` is set; GCC has no such pragma, and `wray::floating_point_ok()` reports a contracting build. Visual Studio needs nothing: its default is `/fp:precise`, and `/fp:fast` stops the build.
+- In a CMake project you can instead use `add_subdirectory(WRAY)` and link `wray::wray`, which adds the flag. Do not use both in one project: both define a target named `wray`.
+- In the Projucer, use **Add a module from a specified folder** on `WRAY/include/wray`, with or without copying it locally, and add `-ffp-contract=off` to the Extra Compiler Flags of each Xcode, Makefile or CLion exporter.
+- `juce_recommended_warning_flags` turns on `-Wfloat-equal`, which flags WRAY's intentional exact comparisons in `floating_point.h` and the filter headers. They are warnings, not errors.
+- CI builds `tests/consumer/juce`, a JUCE 8.0.10 console app, with GCC 14 on Linux.
+
+### Updating the packages after a release
+
+The vcpkg port and the Conan recipe point at a published tag, so they can only be updated once the tag exists. After tagging `vX.Y.Z`:
+
+1. `curl -L https://github.com/Lissajous-Labs/WRAY/archive/refs/tags/vX.Y.Z.tar.gz -o wray.tar.gz`
+2. In `packaging/vcpkg/ports/wray`, set `"version"` in `vcpkg.json` to `X.Y.Z` and `SHA512` in `portfile.cmake` to `shasum -a 512 wray.tar.gz`.
+3. In `packaging/conan/conandata.yml`, add `"X.Y.Z"` with that URL and `shasum -a 256 wray.tar.gz`.
+4. Change the `v1.0.5` and `1.0.5` examples in the README and on this page.
+
+The JUCE module `version` in `include/wray/wray.h` moves with `project(wray VERSION ...)` in the same commit, and CI fails if they differ.
 
 ## Performance
 

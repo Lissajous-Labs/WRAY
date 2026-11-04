@@ -1,0 +1,4 @@
+sources:
+  "1.0.5":
+    url: "https://github.com/Lissajous-Labs/WRAY/archive/refs/tags/v1.0.5.tar.gz"
+    sha256: "2d62d03a2221c49f7a513f42e3f6241a225218caceda0e95f5e507c8530da25d"

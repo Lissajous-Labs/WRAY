@@ -66,11 +66,14 @@
 #endif
 
 #if defined(__clang__)
-#define WRAY_FP_BEGIN _Pragma("float_control(push)") _Pragma("float_control(precise, on)") _Pragma("clang fp contract(off) reassociate(off)")
-#define WRAY_FP_END _Pragma("float_control(pop)")
+#define WRAY_FP_BEGIN _Pragma("float_control(push)") _Pragma("float_control(precise, on)") _Pragma("clang fp contract(off) reassociate(off)") _Pragma("clang diagnostic push") _Pragma("clang diagnostic ignored \"-Wfloat-equal\"")
+#define WRAY_FP_END _Pragma("clang diagnostic pop") _Pragma("float_control(pop)")
 #elif defined(_MSC_VER) && defined(_M_FP_CONTRACT)
 #define WRAY_FP_BEGIN __pragma(fp_contract(off))
 #define WRAY_FP_END __pragma(fp_contract(on))
+#elif defined(__GNUC__)
+#define WRAY_FP_BEGIN _Pragma("GCC diagnostic push") _Pragma("GCC diagnostic ignored \"-Wfloat-equal\"")
+#define WRAY_FP_END _Pragma("GCC diagnostic pop")
 #else
 #define WRAY_FP_BEGIN
 #define WRAY_FP_END
