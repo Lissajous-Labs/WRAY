@@ -1,0 +1,17 @@
+{
+  "name": "wray",
+  "version": "1.0.5",
+  "description": "Verified SIMD math for audio DSP: header-only C++20 with NEON, SSE2, AVX2, AVX-512 and scalar backends.",
+  "homepage": "https://github.com/Lissajous-Labs/WRAY",
+  "license": "GPL-2.0-or-later",
+  "dependencies": [
+    {
+      "name": "vcpkg-cmake",
+      "host": true
+    },
+    {
+      "name": "vcpkg-cmake-config",
+      "host": true
+    }
+  ]
+}

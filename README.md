@@ -81,6 +81,23 @@ find_package(wray 1.0 REQUIRED)
 target_link_libraries(your_target PRIVATE wray::wray)
 ```
 
+or fetch it:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(wray GIT_REPOSITORY https://github.com/Lissajous-Labs/WRAY.git GIT_TAG v1.0.5 GIT_SHALLOW TRUE)
+FetchContent_MakeAvailable(wray)
+```
+
+The repository also carries a vcpkg overlay port, a Conan 2 recipe and a JUCE module; none is in a public registry yet:
+
+```sh
+vcpkg install wray --overlay-ports=WRAY/packaging/vcpkg/ports
+conan create WRAY/packaging/conan --version 1.0.5 -s compiler.cppstd=20
+```
+
+For JUCE, `include/wray` is the module: `juce_add_module(WRAY/include/wray)`, or add that folder in the Projucer. The module cannot carry compiler flags, so add `-ffp-contract=off` for GCC and Clang yourself; every other route gets it from `wray::wray`. [Package details](docs/details.md#packages).
+
 `WRAY_SIMD` (`auto`, `scalar`, `sse2`, `avx2`, `avx512`) picks the x86 instruction set and travels with the `wray::wray` target.
 
 ### From C, Rust, Python or Swift

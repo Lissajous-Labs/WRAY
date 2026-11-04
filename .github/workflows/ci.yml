@@ -196,7 +196,7 @@ jobs:
       - if: runner.os == 'Linux'
         shell: bash
         run: |
-          flags=(-std=c++20 -O1 -ffp-contract=off -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wdouble-promotion -Wold-style-cast -Wshadow -Werror -I include)
+          flags=(-std=c++20 -O1 -ffp-contract=off -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wdouble-promotion -Wold-style-cast -Wshadow -Wfloat-equal -Werror -I include)
           if [ "$(uname -m)" = x86_64 ]; then simd=("-msse2 -mno-avx" "-mavx2 -mfma" "-mavx512f -mavx2 -mfma" "-DWRAY_SIMD_SCALAR=1"); else simd=("" "-DWRAY_SIMD_SCALAR=1"); fi
           for cxx in g++-14 clang++-18; do
             for s in "${simd[@]}"; do
@@ -298,6 +298,46 @@ jobs:
           $result = & ./strict.exe
           Write-Output "/fp:contract: $result"
           if (-not $result.StartsWith("1 ")) { Write-Output "/fp:contract changed the floating-point model inside wray"; exit 1 }
+
+  consumers:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CC: gcc-14
+      CXX: g++-14
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - run: sudo apt-get install -y ninja-build libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev
+
+      - name: JUCE module version matches the project
+        shell: bash
+        run: |
+          version=$(sed -n 's/^project(wray VERSION \([0-9.]*\) .*/\1/p' CMakeLists.txt)
+          grep -Eq "^ +version: +${version//./\\.}$" include/wray/wray.h || { echo "::error::include/wray/wray.h module version is not $version"; exit 1; }
+
+      - name: FetchContent consumer
+        run: |
+          cmake -S tests/consumer/fetch_content -B fetch-content -G Ninja -DCMAKE_BUILD_TYPE=Release -DWRAY_GIT_REPOSITORY="$PWD" -DWRAY_GIT_TAG="$(git rev-parse HEAD)"
+          cmake --build fetch-content
+          ./fetch-content/wray_fetch_content_consumer
+
+      - name: Conan package consumer
+        run: |
+          python3 -m venv "$RUNNER_TEMP/conan"
+          "$RUNNER_TEMP/conan/bin/pip" install "conan>=2.0,<3"
+          export CONAN_HOME="$RUNNER_TEMP/conan-home"
+          "$RUNNER_TEMP/conan/bin/conan" profile detect
+          "$RUNNER_TEMP/conan/bin/conan" create packaging/conan --version dev -s compiler.cppstd=20 -c tools.cmake.cmaketoolchain:generator=Ninja
+
+      - name: JUCE module consumer
+        run: |
+          git clone --depth 1 --branch 8.0.10 https://github.com/juce-framework/JUCE.git "$RUNNER_TEMP/JUCE"
+          cmake -S tests/consumer/juce -B juce-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DJUCE_SOURCE_DIR="$RUNNER_TEMP/JUCE"
+          cmake --build juce-consumer
+          ./juce-consumer/wray_juce_consumer_artefacts/Release/wray_juce_consumer
 
   debug:
     name: debug-O0
@@ -539,7 +579,7 @@ jobs:
 
   ci-pass:
     if: always()
-    needs: [changes, docs, test, avx512-coverage, strict-warnings, hostility, hostility-windows, debug, mutants, exhaustive, double-dense, benchmark-summary, landed]
+    needs: [changes, docs, test, avx512-coverage, strict-warnings, hostility, hostility-windows, consumers, debug, mutants, exhaustive, double-dense, benchmark-summary, landed]
     runs-on: ubuntu-24.04
     steps:
       - env:
@@ -553,7 +593,7 @@ jobs:
           if [ "$EVENT" = push ]; then
             required=(landed)
           elif [ "$(jq -r '.changes.outputs.code' <<< "$NEEDS")" = true ]; then
-            required=(changes test avx512-coverage strict-warnings hostility hostility-windows debug mutants)
+            required=(changes test avx512-coverage strict-warnings hostility hostility-windows consumers debug mutants)
           else
             required=(changes docs)
           fi
