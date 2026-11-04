@@ -193,6 +193,14 @@ cmake -S . -B build -G Ninja && cmake --build build && ctest --test-dir build
 
 Exact thresholds and flag-by-flag behavior: [details](docs/details.md#where-it-stops-working).
 
+## When to use something else
+
+- **macOS only, buffer throughput first:** Apple vForce is faster than the precise tier (about 0.6× on an M1 Max), if results may vary across Apple chips and OS versions.
+- **Linux x86 only, 4-ulp accuracy acceptable:** glibc libmvec is faster than the precise tier with AVX2 and AVX-512 (0.69–0.84×).
+- **Isolated scalar calls:** platform libm is often faster for dependent scalar calls.
+
+Use WRAY when you need the same bits on every backend, documented error bounds, one codebase across NEON and x86, or its audio functions (turns, dB and MIDI maps, smoothing coefficients, ADAA, filters). It is 2.2–2.6× SLEEF's 1-ulp tier on the M1 Max and 1.6–1.9× on Linux x86. [Measured standings](docs/details.md#performance).
+
 ## Rational minimax cores
 
 Each core is fitted by a rational Remez exchange; `docs/data/cores.json` records how well each fit converged. [Details](docs/details.md#rational-minimax-cores).
