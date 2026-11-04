@@ -2,6 +2,8 @@ name: ci
 
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       exhaustive:
@@ -32,6 +34,7 @@ concurrency:
 
 jobs:
   changes:
+    if: github.event_name != 'push'
     runs-on: ubuntu-24.04
     outputs:
       code: ${{ steps.diff.outputs.code }}
@@ -511,9 +514,34 @@ jobs:
               raise SystemExit("Linux benchmarks must measure SLEEF and glibc libmvec: " + ", ".join(absent or ["no Linux runs"]))
           PY
 
+  landed:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          runs="repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=${{ github.sha }}&event=pull_request"
+          for _ in $(seq 20); do
+            passed=$(gh api "$runs&status=success" --jq .total_count)
+            if [ "$passed" -ge 1 ]; then
+              echo "${{ github.sha }} passed ci in $passed pull_request run(s)"
+              exit 0
+            fi
+            pending=$(gh api "$runs" --jq '[.workflow_runs[] | select(.status != "completed")] | length')
+            [ "$pending" -ge 1 ] || break
+            sleep 15
+          done
+          echo "::error::${{ github.sha }} reached main without a successful pull_request ci run"
+          exit 1
+
   ci-pass:
     if: always()
-    needs: [changes, docs, test, avx512-coverage, strict-warnings, hostility, hostility-windows, debug, mutants, exhaustive, double-dense, benchmark-summary]
+    needs: [changes, docs, test, avx512-coverage, strict-warnings, hostility, hostility-windows, debug, mutants, exhaustive, double-dense, benchmark-summary, landed]
     runs-on: ubuntu-24.04
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')

@@ -132,7 +132,7 @@ For native x86 measurements, run `python tools/ci/benchmark.py --out benchmark-r
 
 ## How it is verified
 
-Pull requests run CI. `main` only advances by fast-forwarding to a pull request head whose `ci-pass` succeeded, so every commit on `main` has already passed the full matrix and keeps its signature; pushes do not run the matrix again. Manual and scheduled runs have separate concurrency groups, so ordinary development cannot cancel a release sweep.
+Pull requests run CI. `main` only advances by fast-forwarding to a pull request head whose `ci-pass` succeeded, so every commit on `main` has already passed the full matrix and keeps its signature. A push to `main` does not rerun the matrix: its `ci` run only confirms that the pushed commit has a successful pull request run, which keeps the README badge tied to `main`. Manual and scheduled runs have separate concurrency groups, so ordinary development cannot cancel a release sweep.
 
 Documentation-only pull requests run the README checks instead of the full matrix. A failed change comparison blocks CI rather than skipping the code checks.
 
